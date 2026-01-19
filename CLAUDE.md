@@ -511,9 +511,9 @@ Variables successfully extracted: 1/9
 
 **Solution:** Use `region='global'` when plotting ocean variables.
 
-### Problem: STASH codes with 's' suffix (FIXED in v2026-01)
+### Problem: NetCDF STASH codes show 's' suffix in ncdump
 
-**Symptom:** Variables exist in files but extraction reports NOT FOUND. When checking files:
+**What you see:** When checking NetCDF files:
 ```bash
 ncdump -h file.nc | grep stash_code
 ```
@@ -523,11 +523,7 @@ stash_code = 3261s ;    ← Note the 's' suffix
 stash_code = 19002s ;
 ```
 
-**Cause:** Some CDO/NCO workflows append 's' suffix to STASH codes during NetCDF processing.
-
-**Solution:** This is now automatically handled (fixed 2026-01). The extraction code strips the 's' suffix before matching.
-
-**If you're using an older version:** Update to latest version or manually update `_msi_from_numeric_stash_code()` in analysis.py.
+**Clarification:** The 's' is a **NetCDF CDL type indicator** (short integer), NOT part of the actual value. When iris loads the file, `stash_code` attributes are plain Python integers (e.g., `3261`, not `'3261s'`). This is normal and requires no special handling.
 
 ### Problem: Wrong STASH codes in NetCDF files
 
