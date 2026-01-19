@@ -29,6 +29,8 @@ Visualization module with functions for:
 
 ## Quick Start
 
+### Option 1: From Pre-processed Annual Mean Files
+
 ```python
 import os
 import sys
@@ -44,12 +46,53 @@ plot_timeseries_grouped(ds, expts_list=['xqhuc'],
                         region='global', outdir='./plots/')
 ```
 
+### Option 2: From Raw Monthly UM Files
+
+**Using Shell Script (Recommended):**
+```bash
+./extract_xqhuj.sh
+```
+
+**Using Python Directly:**
+```python
+from analysis import extract_annual_mean_raw
+import matplotlib.pyplot as plt
+
+# Extract from raw monthly files
+data = extract_annual_mean_raw('xqhuj')
+
+# Plot GPP
+plt.plot(data['GPP']['years'][1:], data['GPP']['data'][1:])
+plt.xlabel('Year')
+plt.ylabel('GPP (PgC/year)')
+plt.show()
+```
+
+**Using Python Script:**
+```bash
+python extract_and_plot_raw.py xqhuj --outdir ./plots
+```
+
 ## Input Data Requirements
+
+### For Pre-processed Annual Means
 
 Annual mean NetCDF files should be located in `~/annual_mean/{expt}/`:
 - `{expt}_pa_annual_mean.nc` - Atmosphere (temp, precip)
 - `{expt}_pt_annual_mean.nc` - TRIFFID (GPP, NPP, soil resp, carbon stocks, PFTs)
 - `{expt}_pf_annual_mean.nc` - Ocean (fgco2)
+
+Generate these files using:
+```bash
+./annual_mean_cdo.sh "xqhuj" ~/annual_mean pt pd pf
+```
+
+### For Raw Monthly Files
+
+Raw monthly UM output files in `~/dump2hold/{expt}/datam/`:
+- Files matching pattern: `{expt}a#pi00000{YYYY}{MM}+`
+- Month codes: `ja`-`dc` (alpha) or `11`-`c1` (numeric)
+- Example: `xqhuja#pi000018511ja+` (January 1851)
 
 ## Variables Processed
 
