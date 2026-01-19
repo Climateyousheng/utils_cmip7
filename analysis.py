@@ -907,3 +907,150 @@ def extract_annual_means(expts_list, var_list=None, var_mapping=None, regions=No
     return dict_annual_means
 
 
+def extract_annual_mean_raw(expt, base_dir='~/dump2hold', start_year=None, end_year=None):
+    """
+    Extract annual means from raw monthly UM output files.
+
+    This function processes raw monthly files in ~/dump2hold/expt/datam/
+    (not pre-processed annual mean NetCDF files).
+
+    Parameters
+    ----------
+    expt : str
+        Experiment name (e.g., 'xqhuj')
+    base_dir : str, optional
+        Base directory containing raw files (default: '~/dump2hold')
+    start_year : int, optional
+        First year to process (default: None = all years)
+    end_year : int, optional
+        Last year to process (default: None = all years)
+
+    Returns
+    -------
+    dict
+        Dictionary with structure:
+        {
+            'GPP': {'years': array, 'data': array, 'units': str, 'name': str},
+            'NPP': {'years': array, 'data': array, 'units': str, 'name': str},
+            'soilResp': {'years': array, 'data': array, 'units': str, 'name': str},
+            'VegCarb': {'years': array, 'data': array, 'units': str, 'name': str},
+            'soilCarbon': {'years': array, 'data': array, 'units': str, 'name': str},
+        }
+
+    Example
+    -------
+    >>> data = extract_annual_mean_raw('xqhuj')
+    >>> plt.plot(data['GPP']['years'], data['GPP']['data'])
+    """
+
+    # Variables to extract: (code, display_name, mapping_name)
+    variables = [
+        ('gpp', 'GPP', 'GPP'),
+        ('npp', 'NPP', 'NPP'),
+        ('rh', 'soilResp', 'S resp'),
+        ('cv', 'VegCarb', 'V carb'),
+        ('cs', 'soilCarbon', 'S carb'),
+    ]
+
+    print(f"\n{'='*60}")
+    print(f"Extracting annual means from raw monthly files: {expt}")
+    print(f"{'='*60}")
+
+    # Find raw monthly output files
+    print(f"\nSearching for files in {base_dir}/{expt}/datam/...")
+    files = find_matching_files(
+        expt_name=expt,
+        model='a',
+        up='pi',
+        start_year=start_year,
+        end_year=end_year,
+        base_dir=base_dir,
+    )
+    print(f"Found {len(files)} monthly files")
+
+    if not files:
+        print(f"  ⚠ No files found!")
+        return {}
+
+    print(f"  Year range: {files[0][0]} - {files[-1][0]}")
+
+    # Dictionary to store results
+    annual_means = {}
+
+    # Process each variable
+    for var_code, var_key, var_name in variables:
+        print(f"\n{'='*60}")
+        print(f"Processing {var_key} ({var_code})")
+        print(f"{'='*60}")
+
+        monthly_results = []
+        files_processed = 0
+        files_failed = 0
+
+        for y, m, f in files:
+            try:
+                # Load cubes from file
+                cubes = iris.load(f)
+
+                # Extract the variable
+                cube = try_extract(cubes, var_code, stash_lookup_func=stash)
+
+                if not cube:
+                    files_failed += 1
+                    continue
+
+                # Compute monthly mean
+                mm = compute_monthly_mean(cube[0], var_name)
+                monthly_results.append(mm)
+                files_processed += 1
+
+            except Exception as e:
+                files_failed += 1
+                continue
+
+        if monthly_results:
+            # Merge monthly results into annual means
+            annual_data = merge_monthly_results(monthly_results)
+            annual_means[var_key] = {
+                'years': annual_data['years'],
+                'data': annual_data['data'],
+                'units': 'PgC/year' if var_key in ('GPP', 'NPP', 'soilResp') else 'PgC',
+                'name': annual_data.get('name', var_key),
+            }
+
+            print(f"  ✓ Successfully processed {files_processed}/{len(files)} files")
+            print(f"  ✓ Got {len(annual_data['years'])} years of data")
+            print(f"  Years: {annual_data['years'][0]} - {annual_data['years'][-1]}")
+            if files_failed > 0:
+                print(f"  ⚠ Failed: {files_failed} files")
+        else:
+            print(f"  ❌ No data extracted for {var_key}")
+
+    # Compute derived variables
+    if 'NPP' in annual_means and 'soilResp' in annual_means:
+        print(f"\n{'='*60}")
+        print("Computing derived variable: NEP")
+        print(f"{'='*60}")
+        nep_years = annual_means['NPP']['years'].copy()
+        nep_data = annual_means['NPP']['data'] - annual_means['soilResp']['data']
+        annual_means['NEP'] = {
+            'years': nep_years,
+            'data': nep_data,
+            'units': 'PgC/year',
+            'name': 'Net Ecosystem Production',
+        }
+        print(f"  ✓ NEP computed: {len(nep_years)} years")
+
+    # Summary
+    print(f"\n{'='*60}")
+    print(f"EXTRACTION SUMMARY")
+    print(f"{'='*60}")
+    print(f"Variables successfully extracted: {len(annual_means)}")
+    for var_key in annual_means.keys():
+        n_years = len(annual_means[var_key]['data'])
+        print(f"  ✓ {var_key}: {n_years} years")
+    print(f"{'='*60}\n")
+
+    return annual_means
+
+
