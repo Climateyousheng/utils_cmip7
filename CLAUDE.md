@@ -422,3 +422,110 @@ Common variables used in carbon cycle analysis:
 - All plots use 300 DPI for publication quality
 - Default calendar: 360-day (UM standard)
 - Regional analysis uses RECCAP2 mask at HadCM3 grid resolution
+
+---
+
+## Troubleshooting
+
+### Problem: Plots only show Trees Total (or other subset of variables)
+
+**Symptom:** When calling `plot_timeseries_grouped()`, only one or two variables appear instead of the expected 9+ variables.
+
+**Root Cause:** Variables are missing from the data structure because `extract_annual_means()` couldn't find them in the NetCDF files.
+
+**Diagnosis:** The improved error handling (added 2026-01) now provides detailed diagnostics during extraction:
+
+```python
+from analysis import extract_annual_means
+
+ds = extract_annual_means(expts_list=['xqhuc'])
+```
+
+**Output example:**
+```
+============================================================
+Extracting data for experiment: xqhuc
+============================================================
+Looking in: /home/user/annual_mean/xqhuc/
+NetCDF files found: 1
+  - xqhuc_pt_annual_mean.nc
+
+Total cubes loaded: 12
+
+Extracting variables...
+  ❌ soilResp (rh, m01s03i293): NOT FOUND
+  ❌ soilCarbon (cs, m01s19i016): NOT FOUND
+  ❌ VegCarb (cv, m01s19i002): NOT FOUND
+  ✓ fracPFTs (frac): Found (via stash code 3317)
+  ❌ GPP (gpp, m01s03i261): NOT FOUND
+  ❌ NPP (npp, m01s03i262): NOT FOUND
+  ❌ fgco2 (fgco2, m02s30i249): NOT FOUND
+  ❌ temp (tas, m01s03i236): NOT FOUND
+  ❌ precip (pr, m01s05i216): NOT FOUND
+
+============================================================
+Extraction Summary for xqhuc
+============================================================
+Variables successfully extracted: 1/9
+  Found: fracPFTs
+  ⚠ Missing: soilResp, soilCarbon, VegCarb, GPP, NPP, fgco2, temp, precip
+
+  These variables will NOT appear in plots!
+============================================================
+```
+
+**Solutions:**
+
+1. **Check if annual mean files exist:**
+   ```bash
+   ls -lh ~/annual_mean/xqhuc/
+   ```
+   Expected files:
+   - `xqhuc_pt_annual_mean.nc` (TRIFFID variables)
+   - `xqhuc_pd_annual_mean.nc` (atmosphere variables)
+   - `xqhuc_pf_annual_mean.nc` (ocean variables)
+
+2. **Generate missing annual mean files:**
+   ```bash
+   cd /path/to/scripts
+   ./annual_mean_cdo.sh "xqhuc" ~/annual_mean pt pd pf
+   ```
+
+3. **Check file contents for STASH codes:**
+   ```bash
+   ncdump -h ~/annual_mean/xqhuc/xqhuc_pt_annual_mean.nc | grep STASH
+   ```
+   Should show variables with stash_code attribute (e.g., 3261 for GPP, 3262 for NPP)
+
+4. **Verify source data location:**
+   The `annual_mean_cdo.sh` script looks for monthly output in:
+   - `~/umdata/xqhuc/pt/*.nc` (TRIFFID)
+   - `~/umdata/xqhuc/pd/*.nc` (atmosphere)
+   - `~/umdata/xqhuc/pf/*.nc` (ocean)
+
+### Problem: Variables extracted but still missing from regional plots
+
+**Symptom:** Variables show ✓ during extraction but don't appear in regional (non-global) plots.
+
+**Cause:** `fgco2` (ocean CO2 flux) is intentionally skipped for non-global regions (line 843 in analysis.py).
+
+**Solution:** Use `region='global'` when plotting ocean variables.
+
+### Problem: Wrong STASH codes in NetCDF files
+
+**Symptom:** Variables exist in files but extraction reports NOT FOUND.
+
+**Diagnosis:** Check actual STASH codes in files:
+```bash
+ncdump -h file.nc | grep stash_code
+```
+
+**Solution:** If STASH codes differ from expected values, update the `stash()` or `stash_nc()` functions in analysis.py or use custom `var_list` and `var_mapping` parameters:
+
+```python
+ds = extract_annual_means(
+    expts_list=['xqhuc'],
+    var_list=['custom_var1', 'custom_var2'],
+    var_mapping=['mapping1', 'mapping2']
+)
+```
