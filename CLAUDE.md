@@ -126,6 +126,70 @@ Automatic unit conversions applied to standard variables:
 
 ---
 
+### High-Level Analysis (Raw Monthly Files)
+
+- `extract_annual_mean_raw(expt, base_dir='~/dump2hold', start_year=None, end_year=None)` - **Extract from raw monthly files**
+
+  **Purpose:** Process raw monthly UM output files directly (not pre-processed annual mean NetCDF files).
+
+  **Use case:** When you have raw monthly files in `~/dump2hold/expt/datam/` but no pre-processed annual means.
+
+  **Variables Extracted:**
+  - `GPP` - Gross Primary Production
+  - `NPP` - Net Primary Production
+  - `soilResp` - Soil respiration
+  - `VegCarb` - Vegetation carbon
+  - `soilCarbon` - Soil carbon
+  - `NEP` - Net Ecosystem Production (derived: NPP - soilResp)
+
+  **Workflow:**
+  1. Finds raw monthly files using `find_matching_files()`
+  2. Extracts variables using `try_extract()` with STASH lookup
+  3. Computes monthly means with `compute_monthly_mean()`
+  4. Merges into annual means with `merge_monthly_results()`
+  5. Returns dict with years, data, units for each variable
+
+  **Returns:**
+  ```python
+  {
+      'GPP': {'years': array, 'data': array, 'units': 'PgC/year', 'name': str},
+      'NPP': {'years': array, 'data': array, 'units': 'PgC/year', 'name': str},
+      'soilResp': {'years': array, 'data': array, 'units': 'PgC/year', 'name': str},
+      'VegCarb': {'years': array, 'data': array, 'units': 'PgC', 'name': str},
+      'soilCarbon': {'years': array, 'data': array, 'units': 'PgC', 'name': str},
+      'NEP': {'years': array, 'data': array, 'units': 'PgC/year', 'name': str},
+  }
+  ```
+
+  **Example:**
+  ```python
+  # Extract from raw monthly files
+  data = extract_annual_mean_raw('xqhuj')
+
+  # Plot GPP time series
+  import matplotlib.pyplot as plt
+  plt.plot(data['GPP']['years'], data['GPP']['data'])
+  plt.xlabel('Year')
+  plt.ylabel('GPP (PgC/year)')
+  plt.show()
+
+  # Access NEP
+  nep_years = data['NEP']['years']
+  nep_values = data['NEP']['data']
+  ```
+
+  **Comparison with `extract_annual_means()`:**
+
+  | Feature | `extract_annual_mean_raw()` | `extract_annual_means()` |
+  |---------|----------------------------|-------------------------|
+  | Input files | Raw monthly UM output | Pre-processed annual mean NetCDF |
+  | Location | `~/dump2hold/expt/datam/` | `~/annual_mean/expt/` |
+  | Regional analysis | No (global only) | Yes (RECCAP2 regions) |
+  | Processing speed | Slower (reads many files) | Faster (reads 3 files) |
+  | Use case | Direct from UM runs | After CDO post-processing |
+
+---
+
 ## Module: plot.py
 
 Visualization module (~431 lines) for publication-quality carbon cycle plots.
