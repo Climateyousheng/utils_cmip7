@@ -239,7 +239,6 @@ def _msi_from_stash_obj(st):
 def _msi_from_numeric_stash_code(code):
     """
     Numeric stash_code like 3261 -> s=3, i=261 -> 'm01s03i261'
-    Also handles string codes with 's' suffix like '3261s' or '19002s'
     Heuristic for model:
       section >= 30 => model 2 (ocean/CO2 flux sections in your data)
       else => model 1
@@ -247,9 +246,6 @@ def _msi_from_numeric_stash_code(code):
     if code is None:
         return None
     try:
-        # Handle string codes with 's' suffix (e.g., '3261s')
-        if isinstance(code, str):
-            code = code.rstrip('s')
         n = int(code)  # handles np.int16 etc
     except Exception:
         return None
@@ -754,25 +750,25 @@ def extract_annual_means(expts_list, var_list=None, var_mapping=None, regions=No
         # Extract variables with warnings
         print(f"\nExtracting variables...")
 
-        sr = try_extract(cubes, 'rh')
+        sr = try_extract(cubes, 'rh', stash_lookup_func=stash)
         if not sr:
             print("  ❌ soilResp (rh, m01s03i293): NOT FOUND")
         else:
             print("  ✓ soilResp (rh): Found")
 
-        sc = try_extract(cubes, 'cs')
+        sc = try_extract(cubes, 'cs', stash_lookup_func=stash)
         if not sc:
             print("  ❌ soilCarbon (cs, m01s19i016): NOT FOUND")
         else:
             print("  ✓ soilCarbon (cs): Found")
 
-        vc = try_extract(cubes, 'cv')
+        vc = try_extract(cubes, 'cv', stash_lookup_func=stash)
         if not vc:
             print("  ❌ VegCarb (cv, m01s19i002): NOT FOUND")
         else:
             print("  ✓ VegCarb (cv): Found")
 
-        frac = try_extract(cubes, 'frac')
+        frac = try_extract(cubes, 'frac', stash_lookup_func=stash)
         if not frac:
             print("  ⚠ fracPFTs (frac, m01s19i013): NOT FOUND, trying stash code 3317")
             frac = try_extract(cubes, 3317)
@@ -783,31 +779,31 @@ def extract_annual_means(expts_list, var_list=None, var_mapping=None, regions=No
         else:
             print("  ✓ fracPFTs (frac): Found")
 
-        gpp = try_extract(cubes, 'gpp')
+        gpp = try_extract(cubes, 'gpp', stash_lookup_func=stash)
         if not gpp:
             print("  ❌ GPP (gpp, m01s03i261): NOT FOUND")
         else:
             print("  ✓ GPP (gpp): Found")
 
-        npp = try_extract(cubes, 'npp')
+        npp = try_extract(cubes, 'npp', stash_lookup_func=stash)
         if not npp:
             print("  ❌ NPP (npp, m01s03i262): NOT FOUND")
         else:
             print("  ✓ NPP (npp): Found")
 
-        fgco2 = try_extract(cubes, 'fgco2')
+        fgco2 = try_extract(cubes, 'fgco2', stash_lookup_func=stash)
         if not fgco2:
             print("  ❌ fgco2 (fgco2, m02s30i249): NOT FOUND")
         else:
             print("  ✓ fgco2: Found")
 
-        temp = try_extract(cubes, 'tas')
+        temp = try_extract(cubes, 'tas', stash_lookup_func=stash)
         if not temp:
             print("  ❌ temp (tas, m01s03i236): NOT FOUND")
         else:
             print("  ✓ temp (tas): Found")
 
-        precip = try_extract(cubes, 'pr')
+        precip = try_extract(cubes, 'pr', stash_lookup_func=stash)
         if not precip:
             print("  ❌ precip (pr, m01s05i216): NOT FOUND")
         else:
