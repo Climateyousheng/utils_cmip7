@@ -511,16 +511,34 @@ Variables successfully extracted: 1/9
 
 **Solution:** Use `region='global'` when plotting ocean variables.
 
+### Problem: STASH codes with 's' suffix (FIXED in v2026-01)
+
+**Symptom:** Variables exist in files but extraction reports NOT FOUND. When checking files:
+```bash
+ncdump -h file.nc | grep stash_code
+```
+Shows codes like:
+```
+stash_code = 3261s ;    ← Note the 's' suffix
+stash_code = 19002s ;
+```
+
+**Cause:** Some CDO/NCO workflows append 's' suffix to STASH codes during NetCDF processing.
+
+**Solution:** This is now automatically handled (fixed 2026-01). The extraction code strips the 's' suffix before matching.
+
+**If you're using an older version:** Update to latest version or manually update `_msi_from_numeric_stash_code()` in analysis.py.
+
 ### Problem: Wrong STASH codes in NetCDF files
 
-**Symptom:** Variables exist in files but extraction reports NOT FOUND.
+**Symptom:** Variables exist in files but extraction reports NOT FOUND, and STASH codes don't match expected format.
 
 **Diagnosis:** Check actual STASH codes in files:
 ```bash
 ncdump -h file.nc | grep stash_code
 ```
 
-**Solution:** If STASH codes differ from expected values, update the `stash()` or `stash_nc()` functions in analysis.py or use custom `var_list` and `var_mapping` parameters:
+**Solution:** If STASH codes differ significantly from expected values (not just 's' suffix), update the `stash()` or `stash_nc()` functions in analysis.py or use custom `var_list` and `var_mapping` parameters:
 
 ```python
 ds = extract_annual_means(
