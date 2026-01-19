@@ -730,24 +730,84 @@ def extract_annual_means(expts_list, var_list=None, var_mapping=None, regions=No
         os.makedirs(base_dir, exist_ok=True)
 
         filenames = glob.glob(os.path.join(base_dir, "**/*.nc"), recursive=True)
+
+        # Report files found
+        print(f"\n{'='*60}")
+        print(f"Extracting data for experiment: {expt}")
+        print(f"{'='*60}")
+        print(f"Looking in: {base_dir}")
+        print(f"NetCDF files found: {len(filenames)}")
+        if filenames:
+            for f in filenames:
+                print(f"  - {os.path.basename(f)}")
+        else:
+            print(f"  ⚠ WARNING: No NetCDF files found!")
+            print(f"  Expected files like: {expt}_pt_annual_mean.nc, {expt}_pd_annual_mean.nc, {expt}_pf_annual_mean.nc")
+
         cubes = iris.load(filenames)
+        print(f"\nTotal cubes loaded: {len(cubes)}")
+
+        # Extract variables with warnings
+        print(f"\nExtracting variables...")
 
         sr = try_extract(cubes, 'rh')
+        if not sr:
+            print("  ❌ soilResp (rh, m01s03i293): NOT FOUND")
+        else:
+            print("  ✓ soilResp (rh): Found")
+
         sc = try_extract(cubes, 'cs')
+        if not sc:
+            print("  ❌ soilCarbon (cs, m01s19i016): NOT FOUND")
+        else:
+            print("  ✓ soilCarbon (cs): Found")
+
         vc = try_extract(cubes, 'cv')
+        if not vc:
+            print("  ❌ VegCarb (cv, m01s19i002): NOT FOUND")
+        else:
+            print("  ✓ VegCarb (cv): Found")
 
         frac = try_extract(cubes, 'frac')
         if not frac:
-            print("❌ 'frac' variable not found, trying stash code 3317")
+            print("  ⚠ fracPFTs (frac, m01s19i013): NOT FOUND, trying stash code 3317")
             frac = try_extract(cubes, 3317)
             if not frac:
-                print("❌ 'frac' variable still not found.")
+                print("  ❌ fracPFTs: STILL NOT FOUND")
+            else:
+                print("  ✓ fracPFTs: Found (via stash code 3317)")
+        else:
+            print("  ✓ fracPFTs (frac): Found")
 
         gpp = try_extract(cubes, 'gpp')
+        if not gpp:
+            print("  ❌ GPP (gpp, m01s03i261): NOT FOUND")
+        else:
+            print("  ✓ GPP (gpp): Found")
+
         npp = try_extract(cubes, 'npp')
+        if not npp:
+            print("  ❌ NPP (npp, m01s03i262): NOT FOUND")
+        else:
+            print("  ✓ NPP (npp): Found")
+
         fgco2 = try_extract(cubes, 'fgco2')
+        if not fgco2:
+            print("  ❌ fgco2 (fgco2, m02s30i249): NOT FOUND")
+        else:
+            print("  ✓ fgco2: Found")
+
         temp = try_extract(cubes, 'tas')
+        if not temp:
+            print("  ❌ temp (tas, m01s03i236): NOT FOUND")
+        else:
+            print("  ✓ temp (tas): Found")
+
         precip = try_extract(cubes, 'pr')
+        if not precip:
+            print("  ❌ precip (pr, m01s05i216): NOT FOUND")
+        else:
+            print("  ✓ precip (pr): Found")
 
         dict_frac[expt] = frac
         dict_temp[expt] = temp
@@ -755,11 +815,31 @@ def extract_annual_means(expts_list, var_list=None, var_mapping=None, regions=No
 
         cube_list = [sr, sc, vc, frac, gpp, npp, fgco2, temp, precip]
 
+        # Summary of extraction status
+        missing_vars = []
+        found_vars = []
+        for cubeset, varname in zip(cube_list, var_list):
+            if not cubeset:
+                missing_vars.append(varname)
+            else:
+                found_vars.append(varname)
+
+        print(f"\n{'='*60}")
+        print(f"Extraction Summary for {expt}")
+        print(f"{'='*60}")
+        print(f"Variables successfully extracted: {len(found_vars)}/{len(var_list)}")
+        if found_vars:
+            print(f"  Found: {', '.join(found_vars)}")
+        if missing_vars:
+            print(f"  ⚠ Missing: {', '.join(missing_vars)}")
+            print(f"\n  These variables will NOT appear in plots!")
+        print(f"{'='*60}\n")
+
         for region in target_regions:
             dict_annual_means[expt][region] = {}
             for i, (cubeset, varname, mapping) in enumerate(zip(cube_list, var_list, var_mapping)):
                 if not cubeset:
-                    continue
+                    continue  # Already warned above
                 if varname == 'fgco2' and region != 'global':
                     continue  # Skip fgco2 for non-global regions
 
