@@ -239,6 +239,7 @@ def _msi_from_stash_obj(st):
 def _msi_from_numeric_stash_code(code):
     """
     Numeric stash_code like 3261 -> s=3, i=261 -> 'm01s03i261'
+    Also handles string codes with 's' suffix like '3261s' or '19002s'
     Heuristic for model:
       section >= 30 => model 2 (ocean/CO2 flux sections in your data)
       else => model 1
@@ -246,6 +247,9 @@ def _msi_from_numeric_stash_code(code):
     if code is None:
         return None
     try:
+        # Handle string codes with 's' suffix (e.g., '3261s')
+        if isinstance(code, str):
+            code = code.rstrip('s')
         n = int(code)  # handles np.int16 etc
     except Exception:
         return None
