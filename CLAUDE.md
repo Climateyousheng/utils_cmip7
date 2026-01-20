@@ -1,8 +1,208 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code when working with the `utils_cmip7` Python package for analyzing Unified Model (UM) climate model outputs.
+This file provides architectural guidance and technical reference for the `utils_cmip7` Python package.
 
-## Overview
+---
+
+## Part I: Architecture Review and Development Roadmap
+
+### 1. Purpose and Scope
+
+`utils_cmip7` is intended to serve as a common toolkit for:
+
+- **Extracting carbon-cycle and related variables** from Unified Model (UM) NetCDF output
+- **Aggregating diagnostics** spatially (global, regional using RECCAP2) and temporally (monthly → annual)
+- **Producing standardised plots** for evaluation and validation
+- **Supporting intercomparison and validation workflows** across multiple UM simulations
+
+The package is expected to be used in:
+- HPC environments (bc4, bp1)
+- Batch post-processing workflows
+- Interactive Python analysis (Jupyter / VS Code)
+- Long-term research projects with evolving diagnostics
+
+### 2. Current Strengths
+
+- Clear scientific intent: carbon-cycle diagnostics from UM outputs
+- Practical, working scripts for real research workflows
+- Minimal dependencies and straightforward Python usage
+- MIT-licensed, enabling reuse and extension
+
+These are strong foundations; the primary need is structural maturity, not a rewrite.
+
+### 3. Key Limitations Identified
+
+#### 3.1 Repository Structure
+- Flat module layout (`analysis.py`, `plot.py`) does not scale
+- Scripts, logic, and examples are mixed together
+- No formal Python package structure or installer
+
+#### 3.2 Packaging and Installation
+- Cannot be installed via pip
+- Imports rely on local paths or ad-hoc environment setup
+- No versioning or release strategy
+
+#### 3.3 Documentation
+- README is narrative but not API-oriented
+- No standard API reference or structured documentation
+- Limited examples of real workflows with expected outputs
+
+#### 3.4 Testing and Reliability
+- No unit tests or regression tests
+- No continuous integration (CI)
+- Risk of silent breakage as code evolves
+
+#### 3.5 Data Handling Assumptions
+- Hard-coded directory layouts and filename patterns
+- No validation of NetCDF contents (variables, dimensions, units)
+- Limited abstraction between I/O and scientific logic
+
+#### 3.6 Plotting and Diagnostics
+- Plotting routines are tightly coupled to specific workflows
+- Limited flexibility for reuse in papers or notebooks
+- No standardised plotting style or configuration
+
+### 4. Recommended Improvements
+
+#### 4.1 Convert to a Proper Python Package (High Priority)
+
+Introduce a standard package layout:
+```
+utils_cmip7/
+  __init__.py
+  io/          # File discovery, loading, STASH handling
+  processing/  # Aggregation, unit conversion
+  diagnostics/ # Standard metrics, derived variables
+  plotting/    # Visualisation
+scripts/
+tests/
+examples/
+pyproject.toml
+```
+
+Add `pyproject.toml` to support:
+- Editable installs: `pip install -e .`
+- Dependency management
+- Versioning
+
+Adopt semantic versioning (e.g., 0.1.0, 0.2.0, 1.0.0).
+
+**Benefit:** Enables reuse across projects, clusters, and collaborators without path hacks.
+
+#### 4.2 Improve Documentation and Developer Guidance (High Priority)
+
+Expand README with:
+- Installation instructions
+- Minimal working example
+- Expected input data structure
+- Typical validation workflow
+
+Use docstrings throughout (NumPy or Google style).
+
+Treat this file (CLAUDE.md) as:
+- Architectural overview
+- Design rationale
+- Long-term roadmap
+
+Optionally introduce Sphinx or MkDocs later.
+
+**Benefit:** Reduces onboarding time and prevents design drift.
+
+#### 4.3 Refactor Code for Separation of Concerns (Medium–High Priority)
+
+Separate responsibilities:
+- **I/O layer:** Locating files, loading NetCDF, STASH handling
+- **Processing layer:** Aggregation, unit conversion, derived variables
+- **Diagnostics layer:** Standard metrics and validation logic
+- **Plotting layer:** Visualisation only
+
+Avoid mixing filesystem logic with numerical computation.
+
+Replace fragile shell scripts with Python CLIs where feasible.
+
+**Benefit:** Easier testing, extension, and reuse.
+
+#### 4.4 Introduce Testing and CI (High Priority)
+
+Add pytest-based unit tests:
+- Aggregation logic
+- Unit conversions
+- Variable selection and filtering
+
+Include small synthetic NetCDF test fixtures.
+
+Set up GitHub Actions to run:
+- Tests
+- Linting (flake8, isort)
+- Optional type checks (mypy)
+
+**Benefit:** Protects scientific correctness as the code evolves.
+
+#### 4.5 Improve Data Validation and Robustness (Medium Priority)
+
+Validate inputs early:
+- Required variables present
+- Dimensions consistent
+- Units sensible
+
+Consider lightweight CF-compliance checks.
+
+Allow configuration via YAML/TOML instead of hard-coded paths.
+
+**Benefit:** Fewer silent failures in large batch workflows.
+
+#### 4.6 Make Plotting More Modular and Publication-Ready (Medium Priority)
+
+- Allow plotting functions to accept existing Figure/Axes
+- Centralise style configuration (Matplotlib stylesheets)
+- Ensure plots can be reused directly in papers without rewriting code
+
+**Benefit:** Cleaner analysis notebooks and consistent figures.
+
+#### 4.7 Project Sustainability and Collaboration (Low–Medium Priority)
+
+Add:
+- `CONTRIBUTING.md`
+- Issue and PR templates
+- Define a roadmap in the README
+- Include example datasets or links to public UM outputs
+
+**Benefit:** Encourages adoption beyond the original author.
+
+### 5. Suggested Development Roadmap
+
+**v0.1 – Stabilisation**
+- Package structure
+- Installation via pip
+- Basic tests
+- Improved README
+
+**v0.2 – Robustness**
+- Data validation
+- Refactored plotting
+- Configurable workflows
+
+**v1.0 – Community-Ready**
+- Stable API
+- CI with coverage
+- Benchmarked diagnostics
+- Used in at least one published analysis
+
+### 6. Guiding Principles
+
+- **Scientific correctness over convenience**
+- **Explicit assumptions**
+- **Minimal but extensible abstractions**
+- **Designed for HPC and long-running workflows**
+- **Readable by future-you in 5 years**
+
+This document should be updated as architectural decisions are made, serving as a living design reference for `utils_cmip7`.
+
+---
+
+## Part II: Technical API Reference
+
+### Overview
 
 `utils_cmip7` is a Python toolkit for carbon cycle analysis from UM climate model outputs. It provides:
 - STASH code mapping and variable extraction
