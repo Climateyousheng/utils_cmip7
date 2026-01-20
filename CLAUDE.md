@@ -94,6 +94,168 @@ Full CMIP compliance is aspirational but not mandatory pre-v1.0.
 
 ---
 
+## 7. Development Todo List
+
+This section tracks remaining implementation tasks for completing the v0.2.x → v1.0 migration.
+
+### 7.1 High Priority (Required for v0.2.1)
+
+These items are critical for package stability and basic functionality:
+
+- [ ] **Update `scripts/` to use new package structure**
+  - Modify `scripts/extract_raw.py` to import from `utils_cmip7.diagnostics`
+  - Modify `scripts/extract_preprocessed.py` to import from `utils_cmip7.diagnostics`
+  - Update `dev/debug_plot.py` and `dev/diagnose_extraction.py` imports
+  - Add try/except fallback for environments without package installed
+
+- [ ] **Create backward-compatible wrappers**
+  - `src/utils_cmip7/analysis.py` - Re-export all functions from new modules with DeprecationWarning
+  - `src/utils_cmip7/plot.py` - Re-export all functions from plotting/ with DeprecationWarning
+  - Ensure `var_dict` exported as alias to `VAR_CONVERSIONS`
+  - Test that old imports still work: `from analysis import extract_annual_means`
+
+- [ ] **Add configuration validation**
+  - Validate RECCAP_MASK_PATH exists on first use
+  - Provide helpful error message if mask file missing
+  - Document how to set custom mask path via `UTILS_CMIP7_RECCAP_MASK` environment variable
+  - Add config validation utility function in `config.py`
+  - Test with missing mask file to ensure clear error messaging
+
+- [ ] **Basic smoke tests**
+  - Test `extract_annual_means()` with sample data
+  - Test `extract_annual_mean_raw()` with sample data
+  - Verify RECCAP mask loading with custom path
+  - Test that all imports resolve correctly
+
+- [ ] **Update README.md installation section**
+  - Add `pip install -e .` instructions
+  - Document new import patterns
+  - Add migration guide link
+  - Update quick start examples to use new imports
+
+### 7.2 Medium Priority (Required for v0.2.2 - v0.3.0)
+
+These items improve usability and complete the refactoring:
+
+- [ ] **Split plotting modules**
+  - `src/utils_cmip7/plotting/styles.py` - Extract from plot.py lines 1-38
+  - `src/utils_cmip7/plotting/timeseries.py` - Extract from plot.py lines 42-242
+  - `src/utils_cmip7/plotting/spatial.py` - Extract from plot.py lines 244-430
+  - Update `src/utils_cmip7/plotting/__init__.py` to export all functions
+  - Update main `__init__.py` to optionally export plotting functions
+
+- [ ] **Implement CLI entry points**
+  - Create `src/utils_cmip7/cli.py` with:
+    - `extract_raw_cli()` - Wraps `extract_annual_mean_raw()`
+    - `extract_preprocessed_cli()` - Wraps `extract_annual_means()`
+  - Test entry points defined in `pyproject.toml`:
+    - `utils-cmip7-extract-raw`
+    - `utils-cmip7-extract-preprocessed`
+  - Add `--help` documentation for all CLI arguments
+
+- [ ] **Migrate soil_params modules**
+  - Move `soil_params_io.py` → `src/utils_cmip7/soil_params/io.py`
+  - Move `soil_params_maps.py` → `src/utils_cmip7/soil_params/maps.py`
+  - Move `soil_params_figures.py` → `src/utils_cmip7/soil_params/figures.py`
+  - Update imports: `from ..io.extract import try_extract`
+  - Update `src/utils_cmip7/soil_params/__init__.py`
+
+- [ ] **Create MIGRATION.md guide**
+  - Document old → new import patterns
+  - Provide migration checklist
+  - Show before/after code examples
+  - Document breaking changes and timeline
+  - Add troubleshooting section
+
+### 7.3 Medium-Low Priority (Nice to have for v0.3.0)
+
+These items improve code quality and maintainability:
+
+- [ ] **Add unit tests**
+  - `tests/test_io/test_stash.py` - Test STASH code mappings
+  - `tests/test_io/test_file_discovery.py` - Test month code decoding
+  - `tests/test_processing/test_spatial.py` - Test global aggregation
+  - `tests/test_processing/test_temporal.py` - Test temporal aggregation
+  - `tests/test_processing/test_regional.py` - Test regional masking
+  - Create synthetic test fixtures (small NetCDF files)
+
+- [ ] **Setup continuous integration**
+  - Create `.github/workflows/tests.yml`
+  - Run tests on Python 3.8, 3.9, 3.10, 3.11
+  - Run linting (flake8, black, isort)
+  - Optional: type checking with mypy
+  - Generate coverage reports
+
+- [ ] **Improve docstring coverage**
+  - Add Examples sections to all public functions
+  - Document all Parameters and Returns
+  - Add Notes sections for complex behavior
+  - Use consistent docstring style (NumPy format)
+
+- [ ] **Add type hints**
+  - Annotate all function signatures
+  - Use `typing` module for complex types
+  - Add `py.typed` marker for type checking support
+  - Run mypy validation in CI
+
+### 7.4 Low Priority (Pre-v1.0 cleanup)
+
+These items are quality-of-life improvements:
+
+- [ ] **Remove commented-out code**
+  - Clean up old commented code in analysis.py lines 554-613
+  - Remove debug print statements
+  - Clean up unused imports
+
+- [ ] **Consolidate documentation**
+  - Move technical details from README to dedicated docs/
+  - Create docs/api.md from docstrings
+  - Create docs/examples.md with complete workflows
+  - Consider Sphinx for auto-generated docs
+
+- [ ] **Add example datasets**
+  - Provide small sample NetCDF files
+  - Host on GitHub releases or external repository
+  - Document how to download and use
+  - Add example notebook using sample data
+
+- [ ] **Performance profiling**
+  - Profile regional aggregation with large datasets
+  - Optimize hot paths if needed
+  - Document performance characteristics
+  - Add benchmarking scripts
+
+- [ ] **Improve error messages**
+  - Add context to all exceptions
+  - Suggest fixes for common errors
+  - Validate inputs early with clear messages
+  - Add debug mode for verbose output
+
+- [ ] **Add CHANGELOG.md**
+  - Document all breaking changes
+  - Track feature additions
+  - Note bug fixes
+  - Follow Keep a Changelog format
+
+---
+
+### 7.5 Completion Checklist for v1.0
+
+Before declaring v1.0 stable:
+
+- [ ] All High Priority items completed
+- [ ] All Medium Priority items completed
+- [ ] At least 80% test coverage
+- [ ] CI passing on all supported Python versions
+- [ ] No critical technical debt remaining
+- [ ] API frozen with no planned breaking changes
+- [ ] Documentation complete and up-to-date
+- [ ] At least one published analysis using the package
+- [ ] Migration guide tested by external user
+
+---
+
+
 # CLAUDE.md
 
 This file provides architectural guidance and technical reference for the `utils_cmip7` Python package.
