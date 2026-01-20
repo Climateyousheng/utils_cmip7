@@ -14,7 +14,7 @@ print("Testing improved error handling for data extraction...")
 print("=" * 80)
 
 # Extract annual means - will now show detailed diagnostics
-ds = extract_annual_means(expts_list=['xqhul'])
+ds = extract_annual_means(expts_list=['xqhuc'])
 
 print("\n" + "=" * 80)
 print("WHAT TO LOOK FOR IN THE OUTPUT ABOVE:")
