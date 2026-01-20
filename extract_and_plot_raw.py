@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """
-Extract annual means from raw monthly files and create plots
+Extract annual means from raw monthly files (pp files) and create plots
+Currently only extract carbon cycle variables.
 """
 
 import os

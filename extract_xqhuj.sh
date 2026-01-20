@@ -8,7 +8,7 @@
 set -e  # Exit on error
 
 # Configuration
-EXPT="xqhuj"
+EXPT="xqhuk"
 OUTDIR="./plots"
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 
