@@ -1,16 +1,33 @@
 #!/bin/bash
 #
-# Extract annual means from raw monthly files for xqhuj and create plots
+# Extract annual means from raw monthly files and create plots
 #
-# Usage: ./extract_xqhuj.sh
+# Usage: ./extract_raw.sh EXPERIMENT [OUTPUT_DIR]
+#   EXPERIMENT  - Experiment name (e.g., xqhuj, xqhuk)
+#   OUTPUT_DIR  - Output directory for plots (default: ./plots)
+#
+# Example: ./extract_raw.sh xqhuk ./my_plots
 #
 
 set -e  # Exit on error
 
-# Configuration
-EXPT="xqhuk"
-OUTDIR="./plots"
+# Parse arguments
+EXPT="${1}"
+OUTDIR="${2:-./plots}"
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+
+# Check if experiment name provided
+if [ -z "$EXPT" ]; then
+    echo "ERROR: Experiment name required"
+    echo ""
+    echo "Usage: $0 EXPERIMENT [OUTPUT_DIR]"
+    echo ""
+    echo "Examples:"
+    echo "  $0 xqhuj"
+    echo "  $0 xqhuk ./plots"
+    echo ""
+    exit 1
+fi
 
 echo "========================================================================"
 echo "Extract Annual Means for ${EXPT}"
@@ -46,7 +63,7 @@ echo "Running extraction..."
 echo "========================================================================"
 echo ""
 
-python "${SCRIPT_DIR}/extract_and_plot_raw.py" \
+python "${SCRIPT_DIR}/extract_raw.py" \
     "${EXPT}" \
     --outdir "${OUTDIR}" \
     --base-dir ~/dump2hold

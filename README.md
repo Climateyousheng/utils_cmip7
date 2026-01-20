@@ -2,6 +2,23 @@
 
 Python toolkit for carbon cycle analysis from Unified Model (UM) climate model outputs.
 
+## Package Structure
+
+```
+utils_cmip7/
+├── analysis.py          # Core data processing
+├── plot.py              # Visualization functions
+├── scripts/             # Executable scripts
+│   ├── extract_raw.sh           # Shell wrapper (generic)
+│   ├── extract_raw.py           # Extract from raw monthly files
+│   └── extract_preprocessed.py  # Extract from annual NetCDF files
+├── examples/            # Example notebooks
+│   └── xqhuj_xqhuk_carbon_store.ipynb
+└── dev/                 # Development/diagnostic tools
+    ├── debug_plot.py
+    └── diagnose_extraction.py
+```
+
 ## Features
 
 - **STASH code mapping** - Convert between variable names and UM STASH codes
@@ -11,7 +28,7 @@ Python toolkit for carbon cycle analysis from Unified Model (UM) climate model o
 - **Unit conversions** - Automatic conversion to standard units (PgC/yr, mm/day, etc.)
 - **Visualization** - Publication-quality plots for carbon cycle variables
 
-## Modules
+## Core Modules
 
 ### analysis.py
 Core data processing module for extracting and computing carbon cycle variables:
@@ -26,6 +43,27 @@ Visualization module with functions for:
 - PFT fraction time series
 - Regional distribution pie charts
 - PFT grouped bar charts
+
+## Scripts
+
+### scripts/extract_raw.sh
+Shell wrapper for extracting from raw monthly files:
+```bash
+./scripts/extract_raw.sh EXPERIMENT [OUTPUT_DIR]
+```
+Example: `./scripts/extract_raw.sh xqhuk ./plots`
+
+### scripts/extract_raw.py
+Python script for raw monthly file extraction:
+```bash
+python scripts/extract_raw.py xqhuj --outdir ./plots
+```
+
+### scripts/extract_preprocessed.py
+Python script for pre-processed annual mean files:
+```bash
+python scripts/extract_preprocessed.py
+```
 
 ## Quick Start
 
