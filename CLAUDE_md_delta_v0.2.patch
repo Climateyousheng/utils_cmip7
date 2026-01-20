@@ -1,0 +1,100 @@
+diff --git a/CLAUDE.md b/CLAUDE.md
+index 0000000..1111111 100644
+--- a/CLAUDE.md
++++ b/CLAUDE.md
+@@ -1,3 +1,55 @@
++# ============================
++# ADDENDUM: v0.2.x CONTROL LAYER
++# ============================
++
++This section updates and constrains the original architectural guidance
++to reflect the current state of utils_cmip7 (mid–v0.2.0).
++
++The intent is to convert CLAUDE.md from a high-level design essay into
++an actionable engineering control document.
++
++Nothing below invalidates earlier sections; it *binds* them.
++
++---
++
++## 1. Current Repository State (v0.2.0)
++
++As of v0.2.0, the repository contains:
++
++- Working extraction scripts for raw and annual-mean UM outputs
++- Core carbon- and soil-related diagnostic logic
++- Plotting utilities for time series and summary diagnostics
++- Example notebooks demonstrating end-to-end workflows
++
++The following are considered **functionally correct but structurally provisional**:
++
++- analysis.py
++- plot.py
++- ad-hoc path discovery logic in scripts/
++
++These files may be refactored but must not lose scientific functionality.
++
++---
++
++## 2. Binding Design Rules (Effective Immediately)
++
++The following rules apply to all new code added from v0.2.0 onward:
++
++1. No hard-coded filesystem paths outside CLI/config layers.
++2. Plotting functions must accept matplotlib Axes objects and must not
++   perform data loading or aggregation.
++3. NetCDF loading must be isolated in a dedicated I/O layer.
++4. Diagnostics must return data objects (xarray.Dataset, dict), never plots.
++5. Aggregation logic must not be duplicated across modules.
++
++Violations should be treated as technical debt and documented explicitly.
++
++---
++
++## 3. API Stability Matrix
++
++| Component                    | Stability     |
++|-----------------------------|---------------|
++| Raw data extraction         | Provisional   |
++| Annual-mean processing      | Provisional   |
++| Soil carbon diagnostics     | Stable        |
++| Carbon flux diagnostics     | Stable        |
++| Plotting API                | Unstable      |
++| CLI interface               | Experimental  |
++
++Only *Stable* components may be relied upon for long-term scripts.
++
++---
++
++## 4. v0.2.x Micro-Roadmap
++
++- v0.2.1: Package structure and import stability
++- v0.2.2: Config-driven I/O and path handling
++- v0.2.3: Initial test suite and CI
++- v0.3.0: Public API freeze and refactor completion
++
++---
++
++## 5. Technical Debt Register
++
++The following items are acknowledged technical debt:
++
++- Monolithic analysis.py and plot.py modules
++- Shell-script-based extraction workflows
++- Implicit assumptions about UM output layout
++
++Each item must be retired or justified before v1.0.
++
++---
++
++## 6. Standards Alignment
++
++utils_cmip7 aims for:
++
++- CF-compliant metadata where possible
++- Explicit mapping between UM STASH codes and CMIP-style variables
++- Unit consistency checks for all carbon pools and fluxes
++
++Full CMIP compliance is aspirational but not mandatory pre-v1.0.
++
++---
