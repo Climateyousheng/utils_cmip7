@@ -66,28 +66,207 @@ These are strong foundations; the primary need is structural maturity, not a rew
 
 #### 4.1 Convert to a Proper Python Package (High Priority)
 
-Introduce a standard package layout:
+**Target Package Structure:**
 ```
-utils_cmip7/
-  __init__.py
-  io/          # File discovery, loading, STASH handling
-  processing/  # Aggregation, unit conversion
-  diagnostics/ # Standard metrics, derived variables
-  plotting/    # Visualisation
-scripts/
-tests/
-examples/
-pyproject.toml
+utils_cmip7/                    # Repository root
+├── pyproject.toml              # Modern Python packaging (PEP 621)
+├── README.md                   # User-facing documentation
+├── CLAUDE.md                   # Architecture and developer guide (this file)
+├── LICENSE                     # MIT License
+├── .gitignore
+│
+├── src/
+│   └── utils_cmip7/           # Importable package
+│       ├── __init__.py        # Package entry point, version
+│       ├── io/                # I/O layer
+│       │   ├── __init__.py
+│       │   ├── stash.py       # STASH code mappings
+│       │   ├── file_discovery.py  # find_matching_files, month codes
+│       │   └── netcdf_loader.py   # Load and validate NetCDF
+│       ├── processing/        # Scientific computation layer
+│       │   ├── __init__.py
+│       │   ├── spatial.py     # global_total_pgC, regional aggregation
+│       │   ├── temporal.py    # compute_annual_mean, monthly means
+│       │   ├── units.py       # var_dict, unit conversions
+│       │   └── masks.py       # load_reccap_mask, region_mask
+│       ├── diagnostics/       # Derived variables and metrics
+│       │   ├── __init__.py
+│       │   ├── carbon_cycle.py    # NEP, Land Carbon, etc.
+│       │   └── extraction.py      # extract_annual_means (high-level)
+│       └── plotting/          # Visualization layer
+│           ├── __init__.py
+│           ├── timeseries.py  # plot_timeseries_grouped, plot_pft_timeseries
+│           ├── spatial.py     # plot_regional_pie(s)
+│           ├── comparison.py  # plot_pft_grouped_bars
+│           └── styles.py      # Matplotlib style configuration
+│
+├── scripts/                    # Command-line tools
+│   ├── extract_raw.sh
+│   ├── extract_raw.py
+│   └── extract_preprocessed.py
+│
+├── tests/                      # pytest test suite
+│   ├── __init__.py
+│   ├── conftest.py            # Shared fixtures
+│   ├── test_io/
+│   │   ├── test_stash.py
+│   │   └── test_file_discovery.py
+│   ├── test_processing/
+│   │   ├── test_spatial.py
+│   │   ├── test_temporal.py
+│   │   └── test_units.py
+│   ├── test_diagnostics/
+│   │   └── test_carbon_cycle.py
+│   └── fixtures/              # Small synthetic NetCDF test data
+│
+├── examples/                   # Usage examples
+│   ├── notebooks/
+│   │   └── xqhuj_xqhuk_carbon_store.ipynb
+│   └── sample_workflows/
+│       └── basic_analysis.py
+│
+└── dev/                        # Development tools
+    ├── debug_plot.py
+    └── diagnose_extraction.py
 ```
 
-Add `pyproject.toml` to support:
-- Editable installs: `pip install -e .`
-- Dependency management
-- Versioning
+**Migration Path from Current Structure:**
 
-Adopt semantic versioning (e.g., 0.1.0, 0.2.0, 1.0.0).
+| Current File | New Location | Notes |
+|--------------|--------------|-------|
+| `analysis.py` | Split into `io/`, `processing/`, `diagnostics/` | Separate concerns |
+| `plot.py` | `plotting/*.py` | One module per plot type |
+| `scripts/*.py` | `scripts/*.py` (unchanged) | Keep as CLI tools |
+| `examples/*.ipynb` | `examples/notebooks/` | Organize by type |
+| `dev/*.py` | `dev/` (unchanged) | Development utilities |
 
-**Benefit:** Enables reuse across projects, clusters, and collaborators without path hacks.
+**Example `pyproject.toml`:**
+```toml
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "utils_cmip7"
+version = "0.1.0"
+description = "Carbon cycle analysis toolkit for Unified Model outputs"
+readme = "README.md"
+license = {text = "MIT"}
+authors = [
+    {name = "Your Name", email = "your.email@bristol.ac.uk"}
+]
+keywords = ["climate", "carbon-cycle", "CMIP", "UM", "NetCDF"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Topic :: Scientific/Engineering :: Atmospheric Science",
+]
+requires-python = ">=3.8"
+dependencies = [
+    "numpy>=1.20",
+    "matplotlib>=3.3",
+    "iris>=3.0",        # UM file handling
+    "cartopy>=0.20",    # For geographical plotting
+    "netCDF4>=1.5",     # NetCDF file I/O
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0",
+    "pytest-cov>=3.0",
+    "flake8>=4.0",
+    "black>=22.0",
+    "isort>=5.10",
+    "mypy>=0.950",
+]
+docs = [
+    "sphinx>=4.5",
+    "sphinx-rtd-theme>=1.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/Climateyousheng/utils_cmip7"
+Repository = "https://github.com/Climateyousheng/utils_cmip7"
+Issues = "https://github.com/Climateyousheng/utils_cmip7/issues"
+
+[project.scripts]
+# Entry points for command-line tools
+utils-cmip7-extract = "utils_cmip7.cli:extract_main"
+utils-cmip7-plot = "utils_cmip7.cli:plot_main"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+addopts = "-v --cov=utils_cmip7 --cov-report=html --cov-report=term"
+
+[tool.black]
+line-length = 100
+target-version = ['py38', 'py39', 'py310']
+
+[tool.isort]
+profile = "black"
+line_length = 100
+
+[tool.mypy]
+python_version = "3.8"
+warn_return_any = true
+warn_unused_configs = true
+ignore_missing_imports = true
+```
+
+**Key Improvements:**
+
+1. **Proper src-layout:** Prevents accidental imports from repository root during development
+2. **Separation of concerns:** Clear boundaries between I/O, processing, diagnostics, and plotting
+3. **Dependency management:** Explicit version requirements prevent compatibility issues
+4. **Entry points:** Scripts become proper CLI tools: `utils-cmip7-extract xqhuc`
+5. **Test infrastructure:** pytest with fixtures and coverage tracking
+6. **Development tools:** Linting, formatting, type checking configured
+7. **Semantic versioning:** Clear version progression (0.1.0 → 0.2.0 → 1.0.0)
+
+**Installation Workflow:**
+
+```bash
+# Development install (editable)
+cd utils_cmip7
+pip install -e .
+
+# With development dependencies
+pip install -e ".[dev]"
+
+# Now import works from anywhere
+python -c "from utils_cmip7 import extract_annual_means"
+
+# CLI tools available system-wide
+utils-cmip7-extract xqhuc --outdir ./plots
+```
+
+**Version Management:**
+
+- Use git tags: `git tag v0.1.0 && git push --tags`
+- Update version in `pyproject.toml` for each release
+- Consider `setuptools_scm` for automatic versioning from git tags
+- Document breaking changes in CHANGELOG.md
+
+**Benefits:**
+
+- **No more path hacks:** Works across projects, clusters, and users
+- **Reproducibility:** Pin versions in requirements or environment files
+- **Collaboration:** Standard structure familiar to Python developers
+- **Testing:** Clear separation enables comprehensive unit tests
+- **Distribution:** Can publish to PyPI or internal package index
+- **Documentation:** Sphinx can auto-generate API docs from docstrings
 
 #### 4.2 Improve Documentation and Developer Guidance (High Priority)
 
