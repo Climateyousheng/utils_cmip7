@@ -1,20 +1,28 @@
 #!/usr/bin/env python3
 """
-Test script to demonstrate improved error handling in extract_annual_means
+Extract annual means from pre-processed NetCDF files and generate plots
 """
 
 import os
 import sys
+import argparse
+
 sys.path.append(os.path.expanduser('~/scripts/utils_cmip7'))
 
 from analysis import extract_annual_means
 from plot import plot_timeseries_grouped
 
-print("Testing improved error handling for data extraction...")
+# Parse command-line arguments
+parser = argparse.ArgumentParser(description='Extract annual means from pre-processed NetCDF files')
+parser.add_argument('expt', type=str, help='Experiment name (e.g., xqhuc)')
+parser.add_argument('--outdir', type=str, default='./plots', help='Output directory for plots (default: ./plots)')
+args = parser.parse_args()
+
+print(f"Extracting data for experiment: {args.expt}")
 print("=" * 80)
 
 # Extract annual means - will now show detailed diagnostics
-ds = extract_annual_means(expts_list=['xqhuc'])
+ds = extract_annual_means(expts_list=[args.expt])
 
 print("\n" + "=" * 80)
 print("WHAT TO LOOK FOR IN THE OUTPUT ABOVE:")
@@ -35,7 +43,7 @@ print("""
    - Warns that missing variables won't appear in plots
 
 If you see many ❌, you need to:
-   a) Check if annual mean files exist in ~/annual_mean/xqhuc/
+   a) Check if annual mean files exist in ~/annual_mean/{args.expt}/
    b) Generate them using annual_mean_cdo.sh script
    c) Verify STASH codes are correct in the files
 """)
@@ -47,11 +55,11 @@ print("=" * 80)
 # Generate plots with whatever data is available
 plot_timeseries_grouped(
     ds,
-    expts_list=['xqhuc'],
+    expts_list=[args.expt],
     region='global',
-    outdir='./plots/'
+    outdir=args.outdir
 )
 
 print("\n✓ Plots generated successfully!")
-print(f"Check: ./plots/allvars_global_xqhuc_timeseries.png")
+print(f"Check: {args.outdir}/allvars_global_{args.expt}_timeseries.png")
 print("\nNote: Plot will only show variables that were successfully extracted.")

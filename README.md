@@ -62,8 +62,9 @@ python scripts/extract_raw.py xqhuj --outdir ./plots
 ### scripts/extract_preprocessed.py
 Python script for pre-processed annual mean files:
 ```bash
-python scripts/extract_preprocessed.py
+python scripts/extract_preprocessed.py EXPERIMENT [--outdir OUTPUT_DIR]
 ```
+Example: `python scripts/extract_preprocessed.py xqhuc --outdir ./plots`
 
 ## Quick Start
 
@@ -88,7 +89,7 @@ plot_timeseries_grouped(ds, expts_list=['xqhuc'],
 
 **Using Shell Script (Recommended):**
 ```bash
-./extract_xqhuj.sh
+./scripts/extract_raw.sh xqhuj
 ```
 
 **Using Python Directly:**
@@ -108,7 +109,7 @@ plt.show()
 
 **Using Python Script:**
 ```bash
-python extract_and_plot_raw.py xqhuj --outdir ./plots
+python scripts/extract_raw.py xqhuj --outdir ./plots
 ```
 
 ## Input Data Requirements
