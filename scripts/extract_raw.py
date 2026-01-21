@@ -11,8 +11,15 @@ matplotlib.use('Agg')  # Non-interactive backend
 import matplotlib.pyplot as plt
 import argparse
 
-sys.path.append(os.path.expanduser('~/scripts/utils_cmip7'))
-from analysis import extract_annual_mean_raw
+# Try importing from installed package first, fall back to legacy path
+try:
+    from utils_cmip7 import extract_annual_mean_raw
+    print("✓ Using utils_cmip7 package")
+except ImportError:
+    # Fall back to legacy path-based import
+    sys.path.append(os.path.expanduser('~/scripts/utils_cmip7'))
+    from analysis import extract_annual_mean_raw
+    print("⚠ Using legacy imports (install package with 'pip install -e .' for new imports)")
 
 
 def main():

@@ -56,3 +56,110 @@ RECCAP_REGIONS = {
 
 # Backward compatibility: alias for old name
 var_dict = VAR_CONVERSIONS
+
+
+def validate_reccap_mask_path(path=None):
+    """
+    Validate that the RECCAP mask file exists and is readable.
+
+    Parameters
+    ----------
+    path : str, optional
+        Path to RECCAP mask file. If None, uses RECCAP_MASK_PATH from config.
+
+    Returns
+    -------
+    str
+        Absolute path to the validated mask file
+
+    Raises
+    ------
+    FileNotFoundError
+        If the mask file does not exist
+    RuntimeError
+        If the file exists but cannot be read
+
+    Examples
+    --------
+    >>> from utils_cmip7.config import validate_reccap_mask_path
+    >>> mask_path = validate_reccap_mask_path()
+    """
+    import os
+
+    if path is None:
+        path = RECCAP_MASK_PATH
+
+    # Expand user home directory
+    path = os.path.expanduser(path)
+
+    # Check if file exists
+    if not os.path.exists(path):
+        error_msg = (
+            f"\n{'='*80}\n"
+            f"ERROR: RECCAP2 regional mask file not found\n"
+            f"{'='*80}\n\n"
+            f"Expected location: {path}\n\n"
+            f"This file is required for regional carbon cycle analysis.\n\n"
+            f"Solutions:\n"
+            f"  1. If the file exists elsewhere, set the environment variable:\n"
+            f"     export UTILS_CMIP7_RECCAP_MASK=/path/to/your/mask.nc\n\n"
+            f"  2. If you don't have the file, you may need to:\n"
+            f"     - Obtain it from your research group\n"
+            f"     - Download from RECCAP2 data repository\n"
+            f"     - Create a custom regional mask matching your analysis grid\n\n"
+            f"  3. For global-only analysis (no regional breakdown), this may\n"
+            f"     indicate a code path issue - please report as a bug.\n"
+            f"{'='*80}\n"
+        )
+        raise FileNotFoundError(error_msg)
+
+    # Check if file is readable
+    if not os.access(path, os.R_OK):
+        error_msg = (
+            f"\n{'='*80}\n"
+            f"ERROR: RECCAP2 mask file exists but is not readable\n"
+            f"{'='*80}\n\n"
+            f"File location: {path}\n\n"
+            f"The file exists but cannot be read (permission denied).\n"
+            f"Please check file permissions.\n"
+            f"{'='*80}\n"
+        )
+        raise RuntimeError(error_msg)
+
+    return os.path.abspath(path)
+
+
+def get_config_info():
+    """
+    Print current configuration information.
+
+    Useful for debugging configuration issues.
+
+    Examples
+    --------
+    >>> from utils_cmip7.config import get_config_info
+    >>> get_config_info()
+    """
+    import os
+
+    print("=" * 80)
+    print("utils_cmip7 Configuration")
+    print("=" * 80)
+    print(f"\nRECCAP Mask Path:")
+    print(f"  Environment variable: {os.environ.get('UTILS_CMIP7_RECCAP_MASK', '(not set)')}")
+    print(f"  Current path: {RECCAP_MASK_PATH}")
+    print(f"  Exists: {os.path.exists(os.path.expanduser(RECCAP_MASK_PATH))}")
+
+    try:
+        validated_path = validate_reccap_mask_path()
+        print(f"  Validated: ✓ {validated_path}")
+    except (FileNotFoundError, RuntimeError) as e:
+        print(f"  Validated: ✗ Error")
+        print(f"\n{e}")
+
+    print(f"\nRECCAP Regions: {len(RECCAP_REGIONS)} regions defined")
+    for region_id, region_name in RECCAP_REGIONS.items():
+        print(f"  {region_id:2d}. {region_name}")
+
+    print(f"\nUnit Conversions: {len(VAR_CONVERSIONS)} conversion factors defined")
+    print("=" * 80)

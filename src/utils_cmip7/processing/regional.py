@@ -10,7 +10,7 @@ import iris.analysis
 import cf_units
 import cartopy.util as cart
 
-from ..config import RECCAP_MASK_PATH, RECCAP_REGIONS, VAR_CONVERSIONS
+from ..config import RECCAP_MASK_PATH, RECCAP_REGIONS, VAR_CONVERSIONS, validate_reccap_mask_path
 
 
 def load_reccap_mask():
@@ -23,6 +23,13 @@ def load_reccap_mask():
         (reccap_mask, regions) where:
         - reccap_mask: iris.cube.Cube with regional mask data
         - regions: dict mapping region IDs to names
+
+    Raises
+    ------
+    FileNotFoundError
+        If the mask file does not exist
+    RuntimeError
+        If the file exists but cannot be read
 
     Notes
     -----
@@ -40,8 +47,18 @@ def load_reccap_mask():
     - 9: South_Asia
     - 10: South_East_Asia
     - 11: Oceania
+
+    Examples
+    --------
+    >>> mask, regions = load_reccap_mask()
+    >>> print(regions)
+    {1: 'North_America', 2: 'South_America', ...}
     """
-    reccap_mask = iris.load_cube(RECCAP_MASK_PATH)
+    # Validate mask file exists and is readable
+    mask_path = validate_reccap_mask_path()
+
+    # Load the mask
+    reccap_mask = iris.load_cube(mask_path)
     return reccap_mask, RECCAP_REGIONS
 
 

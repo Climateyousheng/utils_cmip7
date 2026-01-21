@@ -18,7 +18,7 @@ from .processing import (
     compute_annual_mean,
 )
 from .diagnostics import extract_annual_means, extract_annual_mean_raw
-from .config import VAR_CONVERSIONS, RECCAP_MASK_PATH
+from .config import VAR_CONVERSIONS, RECCAP_MASK_PATH, validate_reccap_mask_path, get_config_info
 
 __all__ = [
     # Version
@@ -40,4 +40,6 @@ __all__ = [
     # Configuration
     'VAR_CONVERSIONS',
     'RECCAP_MASK_PATH',
+    'validate_reccap_mask_path',
+    'get_config_info',
 ]

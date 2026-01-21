@@ -7,10 +7,17 @@ import os
 import sys
 import argparse
 
-sys.path.append(os.path.expanduser('~/scripts/utils_cmip7'))
-
-from analysis import extract_annual_means
-from plot import plot_timeseries_grouped
+# Try importing from installed package first, fall back to legacy path
+try:
+    from utils_cmip7 import extract_annual_means
+    from plot import plot_timeseries_grouped  # plot.py not yet migrated
+    print("✓ Using utils_cmip7 package")
+except ImportError:
+    # Fall back to legacy path-based import
+    sys.path.append(os.path.expanduser('~/scripts/utils_cmip7'))
+    from analysis import extract_annual_means
+    from plot import plot_timeseries_grouped
+    print("⚠ Using legacy imports (install package with 'pip install -e .' for new imports)")
 
 # Parse command-line arguments
 parser = argparse.ArgumentParser(description='Extract annual means from pre-processed NetCDF files')
