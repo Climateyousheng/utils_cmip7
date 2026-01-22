@@ -262,7 +262,9 @@ def create_all_plots(
     # 1. Three-way comparison plots
     print("    - Three-way comparisons")
     for metric in metrics:
-        if metric in um_metrics and metric in cmip6_metrics and metric in reccap_metrics:
+        # Check if metric exists in all three datasets with at least one common region
+        if (metric in um_metrics and metric in cmip6_metrics and metric in reccap_metrics and
+            um_metrics[metric] and cmip6_metrics[metric] and reccap_metrics[metric]):
             plot_three_way_comparison(
                 um_metrics,
                 cmip6_metrics,
@@ -271,24 +273,31 @@ def create_all_plots(
                 outdir=plots_dir,
                 filename=f'{metric}_three_way.png'
             )
+        else:
+            print(f"      ⚠ Skipping {metric} (not available in all datasets)")
 
     # 2. Bias heatmaps
     print("    - Bias heatmaps")
-    plot_regional_bias_heatmap(
-        comparison_cmip6,
-        metrics=metrics,
-        value_type='bias_percent',
-        outdir=plots_dir,
-        filename='bias_heatmap_vs_cmip6.png'
-    )
+    # Filter to metrics that exist in comparisons
+    available_metrics = [m for m in metrics if m in comparison_cmip6 and comparison_cmip6[m]]
+    if available_metrics:
+        plot_regional_bias_heatmap(
+            comparison_cmip6,
+            metrics=available_metrics,
+            value_type='bias_percent',
+            outdir=plots_dir,
+            filename='bias_heatmap_vs_cmip6.png'
+        )
 
-    plot_regional_bias_heatmap(
-        comparison_reccap,
-        metrics=metrics,
-        value_type='bias_percent',
-        outdir=plots_dir,
-        filename='bias_heatmap_vs_reccap2.png'
-    )
+    available_metrics_reccap = [m for m in metrics if m in comparison_reccap and comparison_reccap[m]]
+    if available_metrics_reccap:
+        plot_regional_bias_heatmap(
+            comparison_reccap,
+            metrics=available_metrics_reccap,
+            value_type='bias_percent',
+            outdir=plots_dir,
+            filename='bias_heatmap_vs_reccap2.png'
+        )
 
     # 3. Time series plots (global only)
     print("    - Time series")
@@ -303,6 +312,19 @@ def create_all_plots(
                 outdir=plots_dir,
                 filename=f'{metric}_timeseries_global.png'
             )
+        elif metric in um_metrics and um_metrics[metric]:
+            # Try with any available region if global doesn't exist
+            available_regions = list(um_metrics[metric].keys())
+            if (available_regions and metric in reccap_metrics and
+                available_regions[0] in reccap_metrics[metric]):
+                plot_timeseries_with_obs(
+                    um_metrics,
+                    reccap_metrics,
+                    metric=metric,
+                    region=available_regions[0],
+                    outdir=plots_dir,
+                    filename=f'{metric}_timeseries_{available_regions[0]}.png'
+                )
 
 
 def main():

@@ -395,8 +395,18 @@ def plot_three_way_comparison(
     if ax is None:
         fig, ax = plt.subplots(figsize=(14, 6))
 
-    # Get regions
-    regions = sorted(reccap_metrics[metric].keys())
+    # Get regions that exist in ALL three datasets
+    um_regions = set(um_metrics[metric].keys()) if metric in um_metrics else set()
+    cmip6_regions = set(cmip6_metrics[metric].keys()) if metric in cmip6_metrics else set()
+    reccap_regions = set(reccap_metrics[metric].keys()) if metric in reccap_metrics else set()
+
+    # Intersection of all three
+    regions = sorted(um_regions & cmip6_regions & reccap_regions)
+
+    if not regions:
+        print(f"  ⚠ Warning: No common regions found for {metric}, skipping plot")
+        return ax
+
     x_pos = np.arange(len(regions))
 
     # Extract data
