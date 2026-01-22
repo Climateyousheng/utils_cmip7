@@ -196,8 +196,9 @@ def save_comparison_summary(
         f.write(f"{'Metric':<10} {'Region':<20} {'UM Bias %':<12} {'CMIP6 Bias %':<15} {'Winner':<10}\n")
         f.write("-"*80 + "\n")
 
+        regions = get_all_regions()
         for metric in ['GPP', 'NPP', 'CVeg', 'CSoil']:
-            for region in ['global', 'North_America', 'South_America', 'Europe', 'Africa']:
+            for region in regions:
                 if (metric in um_metrics and region in um_metrics[metric] and
                     metric in cmip6_metrics and region in cmip6_metrics[metric] and
                     metric in reccap_metrics and region in reccap_metrics[metric]):
