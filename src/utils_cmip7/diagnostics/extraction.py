@@ -181,12 +181,25 @@ def extract_annual_means(expts_list, var_list=None, var_mapping=None, regions=No
         dict_temp[expt] = temp
         dict_precip[expt] = precip
 
-        cube_list = [sr, sc, vc, frac, gpp, npp, fgco2, temp, precip]
+        # Map extracted cubes by variable name for correct lookup
+        # DO NOT use positional matching - var_list order may differ from extraction order!
+        cube_map = {
+            'soilResp': sr,
+            'soilCarbon': sc,
+            'VegCarb': vc,
+            'fracPFTs': frac,
+            'GPP': gpp,
+            'NPP': npp,
+            'fgco2': fgco2,
+            'temp': temp,
+            'precip': precip,
+        }
 
         # Summary of extraction status
         missing_vars = []
         found_vars = []
-        for cubeset, varname in zip(cube_list, var_list):
+        for varname in var_list:
+            cubeset = cube_map.get(varname)
             if not cubeset:
                 missing_vars.append(varname)
             else:
@@ -205,7 +218,9 @@ def extract_annual_means(expts_list, var_list=None, var_mapping=None, regions=No
 
         for region in target_regions:
             dict_annual_means[expt][region] = {}
-            for i, (cubeset, varname, mapping) in enumerate(zip(cube_list, var_list, var_mapping)):
+            # Match cubes to variables by name, not position!
+            for varname, mapping in zip(var_list, var_mapping):
+                cubeset = cube_map.get(varname)
                 if not cubeset:
                     continue  # Already warned above
                 if varname == 'fgco2' and region != 'global':
