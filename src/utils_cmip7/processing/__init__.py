@@ -7,6 +7,14 @@ Provides functions for global/regional aggregation and temporal averaging.
 from .spatial import compute_terrestrial_area, global_total_pgC, global_mean_pgC
 from .temporal import merge_monthly_results, compute_monthly_mean, compute_annual_mean
 from .regional import load_reccap_mask, region_mask, compute_regional_annual_mean
+from .metrics import (
+    METRIC_DEFINITIONS,
+    get_metric_config,
+    list_metrics,
+    validate_metric_output,
+    validate_canonical_structure,
+    compute_derived_metric,
+)
 
 __all__ = [
     # Spatial aggregation
@@ -21,4 +29,11 @@ __all__ = [
     'load_reccap_mask',
     'region_mask',
     'compute_regional_annual_mean',
+    # Metric definitions and validation
+    'METRIC_DEFINITIONS',
+    'get_metric_config',
+    'list_metrics',
+    'validate_metric_output',
+    'validate_canonical_structure',
+    'compute_derived_metric',
 ]

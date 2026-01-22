@@ -36,6 +36,82 @@ from v0.2.x toward v1.0.
 - Mask loading
 
 ---
+## High Priority (0.2.1.1)
+
+Intriduce obs and validation, and metrics to ensure proper comparison.
+
+### Formalise metric computation across UM, CMIP6 obs, and validation
+
+The core package now lives under `src/utils_cmip7`, and legacy
+`analysis.py` / `plot.py` will be removed. Metric logic must therefore
+be formalised within the core modules.
+
+#### 1. Introduce explicit metric definitions in processing/
+
+Add `processing/metrics.py` to define how supported metrics are computed:
+
+- GPP
+- NPP
+- vegCarbon
+- soilCarbon
+- tas
+- precip
+
+This module defines:
+- SUM vs MEAN behaviour
+- post-aggregation units
+
+No I/O or dataset-specific logic is permitted here.
+
+#### 2. Add a diagnostic-level metric runner
+
+Add `diagnostics/metrics.py` to orchestrate metric computation by
+calling:
+
+- `processing.temporal`
+- `processing.spatial`
+- `processing.regional`
+- `processing.metrics`
+
+This module produces the canonical metric output structure.
+
+#### 3. Canonical metric schema (mandatory)
+
+All metric-producing code must return:
+
+dict[metric][region] -> {
+"years": array,
+"data": array,
+"units": str,
+"source": str,
+"dataset": str
+}
+
+
+UM workflows, CMIP6 observational datasets, and future model sources
+must conform exactly to this schema.
+
+#### 4. Role of obs/
+
+The `obs/` directory contains observational datasets (CSV).
+These datasets represent already-aggregated metrics and must be
+adapted to the canonical metric schema when loaded.
+
+No aggregation or unit conversion logic may be added to `obs/`.
+
+#### 5. Role of validation/
+
+The `validation/` directory operates strictly on canonical metric
+outputs.
+
+Validation code must not:
+- load NetCDF
+- aggregate data
+- compute metrics
+
+It may only compare, summarise, and visualise metric results.
+
+Any deviation from this separation is blocking technical debt.
 
 ## Medium Priority (v0.2.2 – v0.3.0)
 
