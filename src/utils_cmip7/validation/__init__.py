@@ -18,6 +18,7 @@ from .visualize import (
     plot_regional_bias_heatmap,
     plot_timeseries_with_obs,
     create_validation_report,
+    plot_three_way_comparison,
 )
 
 __all__ = [
@@ -33,4 +34,5 @@ __all__ = [
     'plot_regional_bias_heatmap',
     'plot_timeseries_with_obs',
     'create_validation_report',
+    'plot_three_way_comparison',
 ]

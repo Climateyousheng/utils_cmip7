@@ -355,9 +355,114 @@ def create_validation_report(
     print("=" * 80)
 
 
+def plot_three_way_comparison(
+    um_metrics: Dict[str, Dict[str, Dict[str, Any]]],
+    cmip6_metrics: Dict[str, Dict[str, Dict[str, Any]]],
+    reccap_metrics: Dict[str, Dict[str, Dict[str, Any]]],
+    metric: str,
+    ax: Optional[plt.Axes] = None,
+    outdir: Optional[str] = None,
+    filename: Optional[str] = None
+) -> plt.Axes:
+    """
+    Plot UM and CMIP6 compared against RECCAP2 reference.
+
+    Shows all three datasets with RECCAP2 as observational reference,
+    using different colors to distinguish UM vs CMIP6 performance.
+
+    Parameters
+    ----------
+    um_metrics : dict
+        UM metrics in canonical schema
+    cmip6_metrics : dict
+        CMIP6 metrics in canonical schema
+    reccap_metrics : dict
+        RECCAP2 metrics in canonical schema (reference)
+    metric : str
+        Metric to plot
+    ax : plt.Axes, optional
+        Matplotlib axes to plot on
+    outdir : str, optional
+        Output directory for saving
+    filename : str, optional
+        Filename for saving
+
+    Returns
+    -------
+    plt.Axes
+        The axes object with the plot
+    """
+    if ax is None:
+        fig, ax = plt.subplots(figsize=(14, 6))
+
+    # Get regions
+    regions = sorted(reccap_metrics[metric].keys())
+    x_pos = np.arange(len(regions))
+
+    # Extract data
+    um_means = [np.mean(um_metrics[metric][r]['data']) for r in regions]
+    um_stds = [np.std(um_metrics[metric][r]['data']) for r in regions]
+
+    cmip6_means = [cmip6_metrics[metric][r]['data'][0] for r in regions]
+    cmip6_errors = [cmip6_metrics[metric][r].get('error', [0])[0] for r in regions]
+
+    reccap_means = [reccap_metrics[metric][r]['data'][0] for r in regions]
+    reccap_errors = [reccap_metrics[metric][r].get('error', [0])[0] for r in regions]
+
+    # Plot bars with different colors
+    width = 0.25
+    bars_um = ax.bar(x_pos - width, um_means, width, yerr=um_stds,
+                     label='UM (this study)', alpha=0.8, capsize=5, color='steelblue')
+    bars_cmip6 = ax.bar(x_pos, cmip6_means, width, yerr=cmip6_errors,
+                        label='CMIP6 ensemble', alpha=0.8, capsize=5, color='coral')
+    bars_reccap = ax.bar(x_pos + width, reccap_means, width, yerr=reccap_errors,
+                         label='RECCAP2 (obs)', alpha=0.8, capsize=5, color='forestgreen')
+
+    # Color bars based on whether within RECCAP2 uncertainty
+    for i, region in enumerate(regions):
+        um_val = um_means[i]
+        cmip6_val = cmip6_means[i]
+        reccap_val = reccap_means[i]
+        reccap_err = reccap_errors[i]
+
+        # Check if within uncertainty
+        um_within = abs(um_val - reccap_val) <= reccap_err
+        cmip6_within = abs(cmip6_val - reccap_val) <= reccap_err
+
+        if um_within:
+            bars_um[i].set_edgecolor('green')
+            bars_um[i].set_linewidth(2.5)
+        if cmip6_within:
+            bars_cmip6[i].set_edgecolor('green')
+            bars_cmip6[i].set_linewidth(2.5)
+
+    # Formatting
+    ax.set_xlabel('Region', fontsize=11)
+    units = um_metrics[metric][regions[0]]['units']
+    ax.set_ylabel(f"{metric} ({units})", fontsize=11)
+    ax.set_title(f'{metric}: UM vs CMIP6 vs RECCAP2', fontsize=13, fontweight='bold')
+    ax.set_xticks(x_pos)
+    ax.set_xticklabels(regions, rotation=45, ha='right')
+    ax.legend(frameon=False, loc='upper left')
+    ax.grid(axis='y', alpha=0.3, linewidth=0.5)
+
+    plt.tight_layout()
+
+    # Save if requested
+    if outdir is not None:
+        os.makedirs(outdir, exist_ok=True)
+        fname = filename if filename else f'{metric}_three_way_comparison.png'
+        filepath = os.path.join(outdir, fname)
+        plt.savefig(filepath, dpi=300, bbox_inches='tight')
+        print(f"✓ Saved: {filepath}")
+
+    return ax
+
+
 __all__ = [
     'plot_metric_comparison',
     'plot_regional_bias_heatmap',
     'plot_timeseries_with_obs',
     'create_validation_report',
+    'plot_three_way_comparison',
 ]

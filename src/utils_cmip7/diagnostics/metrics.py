@@ -134,12 +134,6 @@ def compute_metrics_from_annual_means(
             var_list_for_extraction.append(var_name)
             var_mapping_for_extraction.append(var_mapping)
 
-    # DEBUG: Print what we're passing to extraction
-    print(f"\nDEBUG compute_metrics_from_annual_means:")
-    print(f"  required_vars (sorted): {required_vars}")
-    print(f"  var_list_for_extraction: {var_list_for_extraction}")
-    print(f"  var_mapping_for_extraction: {var_mapping_for_extraction}")
-
     # Extract data using existing function
     raw_data = extract_annual_means(
         [expt_name],
@@ -147,15 +141,6 @@ def compute_metrics_from_annual_means(
         var_mapping=var_mapping_for_extraction,
         regions=regions
     )
-
-    # DEBUG: Check what's in raw_data
-    import numpy as np
-    if expt_name in raw_data and 'global' in raw_data[expt_name]:
-        print(f"\nDEBUG after extract_annual_means:")
-        for var in ['GPP', 'NPP']:
-            if var in raw_data[expt_name]['global']:
-                data_mean = np.mean(raw_data[expt_name]['global'][var]['data'])
-                print(f"  raw_data[{expt_name}][global][{var}] mean = {data_mean:.2f}")
 
     # Transform to canonical schema
     result = {}
