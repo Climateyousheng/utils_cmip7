@@ -205,7 +205,18 @@ def compute_regional_annual_mean(cube, var, region):
         gm = cube.collapsed(["latitude", "longitude"], iris.analysis.SUM, weights=w)
 
     # Apply scaling after collapse (cheap)
+    # DEBUG: Print values before and after conversion
+    if region == "global" and var == "GPP":
+        print(f"\nDEBUG compute_regional_annual_mean (GPP, global):")
+        print(f"  gm.data BEFORE conversion: min={np.min(gm.data):.6e}, max={np.max(gm.data):.6e}, mean={np.mean(gm.data):.6e}")
+        print(f"  gm.shape: {gm.shape}")
+        print(f"  gm.units: {gm.units}")
+        print(f"  VAR_CONVERSIONS['{var}']: {VAR_CONVERSIONS[var]}")
+
     gm.data = gm.data * VAR_CONVERSIONS[var]
+
+    if region == "global" and var == "GPP":
+        print(f"  gm.data AFTER conversion: min={np.min(gm.data):.6e}, max={np.max(gm.data):.6e}, mean={np.mean(gm.data):.6e}")
 
     # --- Get time coordinate robustly ---
     time_coords = [c for c in gm.coords() if c.standard_name == "time" or c.name() in ("t", "time", "TIME")]
@@ -230,6 +241,10 @@ def compute_regional_annual_mean(cube, var, region):
         annual_means = np.repeat(gm_series.item(), len(unique_years))
     else:
         annual_means = np.array([np.nanmean(gm_series[idx == i]) for i in range(len(unique_years))])
+
+    if region == "global" and var == "GPP":
+        print(f"  annual_means: shape={annual_means.shape}, mean={np.mean(annual_means):.2f}, first_5={annual_means[:5]}")
+        print(f"  years: {unique_years[:5]} ... {unique_years[-2:]}\n")
 
     return {
         "years": unique_years,

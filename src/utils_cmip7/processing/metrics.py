@@ -254,11 +254,16 @@ def validate_metric_output(metric_data: Dict[str, Any], metric_name: str = None)
         raise ValueError(f"{prefix}: 'dataset' must be string, got {type(metric_data['dataset'])}")
 
     # Check array shapes match
-    if metric_data['years'].shape != metric_data['data'].shape:
-        raise ValueError(
-            f"{prefix}: 'years' and 'data' must have same shape. "
-            f"Got years: {metric_data['years'].shape}, data: {metric_data['data'].shape}"
-        )
+    # Special case: allow empty years array for time-aggregated single-value data
+    is_time_aggregated = (metric_data['years'].shape == (0,) and
+                         metric_data['data'].shape == (1,))
+
+    if not is_time_aggregated:
+        if metric_data['years'].shape != metric_data['data'].shape:
+            raise ValueError(
+                f"{prefix}: 'years' and 'data' must have same shape. "
+                f"Got years: {metric_data['years'].shape}, data: {metric_data['data'].shape}"
+            )
 
     # Check for NaN/Inf in data
     if np.any(np.isnan(metric_data['data'])):
