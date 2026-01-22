@@ -91,21 +91,26 @@ def compute_metrics_from_annual_means(
 
     # Determine which variables to extract
     # We need component variables for derived metrics
-    required_vars = set()
+    # IMPORTANT: Use set for deduplication, then convert to sorted list for deterministic order
+    required_vars_set = set()
     for metric in metrics:
         config = get_metric_config(metric)
         if config['aggregation'] == 'DERIVED':
             # Add component variables
             if metric == 'NEP':
-                required_vars.update(['NPP', 'soilResp'])
+                required_vars_set.update(['NPP', 'soilResp'])
             elif metric == 'Tau':
-                required_vars.update(['CSoil', 'NPP'])
+                required_vars_set.update(['CSoil', 'NPP'])
         else:
             # Map metric name to extraction variable name
             for var_name, metric_name in VARIABLE_TO_METRIC.items():
                 if metric_name == metric:
-                    required_vars.add(var_name)
+                    required_vars_set.add(var_name)
                     break
+
+    # Convert to sorted list for deterministic iteration order
+    # This prevents variable/mapping misalignment due to non-deterministic set iteration
+    required_vars = sorted(required_vars_set)
 
     # Convert to extraction variable list
     var_list_for_extraction = []
