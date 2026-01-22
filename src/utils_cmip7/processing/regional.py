@@ -8,7 +8,8 @@ import numpy as np
 import iris
 import iris.analysis
 import cf_units
-import cartopy.util as cart
+import iris.analysis.cartography as cart
+from iris.analysis.cartography import area_weights
 
 from ..config import RECCAP_MASK_PATH, RECCAP_REGIONS, VAR_CONVERSIONS, validate_reccap_mask_path
 

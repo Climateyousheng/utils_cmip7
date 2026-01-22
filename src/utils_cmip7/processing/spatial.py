@@ -7,7 +7,8 @@ Provides area-weighted summation and averaging over latitude/longitude dimension
 import numpy as np
 import iris
 import iris.analysis
-import cartopy.util as cart
+import iris.analysis.cartography as cart
+from iris.analysis.cartography import area_weights
 
 from ..config import VAR_CONVERSIONS
 
