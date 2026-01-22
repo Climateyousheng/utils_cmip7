@@ -44,10 +44,14 @@ Scientific behaviour must not change unless explicitly documented.
 5. Plotting functions must accept matplotlib Axes objects
 6. No hard-coded paths outside CLI or configuration layers
 7. **NEVER iterate over sets when order matters** — always use sorted(set) or maintain deterministic order
+8. **NEVER use positional matching (zip, indexing) when names are available** — use dict lookup instead
 
 Violations constitute technical debt and must be recorded explicitly.
 
-**Critical Bug (v0.2.1)**: Non-deterministic set iteration in `compute_metrics_from_annual_means()` caused GPP/NPP data swap (190M× error). Variables collected in set, iterated non-deterministically, causing misalignment between var_list and var_mapping. Fixed by sorting before iteration. Never rely on set iteration order.
+**Critical Bugs (v0.2.1)**: GPP/NPP data swap caused by TWO order-dependency bugs:
+1. Non-deterministic set iteration in `compute_metrics_from_annual_means()` → fixed by sorted(set)
+2. Positional zip() in `extract_annual_means()` assumed var_list matched hard-coded cube_list order → fixed by name-based cube_map lookup
+Never use positional matching when order can vary. Always use explicit name-based lookups.
 
 ---
 
