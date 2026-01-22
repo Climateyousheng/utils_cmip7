@@ -170,24 +170,32 @@ def save_comparison_summary(
         f.write("UM vs CMIP6 ENSEMBLE\n")
         f.write("-"*80 + "\n")
         for metric in ['GPP', 'NPP', 'CVeg', 'CSoil', 'Tau']:
-            if metric in comparison_cmip6:
-                summary = summarize_comparison(comparison_cmip6, metric=metric)
-                f.write(f"\n{metric}:\n")
-                f.write(f"  Mean bias: {summary['mean_bias']:.2f} {um_metrics[metric]['global']['units']}\n")
-                f.write(f"  Mean bias %: {summary['mean_bias_percent']:.1f}%\n")
-                f.write(f"  Fraction within uncertainty: {summary['fraction_within_uncertainty']:.1%}\n")
+            if metric in comparison_cmip6 and metric in um_metrics:
+                # Get any available region to determine units
+                available_regions = list(um_metrics[metric].keys())
+                if available_regions:
+                    summary = summarize_comparison(comparison_cmip6, metric=metric)
+                    units = um_metrics[metric][available_regions[0]]['units']
+                    f.write(f"\n{metric}:\n")
+                    f.write(f"  Mean bias: {summary['mean_bias']:.2f} {units}\n")
+                    f.write(f"  Mean bias %: {summary['mean_bias_percent']:.1f}%\n")
+                    f.write(f"  Fraction within uncertainty: {summary['fraction_within_uncertainty']:.1%}\n")
 
         # UM vs RECCAP2
         f.write("\n" + "="*80 + "\n")
         f.write("UM vs RECCAP2 OBSERVATIONS\n")
         f.write("-"*80 + "\n")
         for metric in ['GPP', 'NPP', 'CVeg', 'CSoil', 'Tau']:
-            if metric in comparison_reccap:
-                summary = summarize_comparison(comparison_reccap, metric=metric)
-                f.write(f"\n{metric}:\n")
-                f.write(f"  Mean bias: {summary['mean_bias']:.2f} {um_metrics[metric]['global']['units']}\n")
-                f.write(f"  Mean bias %: {summary['mean_bias_percent']:.1f}%\n")
-                f.write(f"  Fraction within uncertainty: {summary['fraction_within_uncertainty']:.1%}\n")
+            if metric in comparison_reccap and metric in um_metrics:
+                # Get any available region to determine units
+                available_regions = list(um_metrics[metric].keys())
+                if available_regions:
+                    summary = summarize_comparison(comparison_reccap, metric=metric)
+                    units = um_metrics[metric][available_regions[0]]['units']
+                    f.write(f"\n{metric}:\n")
+                    f.write(f"  Mean bias: {summary['mean_bias']:.2f} {units}\n")
+                    f.write(f"  Mean bias %: {summary['mean_bias_percent']:.1f}%\n")
+                    f.write(f"  Fraction within uncertainty: {summary['fraction_within_uncertainty']:.1%}\n")
 
         # UM vs CMIP6 performance comparison
         f.write("\n" + "="*80 + "\n")
@@ -446,14 +454,15 @@ def main():
     print(f"  - plots/                        (All visualizations)")
 
     # Quick summary
-    gpp_summary = summarize_comparison(comparison_reccap, 'GPP')
-    npp_summary = summarize_comparison(comparison_reccap, 'NPP')
-
     print(f"\nKey findings vs RECCAP2:")
-    print(f"  GPP: {gpp_summary['mean_bias']:+.1f} PgC/yr ({gpp_summary['mean_bias_percent']:+.1f}%), "
-          f"{gpp_summary['fraction_within_uncertainty']:.0%} within uncertainty")
-    print(f"  NPP: {npp_summary['mean_bias']:+.1f} PgC/yr ({npp_summary['mean_bias_percent']:+.1f}%), "
-          f"{npp_summary['fraction_within_uncertainty']:.0%} within uncertainty")
+    if 'GPP' in comparison_reccap:
+        gpp_summary = summarize_comparison(comparison_reccap, 'GPP')
+        print(f"  GPP: {gpp_summary['mean_bias']:+.1f} PgC/yr ({gpp_summary['mean_bias_percent']:+.1f}%), "
+              f"{gpp_summary['fraction_within_uncertainty']:.0%} within uncertainty")
+    if 'NPP' in comparison_reccap:
+        npp_summary = summarize_comparison(comparison_reccap, 'NPP')
+        print(f"  NPP: {npp_summary['mean_bias']:+.1f} PgC/yr ({npp_summary['mean_bias_percent']:+.1f}%), "
+              f"{npp_summary['fraction_within_uncertainty']:.0%} within uncertainty")
     print("="*80 + "\n")
 
 
