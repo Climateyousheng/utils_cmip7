@@ -37,14 +37,17 @@ Scientific behaviour must not change unless explicitly documented.
 
 ## Binding Design Rules (MANDATORY)
 
-1. No filesystem discovery or NetCDF I/O inside plotting functions  
-2. NetCDF loading must be isolated in a dedicated I/O layer  
-3. Diagnostics must return data objects (xarray.Dataset, dict), never plots  
-4. Aggregation logic must not be duplicated across modules  
-5. Plotting functions must accept matplotlib Axes objects  
-6. No hard-coded paths outside CLI or configuration layers  
+1. No filesystem discovery or NetCDF I/O inside plotting functions
+2. NetCDF loading must be isolated in a dedicated I/O layer
+3. Diagnostics must return data objects (xarray.Dataset, dict), never plots
+4. Aggregation logic must not be duplicated across modules
+5. Plotting functions must accept matplotlib Axes objects
+6. No hard-coded paths outside CLI or configuration layers
+7. **NEVER iterate over sets when order matters** — always use sorted(set) or maintain deterministic order
 
 Violations constitute technical debt and must be recorded explicitly.
+
+**Critical Bug (v0.2.1)**: Non-deterministic set iteration in `compute_metrics_from_annual_means()` caused GPP/NPP data swap (190M× error). Variables collected in set, iterated non-deterministically, causing misalignment between var_list and var_mapping. Fixed by sorting before iteration. Never rely on set iteration order.
 
 ---
 
