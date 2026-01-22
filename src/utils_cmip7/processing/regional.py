@@ -181,6 +181,15 @@ def compute_regional_annual_mean(cube, var, region):
     # --- Build weights, and mask weights for region ---
     weights = cart.area_weights(cube)
 
+    # DEBUG: Print cube structure
+    if region == "global" and var == "GPP":
+        print(f"\nDEBUG compute_regional_annual_mean (GPP, global):")
+        print(f"  Input cube shape: {cube.shape}")
+        print(f"  Input cube dims: {[coord.name() for coord in cube.coords(dim_coords=True)]}")
+        print(f"  Input cube units: {cube.units}")
+        print(f"  Data min/max/mean: {np.min(cube.data):.6e} / {np.max(cube.data):.6e} / {np.mean(cube.data):.6e}")
+        print(f"  Area weights shape: {weights.shape}")
+
     if region != "global":
         m_obj = region_mask(region)
         m2d = np.asarray(m_obj.data) if isinstance(m_obj, iris.cube.Cube) else np.asarray(m_obj)
@@ -203,6 +212,10 @@ def compute_regional_annual_mean(cube, var, region):
         gm = cube.collapsed(["latitude", "longitude"], iris.analysis.MEAN, weights=w)
     else:
         gm = cube.collapsed(["latitude", "longitude"], iris.analysis.SUM, weights=w)
+
+    if region == "global" and var == "GPP":
+        print(f"  After collapse - gm.shape: {gm.shape}")
+        print(f"  After collapse - gm.units: {gm.units}")
 
     # Apply scaling after collapse (cheap)
     # DEBUG: Print values before and after conversion
