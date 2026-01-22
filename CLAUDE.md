@@ -48,11 +48,6 @@ Scientific behaviour must not change unless explicitly documented.
 
 Violations constitute technical debt and must be recorded explicitly.
 
-**Critical Bugs (v0.2.1)**: GPP/NPP data swap caused by TWO order-dependency bugs:
-1. Non-deterministic set iteration in `compute_metrics_from_annual_means()` → fixed by sorted(set)
-2. Positional zip() in `extract_annual_means()` assumed var_list matched hard-coded cube_list order → fixed by name-based cube_map lookup
-Never use positional matching when order can vary. Always use explicit name-based lookups.
-
 ---
 
 ## API Stability Matrix
