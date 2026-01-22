@@ -7,21 +7,27 @@ Architectural constraints and stability guarantees are defined in `CLAUDE.md`.
 
 ---
 
-## Package Layout (v0.2.0)
+## Package Layout (v0.2.1)
 
 ```
 utils_cmip7/
 ├── io/                 # NetCDF loading, STASH handling, file discovery
 │   ├── stash.py       # STASH code mappings
 │   ├── file_discovery.py  # UM file pattern matching
-│   └── extract.py     # Cube extraction with STASH handling
+│   ├── extract.py     # Cube extraction with STASH handling
+│   └── obs_loader.py  # Observational data loader (CMIP6, RECCAP2)
 ├── processing/        # Temporal/spatial aggregation, unit conversions
 │   ├── spatial.py     # Global aggregation (SUM/MEAN)
 │   ├── temporal.py    # Monthly → annual aggregation
-│   └── regional.py    # RECCAP2 regional masking
+│   ├── regional.py    # RECCAP2 regional masking
+│   └── metrics.py     # Metric definitions and canonical schema validation
 ├── diagnostics/       # Carbon-cycle diagnostics
 │   ├── extraction.py  # Pre-processed NetCDF extraction
-│   └── raw.py         # Raw monthly file extraction
+│   ├── raw.py         # Raw monthly file extraction
+│   └── metrics.py     # Metrics computation from annual means
+├── validation/        # Model validation against observations
+│   ├── compare.py     # Bias, RMSE, and uncertainty checks
+│   └── visualize.py   # Three-way comparison plots and visualizations
 ├── plotting/          # Visualisation utilities (no I/O)
 │   └── [TODO]         # To be split from plot.py
 ├── soil_params/       # Soil parameter analysis
@@ -30,10 +36,11 @@ utils_cmip7/
 └── cli.py             # [TODO] Command-line entry points
 ```
 
-**Current Status (v0.2.0):**
-- ✅ `io/` - Complete
-- ✅ `processing/` - Complete
-- ✅ `diagnostics/` - Complete
+**Current Status (v0.2.1):**
+- ✅ `io/` - Complete (4 modules including obs_loader)
+- ✅ `processing/` - Complete (4 modules including metrics)
+- ✅ `diagnostics/` - Complete (3 modules including metrics)
+- ✅ `validation/` - Complete (2 modules: compare, visualize)
 - ⚠️ `plotting/` - Exists in root `plot.py`, needs migration
 - ⚠️ `soil_params/` - Exists in root, needs migration
 - ❌ `cli.py` - Not yet implemented
@@ -144,6 +151,87 @@ import iris
 
 cubes = iris.load('data.nc')
 gpp = try_extract(cubes, 'gpp', stash_lookup_func=stash)
+```
+
+---
+
+### Observational Data Loading
+
+#### `load_cmip6_metrics(metrics=None, regions=None, include_errors=False)`
+Load CMIP6 ensemble metrics from CSV files in canonical schema format.
+
+**Parameters:**
+- `metrics` (list of str, optional): Metrics to load (default: all available)
+- `regions` (list of str, optional): Regions to load (default: all available)
+- `include_errors` (bool): Load error/uncertainty data (default: False)
+
+**Returns:**
+```python
+dict[metric][region] -> {
+    'years': np.ndarray,      # Empty array for time-aggregated data
+    'data': np.ndarray,       # Mean values
+    'units': str,             # Units (e.g., 'PgC/yr')
+    'source': 'CMIP6',
+    'dataset': 'CMIP6',
+    'errors': np.ndarray      # Only if include_errors=True
+}
+```
+
+**Input Files:**
+- `obs/stores_vs_fluxes_cmip6.csv` - Mean values
+- `obs/stores_vs_fluxes_cmip6_err.csv` - Error/uncertainty values
+
+**Example:**
+```python
+from utils_cmip7.io import load_cmip6_metrics
+
+# Load specific metrics and regions
+cmip6 = load_cmip6_metrics(
+    metrics=['GPP', 'NPP', 'CVeg'],
+    regions=['global', 'Europe', 'Africa'],
+    include_errors=True
+)
+
+print(cmip6['GPP']['global']['data'])  # CMIP6 ensemble mean
+print(cmip6['GPP']['global']['errors'])  # CMIP6 ensemble std dev
+```
+
+---
+
+#### `load_reccap_metrics(metrics=None, regions=None, include_errors=False)`
+Load RECCAP2 observational metrics from CSV files in canonical schema format.
+
+**Parameters:**
+- `metrics` (list of str, optional): Metrics to load (default: all available)
+- `regions` (list of str, optional): Regions to load (default: all available)
+- `include_errors` (bool): Load error/uncertainty data (default: False)
+
+**Returns:**
+```python
+dict[metric][region] -> {
+    'years': np.ndarray,      # Empty array for time-aggregated data
+    'data': np.ndarray,       # Observational best estimate
+    'units': str,             # Units (e.g., 'PgC/yr')
+    'source': 'RECCAP2',
+    'dataset': 'RECCAP2',
+    'errors': np.ndarray      # Only if include_errors=True
+}
+```
+
+**Input Files:**
+- `obs/stores_vs_fluxes_reccap.csv` - Best estimates
+- `obs/stores_vs_fluxes_reccap_err.csv` - Uncertainty values
+
+**Example:**
+```python
+from utils_cmip7.io import load_reccap_metrics
+
+# Load all available metrics
+reccap = load_reccap_metrics(include_errors=True)
+
+# Access specific metric/region
+gpp_global = reccap['GPP']['global']
+print(f"GPP: {gpp_global['data'][0]} ± {gpp_global['errors'][0]} {gpp_global['units']}")
 ```
 
 ---
@@ -299,6 +387,83 @@ europe_gpp = compute_regional_annual_mean(gpp_cube, 'GPP', 'Europe')
 
 ---
 
+### Metric Definitions and Validation
+
+#### `METRIC_DEFINITIONS`
+Dictionary defining all supported carbon cycle metrics.
+
+**Type:** dict[str, dict]
+
+**Structure:**
+```python
+{
+    'GPP': {
+        'long_name': 'Gross Primary Production',
+        'units': 'PgC/yr',
+        'aggregation': 'sum',
+        'required_vars': ['GPP']
+    },
+    'Tau': {
+        'long_name': 'Ecosystem Turnover Time',
+        'units': 'years',
+        'aggregation': 'derived',
+        'required_vars': ['CVeg', 'NPP']
+    },
+    ...
+}
+```
+
+**Supported Metrics:**
+- GPP, NPP, CVeg, CSoil, Tau, NEP, CTotal, TreeTotal
+- Includes units, aggregation method, and required variables
+
+---
+
+#### `validate_metric_output(metric_data, metric_name=None)`
+Validate metric output conforms to canonical schema.
+
+**Parameters:**
+- `metric_data` (dict): Metric dictionary to validate
+- `metric_name` (str, optional): Metric name for error messages
+
+**Returns:**
+- bool: True if valid
+
+**Raises:**
+- ValueError: If validation fails
+
+**Canonical Schema:**
+```python
+{
+    'years': np.ndarray,      # Integer years or empty for time-aggregated
+    'data': np.ndarray,       # Same length as years (or length 1 if empty years)
+    'units': str,             # Required
+    'source': str,            # 'UM', 'CMIP6', 'RECCAP2'
+    'dataset': str            # Dataset identifier
+}
+```
+
+**Special Case:** Time-aggregated data (observational data)
+- `years` can be empty array `np.array([])`
+- `data` must have exactly one element
+
+**Example:**
+```python
+from utils_cmip7.processing.metrics import validate_metric_output
+
+metric = {
+    'years': np.array([1850, 1851, 1852]),
+    'data': np.array([120.5, 121.3, 119.8]),
+    'units': 'PgC/yr',
+    'source': 'UM',
+    'dataset': 'xqhuc'
+}
+
+validate_metric_output(metric, 'GPP')  # Returns True or raises ValueError
+```
+
+---
+
 ## Diagnostics Layer (`utils_cmip7.diagnostics`)
 
 ### High-Level Extraction
@@ -397,6 +562,307 @@ data = extract_annual_mean_raw('xqhuj', start_year=1850, end_year=1900)
 
 ---
 
+### Metrics Computation
+
+#### `compute_metrics_from_annual_means(expt_name, metrics=None, regions=None, base_dir=None)`
+Compute carbon cycle metrics from annual mean NetCDF files for all RECCAP2 regions.
+
+**Main entry point** for validation workflows requiring regional metrics.
+
+**Parameters:**
+- `expt_name` (str): Experiment name (e.g., 'xqhuc')
+- `metrics` (list of str, optional): Metrics to compute (default: GPP, NPP, CVeg, CSoil, Tau, NEP)
+- `regions` (list of str, optional): Regions to compute (default: global + 11 RECCAP2 regions)
+- `base_dir` (str, optional): Base directory for annual mean files (default: ~/annual_mean)
+
+**Returns:**
+```python
+dict[metric][region] -> {
+    'years': np.ndarray,      # Integer years
+    'data': np.ndarray,       # Metric values
+    'units': str,             # Units (e.g., 'PgC/yr')
+    'source': 'UM',
+    'dataset': str            # Experiment name
+}
+```
+
+**Supported Metrics:**
+- **GPP**: Gross Primary Production (PgC/yr)
+- **NPP**: Net Primary Production (PgC/yr)
+- **CVeg**: Vegetation Carbon (PgC)
+- **CSoil**: Soil Carbon (PgC)
+- **Tau**: Ecosystem Turnover Time (years) = CVeg + CSoil / NPP
+- **NEP**: Net Ecosystem Production (PgC/yr) = NPP - soilResp
+
+**Supported Regions:**
+global, North_America, South_America, Europe, Africa, North_Asia, Central_Asia, East_Asia, South_Asia, South_East_Asia, Oceania
+
+**Input Files (expected):**
+- `{base_dir}/{expt_name}/{expt_name}_pt_annual_mean.nc` - TRIFFID land carbon
+
+**Graceful Degradation:**
+- Missing variables result in missing metrics (not errors)
+- Missing regions are skipped silently
+- Derived metrics (Tau, NEP) computed only when components available
+
+**Example:**
+```python
+from utils_cmip7.diagnostics import compute_metrics_from_annual_means
+
+# Compute all metrics for all regions
+um_metrics = compute_metrics_from_annual_means('xqhuc')
+
+# Access specific metric/region
+gpp_global = um_metrics['GPP']['global']
+print(f"Years: {gpp_global['years']}")
+print(f"GPP: {gpp_global['data']} {gpp_global['units']}")
+
+# Compute specific metrics and regions only
+um_metrics = compute_metrics_from_annual_means(
+    'xqhuc',
+    metrics=['GPP', 'NPP'],
+    regions=['global', 'Europe', 'Africa']
+)
+```
+
+**Use Cases:**
+- Model validation against CMIP6/RECCAP2
+- Regional carbon cycle analysis
+- Multi-experiment comparison
+- Export to CSV for external analysis
+
+---
+
+## Validation Layer (`utils_cmip7.validation`)
+
+### Comparison Functions
+
+#### `compute_bias(model_data, obs_data)`
+Compute absolute and percentage bias of model relative to observations.
+
+**Parameters:**
+- `model_data` (dict): Model metric in canonical schema
+- `obs_data` (dict): Observational metric in canonical schema
+
+**Returns:**
+- tuple: `(bias, bias_percent)`
+  - `bias` (float): Absolute bias (model - obs)
+  - `bias_percent` (float): Percentage bias (100 * bias / obs)
+
+**Example:**
+```python
+from utils_cmip7.validation import compute_bias
+
+um = {'data': np.array([134.8]), 'units': 'PgC/yr'}
+reccap = {'data': np.array([124.0]), 'units': 'PgC/yr'}
+
+bias, bias_pct = compute_bias(um, reccap)
+print(f"Bias: {bias:.2f} PgC/yr ({bias_pct:.1f}%)")
+```
+
+---
+
+#### `compute_rmse(model_data, obs_data)`
+Compute root mean square error between model and observations.
+
+**Parameters:**
+- `model_data` (dict): Model metric with time series
+- `obs_data` (dict): Observational metric (time-aggregated or time series)
+
+**Returns:**
+- float: RMSE value
+
+**Note:** If obs is time-aggregated (single value), compares against all model time steps.
+
+---
+
+#### `compare_single_metric(model_metrics, obs_metrics, metric, region)`
+Compare model vs observation for a single metric and region.
+
+**Parameters:**
+- `model_metrics` (dict): Model metrics dictionary
+- `obs_metrics` (dict): Observational metrics dictionary
+- `metric` (str): Metric name (e.g., 'GPP')
+- `region` (str): Region name (e.g., 'global')
+
+**Returns:**
+```python
+{
+    'metric': str,
+    'region': str,
+    'model_mean': float,
+    'obs_mean': float,
+    'bias': float,
+    'bias_percent': float,
+    'rmse': float,
+    'within_uncertainty': bool   # If obs has errors
+}
+```
+
+---
+
+#### `compare_metrics(model_metrics, obs_metrics, metrics=None, regions=None)`
+Compare model vs observations for multiple metrics and regions.
+
+**Parameters:**
+- `model_metrics` (dict): Model metrics
+- `obs_metrics` (dict): Observational metrics
+- `metrics` (list of str, optional): Metrics to compare (default: all common)
+- `regions` (list of str, optional): Regions to compare (default: all common)
+
+**Returns:**
+- list of dict: Comparison results for each metric/region combination
+
+**Example:**
+```python
+from utils_cmip7.validation import compare_metrics
+from utils_cmip7.diagnostics import compute_metrics_from_annual_means
+from utils_cmip7.io import load_reccap_metrics
+
+um = compute_metrics_from_annual_means('xqhuc')
+reccap = load_reccap_metrics(include_errors=True)
+
+comparisons = compare_metrics(um, reccap,
+                               metrics=['GPP', 'NPP'],
+                               regions=['global', 'Europe'])
+
+for comp in comparisons:
+    print(f"{comp['metric']} {comp['region']}: bias = {comp['bias_percent']:.1f}%")
+```
+
+---
+
+#### `summarize_comparison(comparisons, reference_comparisons=None)`
+Generate text summary comparing model vs observations with optional reference model.
+
+**Parameters:**
+- `comparisons` (list of dict): Comparison results (e.g., UM vs RECCAP2)
+- `reference_comparisons` (list of dict, optional): Reference comparisons (e.g., CMIP6 vs RECCAP2)
+
+**Returns:**
+- str: Multi-line text summary
+
+**Example:**
+```python
+from utils_cmip7.validation import summarize_comparison
+
+summary = summarize_comparison(um_vs_reccap, cmip6_vs_reccap)
+print(summary)
+# Outputs comparison table showing UM vs CMIP6 performance
+```
+
+---
+
+### Visualization Functions
+
+#### `plot_three_way_comparison(um_metrics, cmip6_metrics, reccap_metrics, metric, outdir=None, ax=None)`
+Create three-way comparison plot showing UM, CMIP6, and RECCAP2 with uncertainty.
+
+**Main visualization** for model validation showing relative performance.
+
+**Parameters:**
+- `um_metrics` (dict): UM metrics from `compute_metrics_from_annual_means()`
+- `cmip6_metrics` (dict): CMIP6 metrics from `load_cmip6_metrics()`
+- `reccap_metrics` (dict): RECCAP2 metrics from `load_reccap_metrics()`
+- `metric` (str): Metric to plot (e.g., 'GPP')
+- `outdir` (str, optional): Output directory for saved plot
+- `ax` (matplotlib.axes.Axes, optional): Axes to plot on (if None, creates figure)
+
+**Returns:**
+- matplotlib.axes.Axes: Plot axes
+
+**Plot Features:**
+- Bar chart with UM, CMIP6, RECCAP2 for each region
+- Error bars showing observational uncertainty
+- Automatic region intersection (only plots common regions)
+- Color-coded for easy comparison
+
+**Example:**
+```python
+from utils_cmip7.validation import plot_three_way_comparison
+
+plot_three_way_comparison(
+    um_metrics, cmip6_metrics, reccap_metrics,
+    metric='GPP',
+    outdir='./validation'
+)
+# Saves: ./validation/GPP_three_way.png
+```
+
+---
+
+#### `plot_regional_bias_heatmap(comparisons, metrics, regions, title, outdir=None, ax=None)`
+Create heatmap showing regional bias patterns across multiple metrics.
+
+**Parameters:**
+- `comparisons` (list of dict): Comparison results
+- `metrics` (list of str): Metrics to include in heatmap
+- `regions` (list of str): Regions to include
+- `title` (str): Plot title
+- `outdir` (str, optional): Output directory
+- `ax` (matplotlib.axes.Axes, optional): Axes to plot on
+
+**Returns:**
+- matplotlib.axes.Axes: Plot axes
+
+**Plot Features:**
+- Color-coded bias (red=positive, blue=negative)
+- Regions on x-axis, metrics on y-axis
+- Useful for identifying regional patterns
+
+---
+
+#### `plot_timeseries_with_obs(model_metrics, obs_metrics, metric, region, outdir=None, ax=None)`
+Plot model time series with observational constraint and uncertainty.
+
+**Parameters:**
+- `model_metrics` (dict): Model metrics with time series
+- `obs_metrics` (dict): Observational metrics with uncertainty
+- `metric` (str): Metric name
+- `region` (str): Region name
+- `outdir` (str, optional): Output directory
+- `ax` (matplotlib.axes.Axes, optional): Axes to plot on
+
+**Returns:**
+- matplotlib.axes.Axes: Plot axes
+
+**Plot Features:**
+- Model time series as line
+- Observational best estimate as horizontal line
+- Uncertainty range as shaded region
+
+---
+
+#### `create_validation_report(model_metrics, obs_metrics, metrics, regions, outdir)`
+Create comprehensive validation report with all plots and statistics.
+
+**Parameters:**
+- `model_metrics` (dict): Model metrics
+- `obs_metrics` (dict): Observational metrics
+- `metrics` (list of str): Metrics to include
+- `regions` (list of str): Regions to include
+- `outdir` (str): Output directory
+
+**Creates:**
+- Comparison plots for each metric
+- Regional bias heatmap
+- Time series plots
+- Summary statistics CSV
+
+**Example:**
+```python
+from utils_cmip7.validation import create_validation_report
+
+create_validation_report(
+    um_metrics, reccap_metrics,
+    metrics=['GPP', 'NPP', 'CVeg'],
+    regions=['global', 'Europe', 'Africa'],
+    outdir='./validation/xqhuc'
+)
+```
+
+---
+
 ## Configuration (`utils_cmip7.config`)
 
 ### Constants
@@ -489,10 +955,11 @@ Plotting functions are documented in `plot.py` and will be migrated in v0.2.2.
 
 Refer to `CLAUDE.md` Section 3: API Stability Matrix for stability guarantees.
 
-**Current Stability (v0.2.0):**
-- io/ - **Provisional**
-- processing/ - **Provisional**
-- diagnostics/ - **Provisional**
+**Current Stability (v0.2.1):**
+- io/ - **Provisional** (includes obs_loader)
+- processing/ - **Provisional** (includes metrics)
+- diagnostics/ - **Provisional** (includes metrics computation)
+- validation/ - **Provisional** (compare, visualize)
 - plotting/ - **Unstable** (not yet migrated)
 - cli/ - **Experimental** (not yet implemented)
 
@@ -500,5 +967,14 @@ Refer to `CLAUDE.md` Section 3: API Stability Matrix for stability guarantees.
 
 ## Version History
 
-- **v0.2.0** (Current): Core extraction functionality complete, package structure established
+- **v0.2.1** (Current): Model validation framework complete
+  - Added `validation/` module (compare, visualize)
+  - Added `io/obs_loader.py` for CMIP6/RECCAP2 data loading
+  - Added `processing/metrics.py` for metric definitions and validation
+  - Added `diagnostics/metrics.py` for regional metrics computation
+  - Added `scripts/validate_experiment.py` for high-level validation workflow
+  - Three-way comparison visualization (UM vs CMIP6 vs RECCAP2)
+  - CSV export in observational format
+  - Graceful handling of missing metrics and regions
+- **v0.2.0**: Core extraction functionality complete, package structure established
 - **v0.1.0**: Initial scripts and functions

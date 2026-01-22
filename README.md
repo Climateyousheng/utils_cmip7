@@ -39,7 +39,7 @@ Default mask location: `~/scripts/hadcm3b-ensemble-validator/observations/RECCAP
 
 Dependencies are automatically installed with `pip install -e .`
 
-## Package Structure (v0.2.0)
+## Package Structure (v0.2.1)
 
 ```
 utils_cmip7/
@@ -47,14 +47,20 @@ utils_cmip7/
 │   ├── io/                   # NetCDF loading and file discovery
 │   │   ├── stash.py          # STASH code mappings
 │   │   ├── file_discovery.py # UM file pattern matching
-│   │   └── extract.py        # Cube extraction with STASH handling
+│   │   ├── extract.py        # Cube extraction with STASH handling
+│   │   └── obs_loader.py     # Observational data loader (CMIP6, RECCAP2)
 │   ├── processing/           # Aggregation and unit conversions
 │   │   ├── spatial.py        # Global aggregation (SUM/MEAN)
 │   │   ├── temporal.py       # Monthly → annual aggregation
-│   │   └── regional.py       # RECCAP2 regional masking
+│   │   ├── regional.py       # RECCAP2 regional masking
+│   │   └── metrics.py        # Metric definitions and validation
 │   ├── diagnostics/          # High-level extraction workflows
 │   │   ├── extraction.py     # Pre-processed NetCDF extraction
-│   │   └── raw.py            # Raw monthly file extraction
+│   │   ├── raw.py            # Raw monthly file extraction
+│   │   └── metrics.py        # Metrics computation from annual means
+│   ├── validation/           # Model validation against observations
+│   │   ├── compare.py        # Bias and RMSE computation
+│   │   └── visualize.py      # Three-way comparison plots
 │   ├── plotting/             # Visualization (placeholder)
 │   ├── soil_params/          # Soil parameter analysis (placeholder)
 │   ├── config.py             # Configuration and constants
@@ -74,8 +80,11 @@ utils_cmip7/
 ├── scripts/                  # Executable scripts
 │   ├── extract_raw.sh        # Shell wrapper (generic)
 │   ├── extract_raw.py        # Extract from raw monthly files
-│   └── extract_preprocessed.py # Extract from annual NetCDF files
-├── examples/                 # Example notebooks
+│   ├── extract_preprocessed.py # Extract from annual NetCDF files
+│   ├── validate_experiment.py # Three-way validation (UM vs CMIP6 vs RECCAP2)
+│   └── README.md             # Script documentation
+├── examples/                 # Example scripts and notebooks
+│   ├── validation_threeway_example.py  # Three-way validation example
 │   ├── xqhuj_xqhuk_carbon_store.ipynb  # Carbon storage analysis
 │   └── xqhul_co2_252.ipynb   # CO2 field analysis
 ├── dev/                      # Development/diagnostic tools
@@ -91,13 +100,14 @@ utils_cmip7/
 └── pyproject.toml            # Package metadata and dependencies
 ```
 
-**Status (v0.2.0):**
-- ✅ `io/` - Complete (3 modules)
-- ✅ `processing/` - Complete (3 modules)
-- ✅ `diagnostics/` - Complete (2 modules)
+**Status (v0.2.1):**
+- ✅ `io/` - Complete (4 modules including obs_loader)
+- ✅ `processing/` - Complete (4 modules including metrics)
+- ✅ `diagnostics/` - Complete (3 modules including metrics)
+- ✅ `validation/` - Complete (2 modules: compare, visualize)
 - ✅ `tests/` - Basic smoke tests implemented
-- ✅ `obs/` - Observational data for validation
-- ✅ `validation/` - Validation results
+- ✅ `obs/` - Observational data for validation (CMIP6, RECCAP2)
+- ✅ `scripts/` - High-level validation workflow (validate_experiment.py)
 - ⚠️ `plotting/` - Exists in root `plot.py`, needs migration
 - ⚠️ `soil_params/` - Exists in root, needs migration
 - ❌ `cli.py` - Not yet implemented
@@ -112,7 +122,10 @@ Existing scripts using `from analysis import ...` will continue to work during t
 - **Spatial aggregation** - Global and regional analysis using RECCAP2 masks
 - **Temporal processing** - Convert monthly data to annual means
 - **Unit conversions** - Automatic conversion to standard units (PgC/yr, mm/day, etc.)
-- **Visualization** - Publication-quality plots for carbon cycle variables
+- **Model validation** - Three-way comparison (UM vs CMIP6 vs RECCAP2)
+- **Observational data loading** - Load CMIP6 and RECCAP2 metrics from CSV
+- **Bias and RMSE computation** - Statistical comparison against observations
+- **Visualization** - Publication-quality plots for carbon cycle variables and validation
 
 ## Core Modules
 
@@ -120,15 +133,22 @@ Existing scripts using `from analysis import ...` will continue to work during t
 - **stash.py** - STASH code mappings for UM variables (32 variables supported)
 - **file_discovery.py** - UM file pattern matching with month code decoding
 - **extract.py** - Robust cube extraction with flexible STASH handling
+- **obs_loader.py** - Load CMIP6 and RECCAP2 observational data from CSV files
 
 ### Processing Layer (`utils_cmip7.processing`)
 - **spatial.py** - Global aggregation (SUM/MEAN) with area weighting
 - **temporal.py** - Monthly → annual aggregation, fractional year support
 - **regional.py** - RECCAP2 regional masking (11 regions + global)
+- **metrics.py** - Metric definitions (GPP, NPP, CVeg, CSoil, Tau, NEP) and canonical schema validation
 
 ### Diagnostics Layer (`utils_cmip7.diagnostics`)
 - **extraction.py** - Main entry point for pre-processed NetCDF files
 - **raw.py** - Main entry point for raw monthly UM files
+- **metrics.py** - Compute metrics from annual mean files for all RECCAP2 regions
+
+### Validation Layer (`utils_cmip7.validation`)
+- **compare.py** - Bias, RMSE, and uncertainty checks against observations
+- **visualize.py** - Three-way comparison plots, regional heatmaps, timeseries
 
 ### Configuration (`utils_cmip7.config`)
 - **VAR_CONVERSIONS** - Unit conversion factors (kgC/m²/s → PgC/yr, etc.)
@@ -156,6 +176,25 @@ Python script for pre-processed annual mean files:
 python scripts/extract_preprocessed.py EXPERIMENT [--outdir OUTPUT_DIR]
 ```
 Example: `python scripts/extract_preprocessed.py xqhuc --outdir ./plots`
+
+### scripts/validate_experiment.py
+Comprehensive validation of a UM experiment against CMIP6 and RECCAP2 observations:
+```bash
+# Basic usage
+python scripts/validate_experiment.py xqhuc
+
+# With custom base directory
+python scripts/validate_experiment.py --expt xqhuc --base-dir ~/annual_mean
+```
+
+**Outputs** (in `validation/single_val_{expt}/`):
+- `{expt}_metrics.csv` - UM results in observational format
+- `{expt}_bias_vs_cmip6.csv` - Bias statistics vs CMIP6
+- `{expt}_bias_vs_reccap2.csv` - Bias statistics vs RECCAP2
+- `comparison_summary.txt` - Text summary comparing UM vs CMIP6 performance
+- `plots/` - Three-way comparison plots, regional bias heatmaps, timeseries
+
+See [scripts/README.md](scripts/README.md) for detailed documentation.
 
 ## Command-Line Interface (Planned)
 
@@ -236,6 +275,57 @@ print(f"Europe GPP: {europe_gpp['data']} {europe_gpp['units']}")
 # Available regions: North_America, South_America, Europe, Africa,
 # North_Asia, Central_Asia, East_Asia, South_Asia, South_East_Asia, Oceania
 ```
+
+### Model Validation (New in v0.2.1)
+
+**Three-Way Comparison: UM vs CMIP6 vs RECCAP2**
+
+```python
+from utils_cmip7.diagnostics import compute_metrics_from_annual_means
+from utils_cmip7.io import load_cmip6_metrics, load_reccap_metrics
+from utils_cmip7.validation import plot_three_way_comparison
+
+# Compute UM metrics from annual mean files
+um_metrics = compute_metrics_from_annual_means(
+    expt_name='xqhuc',
+    metrics=['GPP', 'NPP', 'CVeg', 'CSoil', 'Tau'],
+    regions=['global', 'North_America', 'Europe']
+)
+
+# Load observational data
+cmip6_metrics = load_cmip6_metrics(
+    metrics=['GPP', 'NPP', 'CVeg', 'CSoil', 'Tau'],
+    regions=['global', 'North_America', 'Europe'],
+    include_errors=True
+)
+
+reccap_metrics = load_reccap_metrics(
+    metrics=['GPP', 'NPP', 'CVeg', 'CSoil', 'Tau'],
+    regions=['global', 'North_America', 'Europe'],
+    include_errors=True
+)
+
+# Create three-way comparison plot
+plot_three_way_comparison(
+    um_metrics, cmip6_metrics, reccap_metrics,
+    metric='GPP',
+    outdir='./validation'
+)
+```
+
+**High-Level Validation Workflow:**
+
+```bash
+# Validate experiment xqhuc against all observations
+python scripts/validate_experiment.py xqhuc
+
+# Outputs saved to validation/single_val_xqhuc/
+# - CSV files with metrics and bias statistics
+# - Plots comparing UM vs CMIP6 vs RECCAP2
+# - Text summary with performance comparison
+```
+
+See [examples/validation_threeway_example.py](examples/validation_threeway_example.py) for a complete example.
 
 ## Input Data Requirements
 
