@@ -55,28 +55,51 @@ utils_cmip7/
 │   ├── diagnostics/          # High-level extraction workflows
 │   │   ├── extraction.py     # Pre-processed NetCDF extraction
 │   │   └── raw.py            # Raw monthly file extraction
+│   ├── plotting/             # Visualization (placeholder)
+│   ├── soil_params/          # Soil parameter analysis (placeholder)
 │   ├── config.py             # Configuration and constants
 │   └── __init__.py           # Package API
+├── obs/                      # Observational data (CMIP6, RECCAP2)
+│   ├── stores_vs_fluxes_cmip6.csv
+│   ├── stores_vs_fluxes_cmip6_err.csv
+│   ├── stores_vs_fluxes_reccap.csv
+│   └── stores_vs_fluxes_reccap_err.csv
+├── validation/               # Validation results and analysis
+│   └── random_sampling_combined_overview_table.csv
+├── tests/                    # Test suite
+│   ├── test_imports.py       # Import resolution tests
+│   ├── test_config.py        # Configuration validation tests
+│   ├── run_smoke_tests.py    # Test runner
+│   └── README.md             # Test documentation
 ├── scripts/                  # Executable scripts
 │   ├── extract_raw.sh        # Shell wrapper (generic)
 │   ├── extract_raw.py        # Extract from raw monthly files
 │   └── extract_preprocessed.py # Extract from annual NetCDF files
 ├── examples/                 # Example notebooks
-│   └── xqhuj_xqhuk_carbon_store.ipynb
+│   ├── xqhuj_xqhuk_carbon_store.ipynb  # Carbon storage analysis
+│   └── xqhul_co2_252.ipynb   # CO2 field analysis
 ├── dev/                      # Development/diagnostic tools
 │   ├── debug_plot.py
 │   └── diagnose_extraction.py
-└── doc/                      # Documentation
-    ├── API_REFERENCE.md      # Comprehensive API documentation
-    ├── MIGRATION.md          # Migration guide from v0.1.x
-    └── STASH.md              # STASH code reference
+├── doc/                      # Documentation
+│   ├── API_REFERENCE.md      # Comprehensive API documentation
+│   ├── MIGRATION.md          # Migration guide from v0.1.x
+│   ├── STASH.md              # STASH code reference
+│   └── TROUBLESHOOTING.md    # Common issues and solutions
+├── analysis.py               # Backward-compatible wrapper (deprecated)
+├── plot.py                   # Backward-compatible wrapper (deprecated)
+└── pyproject.toml            # Package metadata and dependencies
 ```
 
 **Status (v0.2.0):**
-- ✅ `io/` - Complete
-- ✅ `processing/` - Complete
-- ✅ `diagnostics/` - Complete
+- ✅ `io/` - Complete (3 modules)
+- ✅ `processing/` - Complete (3 modules)
+- ✅ `diagnostics/` - Complete (2 modules)
+- ✅ `tests/` - Basic smoke tests implemented
+- ✅ `obs/` - Observational data for validation
+- ✅ `validation/` - Validation results
 - ⚠️ `plotting/` - Exists in root `plot.py`, needs migration
+- ⚠️ `soil_params/` - Exists in root, needs migration
 - ❌ `cli.py` - Not yet implemented
 
 **Backward Compatibility:**
