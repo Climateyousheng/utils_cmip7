@@ -25,7 +25,17 @@ from .processing import (
     compute_annual_mean,
 )
 from .diagnostics import extract_annual_means, extract_annual_mean_raw
-from .config import VAR_CONVERSIONS, RECCAP_MASK_PATH, validate_reccap_mask_path, get_config_info
+from .config import (
+    VAR_CONVERSIONS,
+    RECCAP_MASK_PATH,
+    CANONICAL_VARIABLES,
+    DEFAULT_VAR_LIST,
+    validate_reccap_mask_path,
+    get_config_info,
+    resolve_variable_name,
+    get_variable_config,
+    get_conversion_key,
+)
 
 __all__ = [
     # Version
@@ -47,6 +57,11 @@ __all__ = [
     # Configuration
     'VAR_CONVERSIONS',
     'RECCAP_MASK_PATH',
+    'CANONICAL_VARIABLES',
+    'DEFAULT_VAR_LIST',
     'validate_reccap_mask_path',
     'get_config_info',
+    'resolve_variable_name',
+    'get_variable_config',
+    'get_conversion_key',
 ]

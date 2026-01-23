@@ -9,11 +9,10 @@ import os
 # Unit conversion factors for various variables
 # Maps variable names/codes to conversion factors
 VAR_CONVERSIONS = {
+    # Legacy names (for backward compatibility)
     'Ocean flux': (12/44)*3600*24*360*(1e-12),         # kgCO2/m2/s to PgC/yr
     'm01s00i250': (12/44)*3600*24*360*(1e-12),         # same as Ocean flux
     'field1560_mm_srf': (12/44)*3600*24*360*(1e-12),   # same as Ocean flux
-    'GPP': 3600*24*360*(1e-12),                        # from kgC/m2/s to PgC/yr
-    'NPP': 3600*24*360*(1e-12),                        # from kgC/m2/s to PgC/yr
     'P resp': 3600*24*360*(1e-12),                     # from kgC/m2/s to PgC/yr
     'S resp': 3600*24*360*(1e-12),                     # from kgC/m2/s to PgC/yr
     'litter flux': (1e-12),                            # from kgC/m2/yr to PgC/yr
@@ -27,7 +26,18 @@ VAR_CONVERSIONS = {
     'Total co2': 28.97/44.01*(1e6),                    # from mmr to ppmv
     'm01s00i252': 28.97/44.01*(1e6),                   # same as Total co2
     'precip': 86400,                                   # from kg/m2/s to mm/day
-    'Others': 1,                                       # no conversion
+    'Others': 1,                                       # no conversion (used for MEAN aggregation)
+
+    # Canonical CMIP-style names (new standard)
+    'GPP': 3600*24*360*(1e-12),                        # kgC/m2/s → PgC/yr
+    'NPP': 3600*24*360*(1e-12),                        # kgC/m2/s → PgC/yr
+    'Rh': 3600*24*360*(1e-12),                         # kgC/m2/s → PgC/yr
+    'CVeg': (1e-12),                                   # kgC/m2 → PgC
+    'CSoil': (1e-12),                                  # kgC/m2 → PgC
+    'fgco2': (12)/1000*(1e-12),                        # molC/m2/yr → PgC/yr
+    'tas': 1,                                          # K (no conversion, use MEAN)
+    'pr': 86400,                                       # kg/m2/s → mm/day
+    'frac': 1,                                         # fraction (no conversion, use MEAN)
 }
 
 # RECCAP2 regional mask file path
@@ -56,6 +66,300 @@ RECCAP_REGIONS = {
 
 # Backward compatibility: alias for old name
 var_dict = VAR_CONVERSIONS
+
+# ============================================================================
+# CANONICAL VARIABLE REGISTRY
+# ============================================================================
+# Single source of truth for all carbon cycle variables
+# Replaces the old var_list + var_mapping dual-list pattern
+#
+# Each variable has:
+#   - description: Human-readable description
+#   - stash_name: UM STASH variable name for extraction
+#   - stash_code: Full STASH code string
+#   - stash_fallback: Optional fallback STASH code (for frac→fracb)
+#   - aggregation: "MEAN" or "SUM" (controls spatial aggregation method)
+#   - conversion_factor: Multiplier to convert to output units
+#   - units: Output units after conversion
+#   - category: "flux", "stock", "climate", or "land_use"
+#   - aliases: List of deprecated names (for backward compatibility)
+
+CANONICAL_VARIABLES = {
+    # -------------------------------------------------------------------------
+    # Carbon fluxes (PgC/yr)
+    # -------------------------------------------------------------------------
+    "GPP": {
+        "description": "Gross Primary Production",
+        "stash_name": "gpp",
+        "stash_code": "m01s03i261",
+        "aggregation": "SUM",
+        "conversion_factor": 3600*24*360*1e-12,  # kgC/m2/s → PgC/yr
+        "units": "PgC/yr",
+        "category": "flux",
+        "aliases": [],
+    },
+    "NPP": {
+        "description": "Net Primary Production",
+        "stash_name": "npp",
+        "stash_code": "m01s03i262",
+        "aggregation": "SUM",
+        "conversion_factor": 3600*24*360*1e-12,  # kgC/m2/s → PgC/yr
+        "units": "PgC/yr",
+        "category": "flux",
+        "aliases": [],
+    },
+    "Rh": {
+        "description": "Heterotrophic Respiration",
+        "stash_name": "rh",
+        "stash_code": "m01s03i293",
+        "aggregation": "SUM",
+        "conversion_factor": 3600*24*360*1e-12,  # kgC/m2/s → PgC/yr
+        "units": "PgC/yr",
+        "category": "flux",
+        "aliases": ["soilResp"],
+    },
+    "fgco2": {
+        "description": "Surface Downward Mass Flux of Carbon as CO2",
+        "stash_name": "fgco2",
+        "stash_code": "m02s30i249",
+        "aggregation": "SUM",
+        "conversion_factor": 12/1000*1e-12,  # molC/m2/yr → PgC/yr
+        "units": "PgC/yr",
+        "category": "flux",
+        "aliases": [],
+    },
+
+    # -------------------------------------------------------------------------
+    # Carbon stocks (PgC)
+    # -------------------------------------------------------------------------
+    "CVeg": {
+        "description": "Vegetation Carbon Content",
+        "stash_name": "cv",
+        "stash_code": "m01s19i002",
+        "aggregation": "SUM",
+        "conversion_factor": 1e-12,  # kgC/m2 → PgC
+        "units": "PgC",
+        "category": "stock",
+        "aliases": ["VegCarb", "vegetation_carbon_content"],
+    },
+    "CSoil": {
+        "description": "Soil Carbon Content",
+        "stash_name": "cs",
+        "stash_code": "m01s19i016",
+        "aggregation": "SUM",
+        "conversion_factor": 1e-12,  # kgC/m2 → PgC
+        "units": "PgC",
+        "category": "stock",
+        "aliases": ["soilCarbon"],
+    },
+
+    # -------------------------------------------------------------------------
+    # Climate variables (use MEAN aggregation)
+    # -------------------------------------------------------------------------
+    "tas": {
+        "description": "Near-Surface Air Temperature",
+        "stash_name": "tas",
+        "stash_code": "m01s03i236",
+        "aggregation": "MEAN",  # Note: MEAN not SUM!
+        "conversion_factor": 1.0,  # K (no conversion)
+        "units": "K",
+        "category": "climate",
+        "aliases": ["temp"],
+    },
+    "pr": {
+        "description": "Precipitation",
+        "stash_name": "pr",
+        "stash_code": "m01s05i216",
+        "aggregation": "MEAN",  # Note: MEAN not SUM!
+        "conversion_factor": 86400,  # kg/m2/s → mm/day
+        "units": "mm/day",
+        "category": "climate",
+        "aliases": ["precip"],
+    },
+
+    # -------------------------------------------------------------------------
+    # Land use / PFT fractions (use MEAN aggregation)
+    # -------------------------------------------------------------------------
+    "frac": {
+        "description": "Plant Functional Type Grid Fractions",
+        "stash_name": "frac",
+        "stash_code": "m01s19i013",
+        "stash_fallback": 19017,  # Try m01s19i017 (fracb) if frac not found
+        "aggregation": "MEAN",  # Note: MEAN not SUM!
+        "conversion_factor": 1.0,  # fraction (no conversion)
+        "units": "1",
+        "category": "land_use",
+        "aliases": ["fracPFTs"],
+    },
+}
+
+
+def resolve_variable_name(name: str) -> str:
+    """
+    Resolve any variable name (canonical or alias) to canonical name.
+
+    Parameters
+    ----------
+    name : str
+        Variable name (canonical or alias)
+
+    Returns
+    -------
+    str
+        Canonical variable name (e.g., 'CVeg', 'Rh', 'tas')
+
+    Raises
+    ------
+    ValueError
+        If variable name not recognized
+
+    Examples
+    --------
+    >>> resolve_variable_name('VegCarb')  # alias → canonical
+    'CVeg'
+    >>> resolve_variable_name('CVeg')  # already canonical
+    'CVeg'
+    >>> resolve_variable_name('soilResp')  # alias → canonical
+    'Rh'
+    >>> resolve_variable_name('temp')  # alias → canonical
+    'tas'
+    """
+    # Already canonical?
+    if name in CANONICAL_VARIABLES:
+        return name
+
+    # Search aliases
+    for canonical_name, config in CANONICAL_VARIABLES.items():
+        if name in config.get("aliases", []):
+            return canonical_name
+
+    raise ValueError(
+        f"Unknown variable name: '{name}'. "
+        f"Known variables: {sorted(CANONICAL_VARIABLES.keys())}. "
+        f"Known aliases: {sorted(sum([cfg.get('aliases', []) for cfg in CANONICAL_VARIABLES.values()], []))}"
+    )
+
+
+def get_variable_config(name: str) -> dict:
+    """
+    Get full configuration for a variable (resolves aliases automatically).
+
+    Parameters
+    ----------
+    name : str
+        Variable name (canonical or alias)
+
+    Returns
+    -------
+    dict
+        Variable configuration with keys:
+        - description: str
+        - stash_name: str (for data extraction)
+        - stash_code: str
+        - stash_fallback: int or None
+        - aggregation: "MEAN" or "SUM"
+        - conversion_factor: float
+        - units: str
+        - category: str
+        - aliases: list of str
+
+    Examples
+    --------
+    >>> cfg = get_variable_config('VegCarb')  # alias
+    >>> cfg['description']
+    'Vegetation Carbon Content'
+    >>> cfg['conversion_factor']
+    1e-12
+    >>> cfg['aggregation']
+    'SUM'
+
+    >>> cfg = get_variable_config('tas')  # canonical
+    >>> cfg['aggregation']
+    'MEAN'
+    """
+    canonical = resolve_variable_name(name)
+    config = {**CANONICAL_VARIABLES[canonical]}  # Return a copy
+    config['canonical_name'] = canonical
+    return config
+
+
+def get_conversion_key(name: str) -> str:
+    """
+    Get the conversion key for compute_regional_annual_mean().
+
+    This preserves backward compatibility with the old var_mapping system.
+    Returns a key that encodes both the aggregation method and conversion factor.
+
+    Parameters
+    ----------
+    name : str
+        Variable name (canonical or alias)
+
+    Returns
+    -------
+    str
+        Conversion key for use with compute_regional_annual_mean()
+        - Returns "Others" for MEAN aggregation variables
+        - Returns "precip" for precipitation
+        - Returns canonical variable name for SUM aggregation variables
+
+    Notes
+    -----
+    The conversion key is used by compute_regional_annual_mean() to:
+    1. Determine aggregation method: "Others" or "precip" → MEAN, else → SUM
+    2. Look up conversion factor in VAR_CONVERSIONS
+
+    Examples
+    --------
+    >>> get_conversion_key('tas')
+    'Others'  # MEAN aggregation
+    >>> get_conversion_key('GPP')
+    'GPP'  # SUM aggregation
+    >>> get_conversion_key('pr')
+    'precip'  # MEAN aggregation (special case)
+    """
+    canonical = resolve_variable_name(name)
+    config = CANONICAL_VARIABLES[canonical]
+
+    # MEAN aggregation → use "Others" (except precip)
+    if config['aggregation'] == 'MEAN':
+        if canonical == 'pr':
+            return 'precip'
+        else:
+            return 'Others'
+
+    # SUM aggregation → use canonical name
+    # Need to ensure VAR_CONVERSIONS has the right mapping
+    return canonical
+
+
+# Default variable extraction configuration
+# Used by extract_annual_means() in diagnostics.extraction
+DEFAULT_VAR_LIST = [
+    'Rh',          # Heterotrophic respiration (CMIP: Rh)
+    'CSoil',       # Soil carbon (CMIP: CSoil)
+    'CVeg',        # Vegetation carbon (CMIP: CVeg)
+    'frac',        # PFT fractions
+    'GPP',         # Gross primary production
+    'NPP',         # Net primary production
+    'fgco2',       # Ocean CO2 flux
+    'tas',         # Surface air temperature (CMIP: tas)
+    'pr'           # Precipitation (CMIP: pr)
+]
+
+# DEPRECATED: Use CANONICAL_VARIABLES instead
+# This is kept for backward compatibility only
+DEFAULT_VAR_MAPPING = [
+    'S resp',              # Rh → conversion key
+    'S carb',              # CSoil → conversion key
+    'V carb',              # CVeg → conversion key
+    'Others',              # frac → conversion key (MEAN aggregation)
+    'GPP',                 # GPP → conversion key
+    'NPP',                 # NPP → conversion key
+    'field646_mm_dpth',    # fgco2 → conversion key
+    'Others',              # tas → conversion key (MEAN aggregation)
+    'precip'               # pr → conversion key (MEAN aggregation)
+]
 
 
 def validate_reccap_mask_path(path=None):
