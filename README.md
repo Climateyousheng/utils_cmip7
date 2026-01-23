@@ -179,8 +179,9 @@ python scripts/extract_preprocessed.py EXPERIMENT [--base-dir BASE_DIR]
 ```
 Example: `python scripts/extract_preprocessed.py xqhuc --base-dir ~/annual_mean`
 
-**Outputs** (in `validation_outputs/single_val_{expt}/plots/`):
-- Time series plots for all regions (global, North_America, Europe, Africa, etc.)
+**Outputs** (in `validation_outputs/single_val_{expt}/`):
+- `{expt}_extraction.csv` - Time-mean values for all variables and regions
+- `plots/` - Time series plots for all regions (global, North_America, Europe, Africa, etc.)
 - Automatically skips regions with no data
 
 ### scripts/validate_experiment.py

@@ -11,9 +11,11 @@ import sys
 import argparse
 from pathlib import Path
 
-# Add repository root to path for plot_legacy.py
+# Add repository root and scripts directory to path
 repo_root = Path(__file__).parent.parent
+scripts_dir = Path(__file__).parent
 sys.path.insert(0, str(repo_root))
+sys.path.insert(0, str(scripts_dir))
 
 # Try importing from installed package first, fall back to legacy path
 try:
@@ -49,14 +51,78 @@ except ImportError:
     # Fallback to old name
     from plot import plot_timeseries_grouped
 
+# Import CSV saving function from validate_experiment
+try:
+    from validate_experiment import save_um_metrics_to_csv, get_all_regions
+except ImportError:
+    # Fallback: define locally if import fails
+    import numpy as np
+    import pandas as pd
 
-def get_all_regions():
-    """Get all RECCAP2 regions plus global."""
-    regions = ['global'] + list(RECCAP_REGIONS.values())
-    # Ensure Africa is included (it's region 4 in RECCAP_REGIONS)
-    if 'Africa' not in regions:
-        regions.append('Africa')
-    return regions
+    def get_all_regions():
+        """Get all RECCAP2 regions plus global."""
+        regions = ['global'] + list(RECCAP_REGIONS.values())
+        # Ensure Africa is included (it's region 4 in RECCAP_REGIONS)
+        if 'Africa' not in regions:
+            regions.append('Africa')
+        return regions
+
+    def save_um_metrics_to_csv(um_metrics, expt, outdir):
+        """
+        Save UM metrics to CSV in observational data format.
+
+        Parameters
+        ----------
+        um_metrics : dict
+            UM metrics in format: {expt: {region: {var: {'years', 'data', 'units'}}}}
+        expt : str
+            Experiment name
+        outdir : Path
+            Output directory
+        """
+        regions = get_all_regions()
+
+        # Get all available variables from the data
+        all_vars = set()
+        if expt in um_metrics:
+            for region in regions:
+                if region in um_metrics[expt]:
+                    all_vars.update(um_metrics[expt][region].keys())
+
+        # Remove nested structures (like frac)
+        all_vars = {v for v in all_vars if isinstance(um_metrics[expt].get('global', {}).get(v), dict)
+                   and 'years' in um_metrics[expt].get('global', {}).get(v, {})}
+
+        metrics = sorted(all_vars)
+
+        # Build dataframe
+        data = {}
+        for region in regions:
+            regional_data = []
+            for metric in metrics:
+                if expt in um_metrics and region in um_metrics[expt]:
+                    if metric in um_metrics[expt][region]:
+                        var_data = um_metrics[expt][region][metric]
+                        if 'data' in var_data and len(var_data['data']) > 0:
+                            # Compute time-mean
+                            mean_val = np.mean(var_data['data'])
+                            regional_data.append(mean_val)
+                        else:
+                            regional_data.append(np.nan)
+                    else:
+                        regional_data.append(np.nan)
+                else:
+                    regional_data.append(np.nan)
+            data[region] = regional_data
+
+        df = pd.DataFrame(data, index=metrics)
+
+        # Save
+        csv_path = outdir / f'{expt}_extraction.csv'
+        df.to_csv(csv_path)
+        print(f"  ✓ Saved extraction data: {csv_path}")
+
+        return df
 
 
 def main():
@@ -72,6 +138,7 @@ Examples:
 
 Output Structure:
   validation_outputs/single_val_{expt}/
+    ├── {expt}_extraction.csv           # Time-mean values for all regions
     └── plots/
         ├── allvars_global_{expt}_timeseries.png
         ├── allvars_Europe_{expt}_timeseries.png
@@ -140,6 +207,13 @@ If you see many ❌, you need to:
    c) Verify STASH codes are correct in the files
     """)
 
+    # Save extracted data to CSV
+    print("\n" + "=" * 80)
+    print("SAVING EXTRACTED DATA TO CSV...")
+    print("=" * 80)
+
+    save_um_metrics_to_csv(ds, args.expt, outdir)
+
     print("\n" + "=" * 80)
     print("GENERATING PLOTS FOR ALL REGIONS...")
     print("=" * 80)
@@ -183,7 +257,9 @@ If you see many ❌, you need to:
     print("EXTRACTION COMPLETE!")
     print("=" * 80)
     print(f"\nResults saved to: {outdir}/")
-    print(f"\nPlots generated: {len(successfully_plotted)}/{len(regions)} regions")
+    print(f"\nOutputs:")
+    print(f"  - CSV: {args.expt}_extraction.csv (time-mean values for all regions)")
+    print(f"  - Plots: {len(successfully_plotted)}/{len(regions)} regional time series")
 
     if successfully_plotted:
         print("\n✓ Successfully plotted regions:")
@@ -199,8 +275,9 @@ If you see many ❌, you need to:
         if len(failed_regions) > 5:
             print(f"  ... and {len(failed_regions) - 5} more")
 
-    print(f"\nCheck plots in: {plots_dir}/")
-    print("\nNote: Plots only show variables that were successfully extracted.")
+    print(f"\nData summary: {outdir}/{args.expt}_extraction.csv")
+    print(f"Plot directory: {plots_dir}/")
+    print("\nNote: CSV contains time-mean values. Plots show full time series.")
     print("=" * 80 + "\n")
 
 

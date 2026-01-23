@@ -25,32 +25,49 @@ python scripts/extract_preprocessed.py xqhuc --base-dir ~/annual_mean
 
 ### Outputs
 
-Creates `validation_outputs/single_val_{expt}/plots/` containing time series plots for all regions:
+Creates `validation_outputs/single_val_{expt}/` containing:
 
 ```
-validation_outputs/single_val_{expt}/plots/
-├── allvars_global_{expt}_timeseries.png
-├── allvars_Europe_{expt}_timeseries.png
-├── allvars_North_America_{expt}_timeseries.png
-├── allvars_South_America_{expt}_timeseries.png
-├── allvars_Africa_{expt}_timeseries.png
-├── allvars_North_Asia_{expt}_timeseries.png
-├── allvars_Central_Asia_{expt}_timeseries.png
-├── allvars_East_Asia_{expt}_timeseries.png
-├── allvars_South_Asia_{expt}_timeseries.png
-├── allvars_South_East_Asia_{expt}_timeseries.png
-└── allvars_Oceania_{expt}_timeseries.png
+validation_outputs/single_val_{expt}/
+├── {expt}_extraction.csv           # Time-mean values for all variables and regions
+└── plots/
+    ├── allvars_global_{expt}_timeseries.png
+    ├── allvars_Europe_{expt}_timeseries.png
+    ├── allvars_North_America_{expt}_timeseries.png
+    ├── allvars_South_America_{expt}_timeseries.png
+    ├── allvars_Africa_{expt}_timeseries.png
+    ├── allvars_North_Asia_{expt}_timeseries.png
+    ├── allvars_Central_Asia_{expt}_timeseries.png
+    ├── allvars_East_Asia_{expt}_timeseries.png
+    ├── allvars_South_Asia_{expt}_timeseries.png
+    ├── allvars_South_East_Asia_{expt}_timeseries.png
+    └── allvars_Oceania_{expt}_timeseries.png
 ```
 
 ### What it does
 
 1. **Extracts data** for all RECCAP2 regions (global + 10 regions)
-2. **Generates time series plots** for each region showing:
+2. **Saves to CSV** with time-mean values in same format as observational data
+3. **Generates time series plots** for each region showing:
    - Carbon fluxes (GPP, NPP, Rh, fgco2)
    - Carbon stocks (CVeg, CSoil)
    - Climate variables (tas, pr)
    - PFT fractions (if available)
-3. **Automatically skips** regions with no data
+4. **Automatically skips** regions with no data
+
+### CSV Format
+
+**{expt}_extraction.csv**: Time-mean values in same format as `validate_experiment.py` output
+
+```csv
+,global,North_America,South_America,Europe,Africa,...
+CSoil,1234.56,123.45,234.56,45.67,345.67,...
+CVeg,567.89,56.78,78.90,12.34,89.01,...
+GPP,134.81,18.40,31.65,6.11,30.02,...
+NPP,68.29,10.36,14.45,3.42,14.45,...
+Rh,65.52,7.99,17.20,2.69,15.57,...
+...
+```
 
 ### Notes
 
