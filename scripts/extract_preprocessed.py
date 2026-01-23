@@ -11,19 +11,43 @@ import sys
 import argparse
 from pathlib import Path
 
+# Add repository root to path for plot_legacy.py
+repo_root = Path(__file__).parent.parent
+sys.path.insert(0, str(repo_root))
+
 # Try importing from installed package first, fall back to legacy path
 try:
     from utils_cmip7 import extract_annual_means
     from utils_cmip7.config import RECCAP_REGIONS
-    from plot_legacy import plot_timeseries_grouped  # Legacy plotting
-    print("✓ Using utils_cmip7 package")
+    print("✓ Using utils_cmip7 package imports")
+    package_imports = True
 except ImportError:
     # Fall back to legacy path-based import
     sys.path.append(os.path.expanduser('~/scripts/utils_cmip7'))
     from analysis import extract_annual_means
-    from config import RECCAP_REGIONS
-    from plot_legacy import plot_timeseries_grouped
     print("⚠ Using legacy imports (install package with 'pip install -e .' for new imports)")
+    package_imports = False
+
+    # Define fallback RECCAP_REGIONS if not available
+    RECCAP_REGIONS = {
+        1: "North_America",
+        2: "South_America",
+        3: "Europe",
+        4: "Africa",
+        6: "North_Asia",
+        7: "Central_Asia",
+        8: "East_Asia",
+        9: "South_Asia",
+        10: "South_East_Asia",
+        11: "Oceania",
+    }
+
+# Import plotting from repository root (works in both cases)
+try:
+    from plot_legacy import plot_timeseries_grouped
+except ImportError:
+    # Fallback to old name
+    from plot import plot_timeseries_grouped
 
 
 def get_all_regions():
