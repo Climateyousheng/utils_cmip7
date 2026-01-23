@@ -230,32 +230,42 @@ def extract_annual_means(expts_list, var_list=None, var_mapping=None, regions=No
 
             # Process each variable using canonical names and automatic conversion keys
             for varname in var_list:
-                cubeset = cube_map.get(varname)
-                if not cubeset:
-                    continue  # Already warned above
-                if varname == 'fgco2' and region != 'global':
-                    continue  # Skip fgco2 for non-global regions
+                try:
+                    cubeset = cube_map.get(varname)
+                    if not cubeset:
+                        continue  # Already warned above
+                    if varname == 'fgco2' and region != 'global':
+                        continue  # Skip fgco2 for non-global regions
 
-                cube = cubeset[0]
-                var_config = get_variable_config(varname)
-                conversion_key = get_conversion_key(varname)
+                    cube = cubeset[0]
+                    var_config = get_variable_config(varname)
+                    conversion_key = get_conversion_key(varname)
 
-                # Handle regular variables
-                if cube is not None and varname != 'frac':
-                    output = compute_regional_annual_mean(cube, conversion_key, region)
-                    output['units'] = var_config['units']
-                    dict_annual_means[expt][region][varname] = output
-                # Handle frac (PFTs) separately
-                else:
-                    frac_data = {}
-                    for j in range(1, 10):
-                        try:
-                            frac_pft = cube.extract(Constraint(coord_values={'generic': j}))
-                            output = compute_regional_annual_mean(frac_pft, conversion_key, region)
-                            frac_data[f'PFT {j}'] = output
-                        except:
-                            continue
-                    dict_annual_means[expt][region][varname] = frac_data
+                    # Handle regular variables
+                    if cube is not None and varname != 'frac':
+                        output = compute_regional_annual_mean(cube, conversion_key, region)
+                        output['units'] = var_config['units']
+                        dict_annual_means[expt][region][varname] = output
+                    # Handle frac (PFTs) separately
+                    elif cube is not None and varname == 'frac':
+                        frac_data = {}
+                        for j in range(1, 10):
+                            try:
+                                frac_pft = cube.extract(Constraint(coord_values={'generic': j}))
+                                if frac_pft:
+                                    output = compute_regional_annual_mean(frac_pft, conversion_key, region)
+                                    frac_data[f'PFT {j}'] = output
+                            except Exception as e:
+                                # Skip PFTs that fail extraction
+                                continue
+                        # Only add frac data if at least one PFT was successfully extracted
+                        if frac_data:
+                            dict_annual_means[expt][region][varname] = frac_data
+
+                except Exception as e:
+                    # Don't let regional processing errors stop the entire extraction
+                    print(f"  ⚠ Warning: Failed to process {varname} for region {region}: {e}")
+                    continue
 
             # NEP (derived variable: NPP - Rh)
             if 'NPP' in dict_annual_means[expt][region] and 'Rh' in dict_annual_means[expt][region]:
