@@ -16,10 +16,12 @@ color_map = {
 }
 
 # Group variables by their common prefix
-def group_vars_by_prefix(data, expts_list=None, region="global", exclude=("fracPFTs",)):
+def group_vars_by_prefix(data, expts_list=None, region="global", exclude=("fracPFTs", "frac")):
     """
     data: dict[expt][region][var] -> series dict
     Returns: dict[prefix] -> sorted list of vars
+
+    Note: Excludes 'fracPFTs' and 'frac' by default since they have nested structure
     """
     grouped = {}
 
@@ -41,9 +43,11 @@ def group_vars_by_prefix(data, expts_list=None, region="global", exclude=("fracP
 # Plot all variables in one figure with subplots
 def plot_timeseries_grouped(data, expts_list, region, outdir,
                                 legend_labels=None, color_map=None, show: bool = False,
-                                exclude=("fracPFTs",), ncols=3):
+                                exclude=("fracPFTs", "frac"), ncols=3):
     """
     data: dict[expt][region][var] -> {"years":..., "data":..., "units":...}
+
+    Note: Excludes 'fracPFTs' and 'frac' by default (nested PFT structure)
     """
     legend_labels = legend_labels or {}
     color_map = color_map or {}
@@ -75,18 +79,30 @@ def plot_timeseries_grouped(data, expts_list, region, outdir,
             if not series:
                 continue
 
+            # Check if series has the expected structure
+            if not isinstance(series, dict):
+                continue
+            if "years" not in series or "data" not in series:
+                # Skip variables with nested structure (e.g., frac/fracPFTs)
+                continue
+
             any_series = series
             label = legend_labels.get(exp, exp)
 
-            years = np.asarray(series["years"])
-            vals  = np.asarray(series["data"])
+            try:
+                years = np.asarray(series["years"])
+                vals  = np.asarray(series["data"])
 
-            ax.plot(
-                years[1:], vals[1:],
-                label=label,
-                color=color_map.get(exp, "0.5"),
-                lw=0.8
-            )
+                ax.plot(
+                    years[1:], vals[1:],
+                    label=label,
+                    color=color_map.get(exp, "0.5"),
+                    lw=0.8
+                )
+            except (KeyError, IndexError, ValueError) as e:
+                # Skip this series if data is malformed
+                print(f"Warning: Skipping {var} for {exp}: {e}")
+                continue
 
         units = (any_series or {}).get("units", "")
         ax.set_title(f"{var} ({units}) {region}" if units else var, fontsize=9)
