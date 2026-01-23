@@ -433,6 +433,11 @@ def main():
     print(f"✓ Loaded CMIP6 ensemble data")
     print(f"✓ Loaded RECCAP2 observational data")
 
+    # Load vegetation fraction observations (IGBP)
+    obs_veg_metrics = load_obs_veg_metrics()
+    if obs_veg_metrics:
+        print(f"✓ Loaded IGBP vegetation fraction observations")
+
     # =========================================================================
     # Step 3: Compare UM vs CMIP6 and UM vs RECCAP2
     # =========================================================================
@@ -456,6 +461,12 @@ def main():
     print(f"✓ Computed bias statistics vs CMIP6")
     print(f"✓ Computed bias statistics vs RECCAP2")
 
+    # Compare vegetation fractions vs IGBP
+    veg_comparison = None
+    if veg_metrics and obs_veg_metrics:
+        veg_comparison = compare_veg_metrics(veg_metrics, obs_veg_metrics)
+        print(f"✓ Computed vegetation fraction bias vs IGBP")
+
     # =========================================================================
     # Step 4: Export to CSV
     # =========================================================================
@@ -469,6 +480,14 @@ def main():
     # Save vegetation fraction metrics
     if veg_metrics:
         save_veg_metrics_to_csv(veg_metrics, expt, outdir)
+
+    # Save vegetation fraction comparison
+    if veg_comparison:
+        veg_df = pd.DataFrame(veg_comparison).T
+        veg_df.index.name = 'metric'
+        veg_csv_path = outdir / f'{expt}_veg_bias_vs_igbp.csv'
+        veg_df.to_csv(veg_csv_path)
+        print(f"  ✓ Saved: {veg_csv_path.name}")
 
     save_comparison_summary(
         um_metrics,
@@ -507,6 +526,8 @@ def main():
     print(f"  - {expt}_bias_vs_reccap2.csv    (Bias vs RECCAP2)")
     if veg_metrics:
         print(f"  - {expt}_veg_fractions.csv      (Vegetation fraction metrics)")
+    if veg_comparison:
+        print(f"  - {expt}_veg_bias_vs_igbp.csv   (Vegetation bias vs IGBP)")
     print(f"  - comparison_summary.txt        (Text summary)")
     print(f"  - plots/                        (All visualizations)")
 
@@ -522,13 +543,31 @@ def main():
               f"{npp_summary['fraction_within_uncertainty']:.0%} within uncertainty")
 
     if veg_metrics:
-        print(f"\nVegetation fractions (global mean):")
-        if 'global_mean_trees' in veg_metrics:
-            print(f"  Trees (BL+NL): {veg_metrics['global_mean_trees']:.3f}")
-        if 'global_mean_grass' in veg_metrics:
-            print(f"  Grass (C3+C4): {veg_metrics['global_mean_grass']:.3f}")
-        if 'global_mean_shrub' in veg_metrics:
-            print(f"  Shrub: {veg_metrics['global_mean_shrub']:.3f}")
+        print(f"\nVegetation fractions vs IGBP:")
+        if veg_comparison:
+            # Show trees
+            if 'global_mean_trees' in veg_comparison:
+                trees = veg_comparison['global_mean_trees']
+                print(f"  Trees (BL+NL): UM={trees['um_value']:.3f}, Obs={trees.get('obs_value', 'N/A'):.3f}, "
+                      f"Bias={trees.get('bias', 0):+.3f} ({trees.get('bias_percent', 0):+.1f}%)")
+            # Show grass
+            if 'global_mean_grass' in veg_comparison:
+                grass = veg_comparison['global_mean_grass']
+                print(f"  Grass (C3+C4): UM={grass['um_value']:.3f}, Obs={grass.get('obs_value', 'N/A'):.3f}, "
+                      f"Bias={grass.get('bias', 0):+.3f} ({grass.get('bias_percent', 0):+.1f}%)")
+            # Show shrub
+            if 'global_mean_shrub' in veg_comparison:
+                shrub = veg_comparison['global_mean_shrub']
+                print(f"  Shrub: UM={shrub['um_value']:.3f}, Obs={shrub.get('obs_value', 'N/A'):.3f}, "
+                      f"Bias={shrub.get('bias', 0):+.3f} ({shrub.get('bias_percent', 0):+.1f}%)")
+        else:
+            # Fallback if no comparison
+            if 'global_mean_trees' in veg_metrics:
+                print(f"  Trees (BL+NL): {veg_metrics['global_mean_trees']:.3f}")
+            if 'global_mean_grass' in veg_metrics:
+                print(f"  Grass (C3+C4): {veg_metrics['global_mean_grass']:.3f}")
+            if 'global_mean_shrub' in veg_metrics:
+                print(f"  Shrub: {veg_metrics['global_mean_shrub']:.3f}")
 
     print("="*80 + "\n")
 
