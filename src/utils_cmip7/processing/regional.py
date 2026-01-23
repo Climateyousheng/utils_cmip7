@@ -151,7 +151,7 @@ def compute_regional_annual_mean(cube, var, region):
     Notes
     -----
     Aggregation method selection:
-    - MEAN: var in ('Others', 'precip')
+    - MEAN: var in ('Others', 'precip', 'Total co2')
     - SUM: all other variables (fluxes and stocks)
 
     Regional masking:
@@ -199,7 +199,8 @@ def compute_regional_annual_mean(cube, var, region):
 
     # --- Compute regional mean or total based on variable ---
     # IMPORTANT: do the collapse HERE, using w, not inside other functions.
-    if var in ("Others", "precip"):
+    # Variables using MEAN aggregation: Others (generic), precip, Total co2
+    if var in ("Others", "precip", "Total co2"):
         gm = cube.collapsed(["latitude", "longitude"], iris.analysis.MEAN, weights=w)
     else:
         gm = cube.collapsed(["latitude", "longitude"], iris.analysis.SUM, weights=w)

@@ -35,7 +35,7 @@ def extract_annual_means(expts_list, var_list=None, var_mapping=None, regions=No
         List of experiment names (e.g., ['xqhuc', 'xqhsh'])
     var_list : list of str, optional
         Variable names to extract (CMIP-style canonical names preferred).
-        Default: ['Rh', 'CSoil', 'CVeg', 'frac', 'GPP', 'NPP', 'fgco2', 'tas', 'pr']
+        Default: ['Rh', 'CSoil', 'CVeg', 'frac', 'GPP', 'NPP', 'fgco2', 'tas', 'pr', 'co2']
 
         Aliases supported but deprecated (will be removed in v0.3.0):
         - Use 'Rh' not 'soilResp'
@@ -43,6 +43,7 @@ def extract_annual_means(expts_list, var_list=None, var_mapping=None, regions=No
         - Use 'CSoil' not 'soilCarbon'
         - Use 'tas' not 'temp'
         - Use 'pr' not 'precip'
+        - Use 'co2' not 'Total co2'
     var_mapping : list of str, optional
         **DEPRECATED**. This parameter is no longer needed.
         Conversion keys are now looked up automatically from the canonical
@@ -167,28 +168,36 @@ def extract_annual_means(expts_list, var_list=None, var_mapping=None, regions=No
         cube_map = {}
 
         for var_name in var_list:
-            var_config = get_variable_config(var_name)
-            stash_name = var_config['stash_name']
-            stash_code = var_config['stash_code']
-            stash_fallback = var_config.get('stash_fallback')
+            try:
+                var_config = get_variable_config(var_name)
+                stash_name = var_config['stash_name']
+                stash_code = var_config['stash_code']
+                stash_fallback = var_config.get('stash_fallback')
 
-            # Try primary extraction
-            extracted = try_extract(cubes, stash_name, stash_lookup_func=stash)
+                # Try primary extraction
+                extracted = try_extract(cubes, stash_name, stash_lookup_func=stash)
 
-            if not extracted and stash_fallback:
-                # Try fallback (e.g., frac → fracb)
-                print(f"  ⚠ {var_name} ({stash_name}, {stash_code}): NOT FOUND, trying fallback {stash_fallback}")
-                extracted = try_extract(cubes, stash_fallback)
-                if not extracted:
-                    print(f"  ❌ {var_name}: STILL NOT FOUND")
+                if not extracted and stash_fallback:
+                    # Try fallback (e.g., frac → fracb)
+                    print(f"  ⚠ {var_name} ({stash_name}, {stash_code}): NOT FOUND, trying fallback {stash_fallback}")
+                    extracted = try_extract(cubes, stash_fallback)
+                    if not extracted:
+                        print(f"  ❌ {var_name}: STILL NOT FOUND")
+                    else:
+                        print(f"  ✓ {var_name}: Found (via fallback {stash_fallback})")
+                elif not extracted:
+                    print(f"  ❌ {var_name} ({stash_name}, {stash_code}): NOT FOUND")
                 else:
-                    print(f"  ✓ {var_name}: Found (via fallback {stash_fallback})")
-            elif not extracted:
-                print(f"  ❌ {var_name} ({stash_name}, {stash_code}): NOT FOUND")
-            else:
-                print(f"  ✓ {var_name} ({stash_name}): Found")
+                    print(f"  ✓ {var_name} ({stash_name}): Found")
 
-            cube_map[var_name] = extracted
+                cube_map[var_name] = extracted
+
+            except Exception as e:
+                # Don't let one variable failure stop the entire extraction
+                print(f"  ❌ {var_name}: ERROR during extraction: {e}")
+                import traceback
+                traceback.print_exc()
+                cube_map[var_name] = None
 
         # Store specific variables for backward compatibility
         dict_frac[expt] = cube_map.get('frac')

@@ -38,6 +38,8 @@ VAR_CONVERSIONS = {
     'tas': 1,                                          # K (no conversion, use MEAN)
     'pr': 86400,                                       # kg/m2/s → mm/day
     'frac': 1,                                         # fraction (no conversion, use MEAN)
+    'co2': 28.97/44.01*1e6,                            # mmr → ppmv (MEAN aggregation)
+    'Total co2': 28.97/44.01*1e6,                      # mmr → ppmv (legacy key name)
 }
 
 # RECCAP2 regional mask file path
@@ -191,6 +193,20 @@ CANONICAL_VARIABLES = {
         "category": "land_use",
         "aliases": ["fracPFTs"],
     },
+
+    # -------------------------------------------------------------------------
+    # Atmospheric composition (use MEAN aggregation for 3D fields)
+    # -------------------------------------------------------------------------
+    "co2": {
+        "description": "Atmospheric CO2 Mass Mixing Ratio",
+        "stash_name": "co2",
+        "stash_code": "m01s00i252",
+        "aggregation": "MEAN",  # Note: MEAN for 3D vertical average!
+        "conversion_factor": 28.97/44.01*1e6,  # mmr → ppmv
+        "units": "ppmv",
+        "category": "climate",
+        "aliases": ["Total co2"],
+    },
 }
 
 
@@ -299,32 +315,37 @@ def get_conversion_key(name: str) -> str:
     -------
     str
         Conversion key for use with compute_regional_annual_mean()
-        - Returns "Others" for MEAN aggregation variables
-        - Returns "precip" for precipitation
+        - Returns "Others" for generic MEAN aggregation variables
+        - Returns "precip" for precipitation (MEAN with special conversion)
+        - Returns "Total co2" for CO2 (MEAN with special conversion)
         - Returns canonical variable name for SUM aggregation variables
 
     Notes
     -----
     The conversion key is used by compute_regional_annual_mean() to:
-    1. Determine aggregation method: "Others" or "precip" → MEAN, else → SUM
+    1. Determine aggregation method: "Others", "precip", or "Total co2" → MEAN, else → SUM
     2. Look up conversion factor in VAR_CONVERSIONS
 
     Examples
     --------
     >>> get_conversion_key('tas')
-    'Others'  # MEAN aggregation
+    'Others'  # MEAN aggregation, no conversion
     >>> get_conversion_key('GPP')
     'GPP'  # SUM aggregation
     >>> get_conversion_key('pr')
-    'precip'  # MEAN aggregation (special case)
+    'precip'  # MEAN aggregation with conversion
+    >>> get_conversion_key('co2')
+    'Total co2'  # MEAN aggregation with conversion
     """
     canonical = resolve_variable_name(name)
     config = CANONICAL_VARIABLES[canonical]
 
-    # MEAN aggregation → use "Others" (except precip)
+    # MEAN aggregation → use special keys for variables with conversions
     if config['aggregation'] == 'MEAN':
         if canonical == 'pr':
             return 'precip'
+        elif canonical == 'co2':
+            return 'Total co2'  # Legacy key name for backward compatibility
         else:
             return 'Others'
 
@@ -344,7 +365,8 @@ DEFAULT_VAR_LIST = [
     'NPP',         # Net primary production
     'fgco2',       # Ocean CO2 flux
     'tas',         # Surface air temperature (CMIP: tas)
-    'pr'           # Precipitation (CMIP: pr)
+    'pr',          # Precipitation (CMIP: pr)
+    'co2'          # Atmospheric CO2 (CMIP: co2)
 ]
 
 # DEPRECATED: Use CANONICAL_VARIABLES instead
@@ -358,7 +380,8 @@ DEFAULT_VAR_MAPPING = [
     'NPP',                 # NPP → conversion key
     'field646_mm_dpth',    # fgco2 → conversion key
     'Others',              # tas → conversion key (MEAN aggregation)
-    'precip'               # pr → conversion key (MEAN aggregation)
+    'precip',              # pr → conversion key (MEAN aggregation)
+    'Total co2'            # co2 → conversion key (MEAN aggregation)
 ]
 
 

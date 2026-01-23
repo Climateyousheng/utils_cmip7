@@ -120,7 +120,7 @@ def test_get_conversion_key():
         ('CSoil', 'CSoil'),
         ('fgco2', 'fgco2'),
 
-        # MEAN aggregation → use 'Others' (except pr)
+        # MEAN aggregation → use 'Others' (except pr and co2)
         ('tas', 'Others'),
         ('temp', 'Others'),  # alias
         ('frac', 'Others'),
@@ -128,6 +128,10 @@ def test_get_conversion_key():
         # Special case: pr → 'precip'
         ('pr', 'precip'),
         ('precip', 'precip'),  # alias
+
+        # Special case: co2 → 'Total co2'
+        ('co2', 'Total co2'),
+        ('Total co2', 'Total co2'),  # alias
     ]
 
     for var_name, expected_key in test_cases:
@@ -163,15 +167,15 @@ def test_aggregation_semantics():
     print("\nTesting aggregation semantics...")
 
     # MEAN aggregation variables
-    mean_vars = ['tas', 'pr', 'frac']
+    mean_vars = ['tas', 'pr', 'frac', 'co2']
     for var in mean_vars:
         config = get_variable_config(var)
         if config['aggregation'] != 'MEAN':
             print(f"  ❌ {var} should have MEAN aggregation, got {config['aggregation']}")
             return False
         conv_key = get_conversion_key(var)
-        if conv_key not in ('Others', 'precip'):
-            print(f"  ❌ {var} should map to 'Others' or 'precip', got '{conv_key}'")
+        if conv_key not in ('Others', 'precip', 'Total co2'):
+            print(f"  ❌ {var} should map to 'Others', 'precip', or 'Total co2', got '{conv_key}'")
             return False
         print(f"  ✓ {var}: MEAN aggregation, conversion_key='{conv_key}'")
 
