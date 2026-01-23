@@ -4,8 +4,20 @@ Regional aggregation and masking functions.
 Provides RECCAP2 regional masking and area-weighted regional aggregation.
 """
 
+import warnings
 import numpy as np
-import iris
+
+# Configure Iris and suppress warnings before importing
+try:
+    import iris
+    iris.FUTURE.date_microseconds = True
+except AttributeError:
+    import iris
+
+# Suppress Iris warnings
+warnings.filterwarnings('ignore', message='.*date precision.*', category=FutureWarning)
+warnings.filterwarnings('ignore', message='.*DEFAULT_SPHERICAL_EARTH_RADIUS.*')
+
 import iris.analysis
 import cf_units
 import iris.analysis.cartography as cart

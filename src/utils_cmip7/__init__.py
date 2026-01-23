@@ -12,6 +12,23 @@ Submodules:
     config: Configuration constants and validation
 """
 
+# Configure Iris before any imports to suppress warnings
+import warnings
+
+# Suppress Iris FutureWarnings about date precision
+# Opt-in to microsecond precision (available since cf-units 3.3)
+try:
+    import iris
+    iris.FUTURE.date_microseconds = True
+except (ImportError, AttributeError):
+    # Iris not installed yet or older version without FUTURE settings
+    pass
+
+# Filter out known harmless Iris warnings
+warnings.filterwarnings('ignore', message='.*date precision.*', category=FutureWarning)
+warnings.filterwarnings('ignore', message='.*DEFAULT_SPHERICAL_EARTH_RADIUS.*', category=UserWarning)
+warnings.filterwarnings('ignore', message='.*DEFAULT_SPHERICAL_EARTH_RADIUS.*')
+
 __version__ = "0.2.1"
 
 # Core extraction and processing functions
