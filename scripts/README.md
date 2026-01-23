@@ -2,6 +2,66 @@
 
 High-level workflow scripts for common validation and analysis tasks.
 
+## extract_preprocessed.py
+
+Extract annual means from pre-processed NetCDF files for all RECCAP2 regions and generate time series plots.
+
+### Usage
+
+```bash
+# Basic usage
+python scripts/extract_preprocessed.py xqhuc
+
+# With custom base directory
+python scripts/extract_preprocessed.py xqhuc --base-dir ~/annual_mean
+```
+
+### Requirements
+
+- Annual mean NetCDF files in `~/annual_mean/{expt}/` (or custom base directory)
+  - `{expt}_pa_annual_mean.nc` (atmosphere)
+  - `{expt}_pt_annual_mean.nc` (TRIFFID)
+  - `{expt}_pf_annual_mean.nc` (ocean)
+
+### Outputs
+
+Creates `validation_outputs/single_val_{expt}/plots/` containing time series plots for all regions:
+
+```
+validation_outputs/single_val_{expt}/plots/
+├── allvars_global_{expt}_timeseries.png
+├── allvars_Europe_{expt}_timeseries.png
+├── allvars_North_America_{expt}_timeseries.png
+├── allvars_South_America_{expt}_timeseries.png
+├── allvars_Africa_{expt}_timeseries.png
+├── allvars_North_Asia_{expt}_timeseries.png
+├── allvars_Central_Asia_{expt}_timeseries.png
+├── allvars_East_Asia_{expt}_timeseries.png
+├── allvars_South_Asia_{expt}_timeseries.png
+├── allvars_South_East_Asia_{expt}_timeseries.png
+└── allvars_Oceania_{expt}_timeseries.png
+```
+
+### What it does
+
+1. **Extracts data** for all RECCAP2 regions (global + 10 regions)
+2. **Generates time series plots** for each region showing:
+   - Carbon fluxes (GPP, NPP, Rh, fgco2)
+   - Carbon stocks (CVeg, CSoil)
+   - Climate variables (tas, pr)
+   - PFT fractions (if available)
+3. **Automatically skips** regions with no data
+
+### Notes
+
+- Only variables successfully extracted are shown in plots
+- If many variables are missing, check:
+  1. Annual mean files exist in base directory
+  2. Files generated using `annual_mean_cdo.sh`
+  3. STASH codes are correct in files
+
+---
+
 ## validate_experiment.py
 
 Comprehensive validation of a single UM experiment against CMIP6 and RECCAP2 observations.
@@ -19,14 +79,14 @@ python scripts/validate_experiment.py --expt xqhuc --base-dir ~/annual_mean
 ### Requirements
 
 - Annual mean NetCDF files in `~/annual_mean/{expt}/`
-- Observational data in `obs/` directory (CMIP6 and RECCAP2)
+- Observational data (automatically loaded from package data)
 
 ### Outputs
 
-Creates `validation/single_val_{expt}/` containing:
+Creates `validation_outputs/single_val_{expt}/` containing:
 
 ```
-validation/single_val_{expt}/
+validation_outputs/single_val_{expt}/
 ├── {expt}_metrics.csv              # UM results (obs format)
 ├── {expt}_bias_vs_cmip6.csv        # Bias statistics vs CMIP6
 ├── {expt}_bias_vs_reccap2.csv      # Bias statistics vs RECCAP2
@@ -56,7 +116,7 @@ validation/single_val_{expt}/
 
 ### CSV Format
 
-**{expt}_metrics.csv**: UM results in same format as `obs/stores_vs_fluxes_cmip6.csv`
+**{expt}_metrics.csv**: UM results in same format as observational CSV files
 ```csv
 ,global,North_America,South_America,Europe,Africa,...
 GPP,134.81,18.40,31.65,6.11,30.02,...

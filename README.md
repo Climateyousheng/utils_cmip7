@@ -173,11 +173,15 @@ python scripts/extract_raw.py xqhuj --outdir ./plots
 ```
 
 ### scripts/extract_preprocessed.py
-Python script for pre-processed annual mean files:
+Python script for pre-processed annual mean files (extracts all RECCAP2 regions):
 ```bash
-python scripts/extract_preprocessed.py EXPERIMENT [--outdir OUTPUT_DIR]
+python scripts/extract_preprocessed.py EXPERIMENT [--base-dir BASE_DIR]
 ```
-Example: `python scripts/extract_preprocessed.py xqhuc --outdir ./plots`
+Example: `python scripts/extract_preprocessed.py xqhuc --base-dir ~/annual_mean`
+
+**Outputs** (in `validation_outputs/single_val_{expt}/plots/`):
+- Time series plots for all regions (global, North_America, Europe, Africa, etc.)
+- Automatically skips regions with no data
 
 ### scripts/validate_experiment.py
 Comprehensive validation of a UM experiment against CMIP6 and RECCAP2 observations:
