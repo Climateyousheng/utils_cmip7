@@ -149,7 +149,8 @@ def compute_metrics_from_annual_means(
         [expt_name],
         var_list=var_list_for_extraction,
         var_mapping=None,  # Now deprecated - registry handles conversion
-        regions=regions
+        regions=regions,
+        base_dir=base_dir
     )
 
     # Transform to canonical schema

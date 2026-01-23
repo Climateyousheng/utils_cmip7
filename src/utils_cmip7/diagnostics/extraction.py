@@ -33,12 +33,12 @@ from ..config import (
 )
 
 
-def extract_annual_means(expts_list, var_list=None, var_mapping=None, regions=None):
+def extract_annual_means(expts_list, var_list=None, var_mapping=None, regions=None, base_dir='~/annual_mean'):
     """
     Extract annual means from pre-processed NetCDF files.
 
     Main workhorse function for extracting carbon cycle variables from
-    pre-processed annual mean files located in ~/annual_mean/{expt}/.
+    pre-processed annual mean files.
 
     Parameters
     ----------
@@ -61,6 +61,11 @@ def extract_annual_means(expts_list, var_list=None, var_mapping=None, regions=No
         variable registry in config.py. Will be removed in v0.3.0.
     regions : list of str, optional
         Region names to process. Default: all RECCAP2 regions + 'Africa' + 'global'
+    base_dir : str, optional
+        Base directory containing experiment subdirectories with annual mean files.
+        Default: '~/annual_mean'
+
+        Each experiment should have a subdirectory: {base_dir}/{expt}/
 
     Returns
     -------
@@ -81,13 +86,16 @@ def extract_annual_means(expts_list, var_list=None, var_mapping=None, regions=No
     ...                          regions=['global', 'Europe', 'Africa'])
     >>> ds['xqhuc']['Europe']['NPP']['data']  # Europe NPP for xqhuc
 
+    >>> # With custom base directory
+    >>> ds = extract_annual_means(['xqhuc'], base_dir='~/data/annual_mean')
+
     >>> # Backward compatible: aliases still work (with deprecation warning)
     >>> ds = extract_annual_means(['xqhuc'], var_list=['VegCarb', 'soilResp'])
     >>> # DeprecationWarning: Use 'CVeg' not 'VegCarb', 'Rh' not 'soilResp'
 
     Notes
     -----
-    Input files expected in: ~/annual_mean/{expt}/
+    Input files expected in: {base_dir}/{expt}/
     - {expt}_pt_annual_mean.nc (TRIFFID: GPP, NPP, soil resp, carbon, PFTs)
     - {expt}_pd_annual_mean.nc (atmosphere: temp, precip)
     - {expt}_pf_annual_mean.nc (ocean: fgco2)
@@ -149,18 +157,18 @@ def extract_annual_means(expts_list, var_list=None, var_mapping=None, regions=No
     target_regions = regions if regions is not None else all_regions
 
     for expt in expts_list:
-        base_dir = f'~/annual_mean/{expt}/'
+        expt_dir = os.path.join(base_dir, expt)
         dict_annual_means[expt] = {}
-        base_dir = os.path.expanduser(base_dir)
-        os.makedirs(base_dir, exist_ok=True)
+        expt_dir = os.path.expanduser(expt_dir)
+        os.makedirs(expt_dir, exist_ok=True)
 
-        filenames = glob.glob(os.path.join(base_dir, "**/*.nc"), recursive=True)
+        filenames = glob.glob(os.path.join(expt_dir, "**/*.nc"), recursive=True)
 
         # Report files found
         print(f"\n{'='*60}")
         print(f"Extracting data for experiment: {expt}")
         print(f"{'='*60}")
-        print(f"Looking in: {base_dir}")
+        print(f"Looking in: {expt_dir}")
         print(f"NetCDF files found: {len(filenames)}")
         if filenames:
             for f in filenames:
