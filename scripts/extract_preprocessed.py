@@ -51,14 +51,11 @@ except ImportError:
     # Fallback to old name
     from plot import plot_timeseries_grouped
 
-# Import CSV saving function from validate_experiment
+# Import helper function from validate_experiment
 try:
-    from validate_experiment import save_um_metrics_to_csv, get_all_regions
+    from validate_experiment import get_all_regions
 except ImportError:
     # Fallback: define locally if import fails
-    import numpy as np
-    import pandas as pd
-
     def get_all_regions():
         """Get all RECCAP2 regions plus global."""
         regions = ['global'] + list(RECCAP_REGIONS.values())
@@ -67,62 +64,80 @@ except ImportError:
             regions.append('Africa')
         return regions
 
-    def save_um_metrics_to_csv(um_metrics, expt, outdir):
-        """
-        Save UM metrics to CSV in observational data format.
 
-        Parameters
-        ----------
-        um_metrics : dict
-            UM metrics in format: {expt: {region: {var: {'years', 'data', 'units'}}}}
-        expt : str
-            Experiment name
-        outdir : Path
-            Output directory
-        """
-        regions = get_all_regions()
+def save_extraction_to_csv(ds, expt, outdir):
+    """
+    Save extracted data to CSV in observational data format.
 
-        # Get all available variables from the data
-        all_vars = set()
-        if expt in um_metrics:
-            for region in regions:
-                if region in um_metrics[expt]:
-                    all_vars.update(um_metrics[expt][region].keys())
+    Parameters
+    ----------
+    ds : dict
+        Extracted data from extract_annual_means() with structure:
+        {expt: {region: {var: {'years': array, 'data': array, 'units': str}}}}
+    expt : str
+        Experiment name
+    outdir : Path
+        Output directory
 
-        # Remove nested structures (like frac)
-        all_vars = {v for v in all_vars if isinstance(um_metrics[expt].get('global', {}).get(v), dict)
-                   and 'years' in um_metrics[expt].get('global', {}).get(v, {})}
+    Returns
+    -------
+    pandas.DataFrame
+        DataFrame with variables as rows and regions as columns
+    """
+    import numpy as np
+    import pandas as pd
 
-        metrics = sorted(all_vars)
+    regions = get_all_regions()
 
-        # Build dataframe
-        data = {}
+    # Get all available variables from the data
+    all_vars = set()
+    if expt in ds:
         for region in regions:
-            regional_data = []
-            for metric in metrics:
-                if expt in um_metrics and region in um_metrics[expt]:
-                    if metric in um_metrics[expt][region]:
-                        var_data = um_metrics[expt][region][metric]
-                        if 'data' in var_data and len(var_data['data']) > 0:
-                            # Compute time-mean
-                            mean_val = np.mean(var_data['data'])
-                            regional_data.append(mean_val)
-                        else:
-                            regional_data.append(np.nan)
-                    else:
-                        regional_data.append(np.nan)
+            if region in ds[expt]:
+                all_vars.update(ds[expt][region].keys())
+
+    # Filter out nested structures (like frac which has PFT sub-dictionaries)
+    # Keep only variables with 'years' and 'data' keys
+    simple_vars = []
+    if expt in ds and 'global' in ds[expt]:
+        for var in all_vars:
+            var_data = ds[expt]['global'].get(var)
+            if isinstance(var_data, dict) and 'years' in var_data and 'data' in var_data:
+                simple_vars.append(var)
+
+    # Sort variables alphabetically
+    variables = sorted(simple_vars)
+
+    if not variables:
+        print(f"  ⚠ No variables found to save for {expt}")
+        return None
+
+    # Build dataframe: variables as rows, regions as columns
+    data = {}
+    for region in regions:
+        regional_data = []
+        for var in variables:
+            if expt in ds and region in ds[expt] and var in ds[expt][region]:
+                var_data = ds[expt][region][var]
+                if 'data' in var_data and len(var_data['data']) > 0:
+                    # Compute time-mean
+                    mean_val = np.mean(var_data['data'])
+                    regional_data.append(mean_val)
                 else:
                     regional_data.append(np.nan)
-            data[region] = regional_data
+            else:
+                regional_data.append(np.nan)
+        data[region] = regional_data
 
-        df = pd.DataFrame(data, index=metrics)
+    df = pd.DataFrame(data, index=variables)
 
-        # Save
-        csv_path = outdir / f'{expt}_extraction.csv'
-        df.to_csv(csv_path)
-        print(f"  ✓ Saved extraction data: {csv_path}")
+    # Save
+    csv_path = outdir / f'{expt}_extraction.csv'
+    df.to_csv(csv_path)
+    print(f"  ✓ Saved extraction data: {csv_path}")
+    print(f"    Variables: {len(variables)}, Regions: {len(regions)}")
 
-        return df
+    return df
 
 
 def main():
@@ -212,7 +227,7 @@ If you see many ❌, you need to:
     print("SAVING EXTRACTED DATA TO CSV...")
     print("=" * 80)
 
-    save_um_metrics_to_csv(ds, args.expt, outdir)
+    save_extraction_to_csv(ds, args.expt, outdir)
 
     print("\n" + "=" * 80)
     print("GENERATING PLOTS FOR ALL REGIONS...")
