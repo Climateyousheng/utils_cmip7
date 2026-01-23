@@ -58,20 +58,20 @@ utils_cmip7/
 │   │   ├── extraction.py     # Pre-processed NetCDF extraction
 │   │   ├── raw.py            # Raw monthly file extraction
 │   │   └── metrics.py        # Metrics computation from annual means
-│   ├── validation/           # Model validation against observations
+│   ├── validation/           # Model validation against observations (code)
 │   │   ├── compare.py        # Bias and RMSE computation
 │   │   └── visualize.py      # Three-way comparison plots
+│   ├── data/obs/             # Observational data (packaged)
+│   │   ├── stores_vs_fluxes_cmip6.csv
+│   │   ├── stores_vs_fluxes_cmip6_err.csv
+│   │   ├── stores_vs_fluxes_reccap.csv
+│   │   └── stores_vs_fluxes_reccap_err.csv
 │   ├── plotting/             # Visualization (placeholder)
 │   ├── soil_params/          # Soil parameter analysis (placeholder)
 │   ├── config.py             # Configuration and constants
 │   └── __init__.py           # Package API
-├── obs/                      # Observational data (CMIP6, RECCAP2)
-│   ├── stores_vs_fluxes_cmip6.csv
-│   ├── stores_vs_fluxes_cmip6_err.csv
-│   ├── stores_vs_fluxes_reccap.csv
-│   └── stores_vs_fluxes_reccap_err.csv
-├── validation/               # Validation results and analysis
-│   └── random_sampling_combined_overview_table.csv
+├── validation_outputs/       # Validation results (generated, not in repo)
+│   └── single_val_*/         # Per-experiment validation results
 ├── tests/                    # Test suite
 │   ├── test_imports.py       # Import resolution tests
 │   ├── test_config.py        # Configuration validation tests
@@ -90,11 +90,13 @@ utils_cmip7/
 ├── dev/                      # Development/diagnostic tools
 │   ├── debug_plot.py
 │   └── diagnose_extraction.py
-├── doc/                      # Documentation
+├── docs/                     # Documentation
 │   ├── API_REFERENCE.md      # Comprehensive API documentation
 │   ├── MIGRATION.md          # Migration guide from v0.1.x
 │   ├── STASH.md              # STASH code reference
-│   └── TROUBLESHOOTING.md    # Common issues and solutions
+│   ├── TROUBLESHOOTING.md    # Common issues and solutions
+│   ├── NAMING_ANALYSIS.md    # Variable naming analysis
+│   └── REFACTORING_SUMMARY.md # Refactoring notes
 ├── analysis.py               # Backward-compatible wrapper (deprecated)
 ├── plot.py                   # Backward-compatible wrapper (deprecated)
 └── pyproject.toml            # Package metadata and dependencies
@@ -106,14 +108,14 @@ utils_cmip7/
 - ✅ `diagnostics/` - Complete (3 modules including metrics)
 - ✅ `validation/` - Complete (2 modules: compare, visualize)
 - ✅ `tests/` - Basic smoke tests implemented
-- ✅ `obs/` - Observational data for validation (CMIP6, RECCAP2)
+- ✅ `data/obs/` - Observational data now packaged with importlib.resources
 - ✅ `scripts/` - High-level validation workflow (validate_experiment.py)
 - ⚠️ `plotting/` - Exists in root `plot.py`, needs migration
 - ⚠️ `soil_params/` - Exists in root, needs migration
 - ❌ `cli.py` - Not yet implemented
 
 **Backward Compatibility:**
-Existing scripts using `from analysis import ...` will continue to work during the v0.2.x series. See [Migration Guide](doc/MIGRATION.md) for updating to the new import style.
+Existing scripts using `from analysis import ...` will continue to work during the v0.2.x series. See [Migration Guide](docs/MIGRATION.md) for updating to the new import style.
 
 ## Features
 
@@ -187,7 +189,7 @@ python scripts/validate_experiment.py xqhuc
 python scripts/validate_experiment.py --expt xqhuc --base-dir ~/annual_mean
 ```
 
-**Outputs** (in `validation/single_val_{expt}/`):
+**Outputs** (in `validation_outputs/single_val_{expt}/`):
 - `{expt}_metrics.csv` - UM results in observational format
 - `{expt}_bias_vs_cmip6.csv` - Bias statistics vs CMIP6
 - `{expt}_bias_vs_reccap2.csv` - Bias statistics vs RECCAP2
@@ -319,7 +321,7 @@ plot_three_way_comparison(
 # Validate experiment xqhuc against all observations
 python scripts/validate_experiment.py xqhuc
 
-# Outputs saved to validation/single_val_xqhuc/
+# Outputs saved to validation_outputs/single_val_xqhuc/
 # - CSV files with metrics and bias statistics
 # - Plots comparing UM vs CMIP6 vs RECCAP2
 # - Text summary with performance comparison
@@ -358,9 +360,9 @@ Raw monthly UM output files in `~/dump2hold/{expt}/datam/`:
 
 ## Documentation
 
-- **[API Reference](doc/API_REFERENCE.md)** - Comprehensive API documentation for all modules
-- **[Migration Guide](doc/MIGRATION.md)** - Guide for migrating from v0.1.x to v0.2.x
-- **[STASH Codes](doc/STASH.md)** - UM STASH code reference
+- **[API Reference](docs/API_REFERENCE.md)** - Comprehensive API documentation for all modules
+- **[Migration Guide](docs/MIGRATION.md)** - Guide for migrating from v0.1.x to v0.2.x
+- **[STASH Codes](docs/STASH.md)** - UM STASH code reference
 - **[CLAUDE.md](CLAUDE.md)** - Architectural constraints and design rules (for developers/AI)
 
 ## License

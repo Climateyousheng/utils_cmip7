@@ -6,31 +6,36 @@ NO aggregation or unit conversion logic permitted.
 """
 
 import os
+import sys
 import numpy as np
 import pandas as pd
 from typing import Dict, List, Optional, Any
 
 from ..processing.metrics import METRIC_DEFINITIONS, validate_metric_output
 
+# Use importlib.resources for Python 3.9+, fallback for 3.8
+if sys.version_info >= (3, 9):
+    from importlib.resources import files
+else:
+    from importlib_resources import files
 
-# Path to obs/ directory (relative to package root)
+
 def get_obs_dir():
-    """Get absolute path to obs/ directory."""
-    # Assume obs/ is at repository root, two levels up from src/utils_cmip7
-    pkg_dir = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
-    obs_dir = os.path.join(pkg_dir, 'obs')
-    if not os.path.exists(obs_dir):
-        # Try alternative: obs/ sibling to src/
-        alt_obs_dir = os.path.join(os.path.dirname(pkg_dir), 'obs')
-        if os.path.exists(alt_obs_dir):
-            return alt_obs_dir
+    """Get absolute path to obs/ directory using importlib.resources."""
+    try:
+        # Use importlib.resources to access package data
+        obs_path = files('utils_cmip7').joinpath('data/obs')
+        return str(obs_path)
+    except (TypeError, AttributeError):
+        # Fallback for editable installs or development mode
+        pkg_dir = os.path.dirname(os.path.dirname(__file__))
+        obs_dir = os.path.join(pkg_dir, 'data', 'obs')
+        if os.path.exists(obs_dir):
+            return obs_dir
         raise FileNotFoundError(
-            f"obs/ directory not found. Tried:\n"
-            f"  {obs_dir}\n"
-            f"  {alt_obs_dir}\n"
-            f"Make sure obs/ directory exists at repository root."
+            f"obs/ directory not found at {obs_dir}. "
+            f"Make sure package is properly installed or run from repository root."
         )
-    return obs_dir
 
 
 def load_cmip6_metrics(

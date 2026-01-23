@@ -60,14 +60,17 @@ utils-cmip7-extract-preprocessed = "utils_cmip7.cli:extract_preprocessed_cli"
 
 [tool.setuptools]
 package-dir = {"" = "src"}
+include-package-data = true
 
 [tool.setuptools.packages.find]
 where = ["src"]
 
+[tool.setuptools.package-data]
+utils_cmip7 = ["data/obs/*.csv"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-python_files = ["test_*.py"]
-addopts = "-v --cov=utils_cmip7 --cov-report=html --cov-report=term"
+addopts = "-q"
 
 [tool.black]
 line-length = 100

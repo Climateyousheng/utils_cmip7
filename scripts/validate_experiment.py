@@ -10,7 +10,7 @@ Usage:
     python scripts/validate_experiment.py --expt xqhuc --base-dir ~/annual_mean
 
 Outputs:
-    - validation/single_val_{expt}/
+    - validation_outputs/single_val_{expt}/
         ├── {expt}_metrics.csv           # UM results in obs format
         ├── {expt}_bias_vs_cmip6.csv     # Bias statistics vs CMIP6
         ├── {expt}_bias_vs_reccap2.csv   # Bias statistics vs RECCAP2
@@ -362,7 +362,7 @@ def main():
     print("="*80)
 
     # Create output directory
-    outdir = Path('validation') / f'single_val_{expt}'
+    outdir = Path('validation_outputs') / f'single_val_{expt}'
     outdir.mkdir(parents=True, exist_ok=True)
 
     # Get all regions
