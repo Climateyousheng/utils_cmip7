@@ -31,6 +31,7 @@ if src_path.exists():
     sys.path.insert(0, str(src_path))
 
 from utils_cmip7.diagnostics import compute_metrics_from_annual_means
+from utils_cmip7.diagnostics.extraction import extract_annual_means
 from utils_cmip7.io import load_cmip6_metrics, load_reccap_metrics
 from utils_cmip7.validation import (
     compare_metrics,
@@ -38,6 +39,12 @@ from utils_cmip7.validation import (
     plot_three_way_comparison,
     plot_regional_bias_heatmap,
     plot_timeseries_with_obs,
+)
+from utils_cmip7.validation.veg_fractions import (
+    calculate_veg_metrics,
+    save_veg_metrics_to_csv,
+    compare_veg_metrics,
+    load_obs_veg_metrics,
 )
 from utils_cmip7.config import RECCAP_REGIONS
 
@@ -385,9 +392,30 @@ def main():
     print(f"✓ Computed {len(um_metrics)} metrics for {len(regions)} regions")
 
     # =========================================================================
+    # Step 1b: Extract raw data for vegetation fractions
+    # =========================================================================
+    print(f"\n[1b/6] Extracting vegetation fraction data...")
+    print("-"*80)
+
+    # Extract raw data including frac variable
+    raw_data = extract_annual_means(
+        expts_list=[expt],
+        var_list=['frac'],  # Only need frac for vegetation metrics
+        regions=regions,
+        base_dir=args.base_dir
+    )
+
+    # Calculate vegetation fraction metrics
+    veg_metrics = calculate_veg_metrics(raw_data, expt)
+    if veg_metrics:
+        print(f"✓ Computed {len(veg_metrics)} vegetation fraction metrics")
+    else:
+        print(f"⚠ No vegetation fraction data available")
+
+    # =========================================================================
     # Step 2: Load observational data
     # =========================================================================
-    print("\n[2/5] Loading observational data...")
+    print("\n[2/6] Loading observational data...")
     print("-"*80)
 
     cmip6_metrics = load_cmip6_metrics(
@@ -408,7 +436,7 @@ def main():
     # =========================================================================
     # Step 3: Compare UM vs CMIP6 and UM vs RECCAP2
     # =========================================================================
-    print("\n[3/5] Computing comparison statistics...")
+    print("\n[3/6] Computing comparison statistics...")
     print("-"*80)
 
     comparison_cmip6 = compare_metrics(
@@ -431,12 +459,17 @@ def main():
     # =========================================================================
     # Step 4: Export to CSV
     # =========================================================================
-    print("\n[4/5] Exporting results to CSV...")
+    print("\n[4/6] Exporting results to CSV...")
     print("-"*80)
 
     save_um_metrics_to_csv(um_metrics, expt, outdir)
     save_bias_statistics(comparison_cmip6, 'CMIP6', expt, outdir)
     save_bias_statistics(comparison_reccap, 'RECCAP2', expt, outdir)
+
+    # Save vegetation fraction metrics
+    if veg_metrics:
+        save_veg_metrics_to_csv(veg_metrics, expt, outdir)
+
     save_comparison_summary(
         um_metrics,
         cmip6_metrics,
@@ -450,7 +483,7 @@ def main():
     # =========================================================================
     # Step 5: Create plots
     # =========================================================================
-    print("\n[5/5] Creating validation plots...")
+    print("\n[5/6] Creating validation plots...")
     print("-"*80)
 
     create_all_plots(
@@ -472,6 +505,8 @@ def main():
     print(f"  - {expt}_metrics.csv            (UM results)")
     print(f"  - {expt}_bias_vs_cmip6.csv      (Bias vs CMIP6)")
     print(f"  - {expt}_bias_vs_reccap2.csv    (Bias vs RECCAP2)")
+    if veg_metrics:
+        print(f"  - {expt}_veg_fractions.csv      (Vegetation fraction metrics)")
     print(f"  - comparison_summary.txt        (Text summary)")
     print(f"  - plots/                        (All visualizations)")
 
@@ -485,6 +520,16 @@ def main():
         npp_summary = summarize_comparison(comparison_reccap, 'NPP')
         print(f"  NPP: {npp_summary['mean_bias']:+.1f} PgC/yr ({npp_summary['mean_bias_percent']:+.1f}%), "
               f"{npp_summary['fraction_within_uncertainty']:.0%} within uncertainty")
+
+    if veg_metrics:
+        print(f"\nVegetation fractions (global mean):")
+        if 'global_mean_trees' in veg_metrics:
+            print(f"  Trees (BL+NL): {veg_metrics['global_mean_trees']:.3f}")
+        if 'global_mean_grass' in veg_metrics:
+            print(f"  Grass (C3+C4): {veg_metrics['global_mean_grass']:.3f}")
+        if 'global_mean_shrub' in veg_metrics:
+            print(f"  Shrub: {veg_metrics['global_mean_shrub']:.3f}")
+
     print("="*80 + "\n")
 
 
