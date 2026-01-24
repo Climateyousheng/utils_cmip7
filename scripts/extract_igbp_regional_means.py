@@ -76,6 +76,7 @@ def extract_igbp_regional_means():
     # Extract each PFT
     for pft_id, pft_name in sorted(PFT_MAPPING.items()):
         print(f"\nProcessing PFT {pft_id} ({pft_name})...")
+        success_count = 0
 
         try:
             # Extract this PFT using generic coordinate (pseudo dimension)
@@ -89,6 +90,12 @@ def extract_igbp_regional_means():
             # Shape after extract is likely (1, lat, lon) - squeeze first dim
             if pft_cube.shape[0] == 1:
                 pft_cube = pft_cube[0]
+
+            # Add coordinate bounds if not present (required for area weighting)
+            if not pft_cube.coord('latitude').has_bounds():
+                pft_cube.coord('latitude').guess_bounds()
+            if not pft_cube.coord('longitude').has_bounds():
+                pft_cube.coord('longitude').guess_bounds()
 
             # Extract regional means for all regions (static field, no time dimension)
             for region in regions:
@@ -104,10 +111,19 @@ def extract_igbp_regional_means():
                     else:
                         # Regional mean: apply mask and compute area-weighted mean
                         mask_cube = region_mask(region)
+
+                        # Ensure mask and data have same shape
+                        if mask_cube.shape != pft_cube.shape:
+                            # If shapes don't match, regrid mask to pft_cube grid
+                            # For now, just check they're compatible
+                            raise ValueError(f"Shape mismatch: mask {mask_cube.shape} vs data {pft_cube.shape}")
+
+                        # Apply mask (1 = inside region, 0 = outside)
                         masked_data = np.where(mask_cube.data == 1, pft_cube.data, np.nan)
                         masked_cube = pft_cube.copy()
                         masked_cube.data = masked_data
 
+                        # Compute area-weighted mean (NaN-aware)
                         weights = area_weights(masked_cube)
                         mean_val = float(masked_cube.collapsed(
                             ['latitude', 'longitude'],
@@ -116,14 +132,16 @@ def extract_igbp_regional_means():
                         ).data)
 
                     results[region][pft_name] = mean_val
+                    success_count += 1
 
                 except Exception as e:
                     print(f"  ⚠ Failed to extract {region}: {e}")
-                    import traceback
-                    traceback.print_exc()
                     continue
 
-            print(f"  ✓ Extracted {pft_name} for {len(results)} regions")
+            if success_count > 0:
+                print(f"  ✓ Extracted {pft_name} for {success_count}/{len(regions)} regions")
+            else:
+                print(f"  ❌ Failed to extract {pft_name} for any region")
 
         except Exception as e:
             print(f"  ❌ Error processing PFT {pft_id}: {e}")
