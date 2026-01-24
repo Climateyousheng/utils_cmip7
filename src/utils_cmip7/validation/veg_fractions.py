@@ -166,8 +166,8 @@ def load_igbp_spatial():
     Returns
     -------
     xarray.Dataset or None
-        IGBP dataset with variable 'fracPFTs_snp_srf'
-        Dimensions: (pseudo, latitude, longitude)
+        IGBP dataset with per-PFT 2D variables (e.g., 'BL_2D', 'NL_2D')
+        each having dimensions (latitude, longitude).
         Returns None if xarray not available or file not found.
     """
     if not HAS_XARRAY:
@@ -320,11 +320,12 @@ def load_obs_veg_metrics(obs_file: Optional[str] = None) -> Dict[str, float]:
 
     Notes
     -----
-    Reads from NetCDF file with structure:
-    - Variable: fracPFTs_snp_srf
-    - Dimensions: pseudo (PFT index), latitude, longitude
+    Reads from NetCDF file with per-PFT variables:
+    - global_mean_{pft_name}: Pre-computed global mean fractions
+    - {pft_name}_2D: 2D spatial fields (latitude, longitude)
 
-    Computes global mean by averaging over latitude and longitude.
+    Uses global_mean variables directly; falls back to computing
+    from 2D fields if global_mean not available.
     """
     if not HAS_XARRAY:
         print(f"  ⚠ xarray not available, using placeholder IGBP values")
@@ -361,27 +362,22 @@ def load_obs_veg_metrics(obs_file: Optional[str] = None) -> Dict[str, float]:
         # Open IGBP NetCDF file
         obs_ds = xr.open_dataset(obs_file, decode_times=False)
 
-        # Extract fracPFTs_snp_srf variable
-        # Structure: (pseudo, latitude, longitude)
-        frac_var = obs_ds["fracPFTs_snp_srf"]
-
-        # Compute global mean for each PFT
+        # File structure: per-PFT variables
+        #   global_mean_{pft_name} - scalar global means
+        #   {pft_name}_2D - 2D spatial fields (latitude, longitude)
         obs_metrics = {}
         for pft_id, pft_name in PFT_MAPPING.items():
-            # Note: PFT indexing may be 0-based or 1-based
-            # Adjust index if needed (UM uses 1-based, Python uses 0-based)
-            try:
-                # Try 0-based indexing first (pft_id - 1)
-                pft_data = frac_var.isel({"pseudo": pft_id - 1}).squeeze()
-                global_mean = float(pft_data.mean(['latitude', 'longitude']).values)
-                obs_metrics[pft_name] = global_mean
-            except (IndexError, KeyError):
-                # Try 1-based indexing if 0-based fails
-                try:
-                    pft_data = frac_var.isel({"pseudo": pft_id}).squeeze()
-                    global_mean = float(pft_data.mean(['latitude', 'longitude']).values)
-                    obs_metrics[pft_name] = global_mean
-                except (IndexError, KeyError):
+            global_mean_var = f'global_mean_{pft_name}'
+            if global_mean_var in obs_ds:
+                obs_metrics[pft_name] = float(obs_ds[global_mean_var].values)
+            else:
+                # Fallback: compute from 2D field if available
+                spatial_var = f'{pft_name}_2D'
+                if spatial_var in obs_ds:
+                    obs_metrics[pft_name] = float(
+                        obs_ds[spatial_var].mean(['latitude', 'longitude']).values
+                    )
+                else:
                     print(f"  ⚠ Could not load PFT {pft_id} ({pft_name}) from IGBP file")
 
         # Compute aggregates

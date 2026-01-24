@@ -273,7 +273,9 @@ def extract_annual_means(expts_list, var_list=None, var_mapping=None, regions=No
                         igbp_ds = None
                         if region == 'global':
                             try:
-                                from ..validation.veg_fractions import load_igbp_spatial, compute_spatial_rmse
+                                from ..validation.veg_fractions import (
+                                    load_igbp_spatial, compute_spatial_rmse, PFT_MAPPING
+                                )
                                 igbp_ds = load_igbp_spatial()
                             except (ImportError, Exception):
                                 pass
@@ -286,14 +288,16 @@ def extract_annual_means(expts_list, var_list=None, var_mapping=None, regions=No
 
                                     # Compute spatial RMSE against IGBP obs (global only)
                                     if region == 'global' and igbp_ds is not None:
-                                        try:
-                                            # Time-mean of model field (preserve lat/lon)
-                                            model_field = frac_pft.collapsed('time', iris.analysis.MEAN).data
-                                            # IGBP obs field (0-based index: j-1)
-                                            obs_field = igbp_ds["fracPFTs_snp_srf"].isel(pseudo=j-1).squeeze().values
-                                            output['rmse'] = compute_spatial_rmse(model_field, obs_field)
-                                        except Exception:
-                                            pass
+                                        pft_name = PFT_MAPPING.get(j)
+                                        spatial_var = f'{pft_name}_2D' if pft_name else None
+                                        if spatial_var and spatial_var in igbp_ds:
+                                            try:
+                                                # Time-mean of model field (preserve lat/lon)
+                                                model_field = frac_pft.collapsed('time', iris.analysis.MEAN).data
+                                                obs_field = igbp_ds[spatial_var].squeeze().values
+                                                output['rmse'] = compute_spatial_rmse(model_field, obs_field)
+                                            except Exception:
+                                                pass
 
                                     frac_data[f'PFT {j}'] = output
                             except Exception as e:
