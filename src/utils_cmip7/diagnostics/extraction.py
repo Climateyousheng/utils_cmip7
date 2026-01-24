@@ -268,15 +268,42 @@ def extract_annual_means(expts_list, var_list=None, var_mapping=None, regions=No
                     # Handle frac (PFTs) separately
                     elif cube is not None and varname == 'frac':
                         frac_data = {}
+
+                        # Load IGBP obs for spatial RMSE (only for global region)
+                        igbp_ds = None
+                        if region == 'global':
+                            try:
+                                from ..validation.veg_fractions import load_igbp_spatial, compute_spatial_rmse
+                                igbp_ds = load_igbp_spatial()
+                            except (ImportError, Exception):
+                                pass
+
                         for j in range(1, 10):
                             try:
                                 frac_pft = cube.extract(Constraint(coord_values={'generic': j}))
                                 if frac_pft:
                                     output = compute_regional_annual_mean(frac_pft, conversion_key, region)
+
+                                    # Compute spatial RMSE against IGBP obs (global only)
+                                    if region == 'global' and igbp_ds is not None:
+                                        try:
+                                            # Time-mean of model field (preserve lat/lon)
+                                            model_field = frac_pft.collapsed('time', iris.analysis.MEAN).data
+                                            # IGBP obs field (0-based index: j-1)
+                                            obs_field = igbp_ds["fracPFTs_snp_srf"].isel(pseudo=j-1).squeeze().values
+                                            output['rmse'] = compute_spatial_rmse(model_field, obs_field)
+                                        except Exception:
+                                            pass
+
                                     frac_data[f'PFT {j}'] = output
                             except Exception as e:
                                 # Skip PFTs that fail extraction
                                 continue
+
+                        # Close IGBP dataset if opened
+                        if igbp_ds is not None:
+                            igbp_ds.close()
+
                         # Only add frac data if at least one PFT was successfully extracted
                         if frac_data:
                             dict_annual_means[expt][region][varname] = frac_data

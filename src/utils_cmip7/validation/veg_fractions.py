@@ -122,10 +122,71 @@ def calculate_veg_metrics(um_metrics: Dict[str, Dict[str, Dict[str, Any]]],
         if 'C3' in pft_values and 'C4' in pft_values:
             metrics['grass'][region] = pft_values['C3'] + pft_values['C4']
 
+    # Extract RMSE values (stored alongside regional mean data during extraction)
+    for region in regions_with_frac:
+        frac_data = um_metrics[expt][region]['frac']
+        for pft_id, pft_name in PFT_MAPPING.items():
+            pft_key = f'PFT {pft_id}'
+            if pft_key in frac_data and 'rmse' in frac_data[pft_key]:
+                rmse_key = f'rmse_{pft_name}'
+                if rmse_key not in metrics:
+                    metrics[rmse_key] = {}
+                metrics[rmse_key][region] = frac_data[pft_key]['rmse']
+
     # Remove empty metrics
     metrics = {k: v for k, v in metrics.items() if v}
 
     return metrics
+
+
+def compute_spatial_rmse(model_data, obs_data):
+    """
+    Compute spatial RMSE between model and obs 2D fields.
+
+    Parameters
+    ----------
+    model_data : numpy.ndarray
+        Model PFT fraction field (lat, lon)
+    obs_data : numpy.ndarray
+        IGBP PFT fraction field (lat, lon)
+
+    Returns
+    -------
+    float
+        RMSE value (NaN-aware)
+    """
+    diff_sq = (model_data - obs_data) ** 2
+    return float(np.sqrt(np.nanmean(diff_sq)))
+
+
+def load_igbp_spatial():
+    """
+    Load IGBP vegetation fraction observation file with spatial dimensions.
+
+    Returns
+    -------
+    xarray.Dataset or None
+        IGBP dataset with variable 'fracPFTs_snp_srf'
+        Dimensions: (pseudo, latitude, longitude)
+        Returns None if xarray not available or file not found.
+    """
+    if not HAS_XARRAY:
+        return None
+
+    try:
+        obs_dir = get_obs_dir()
+        obs_file = os.path.join(obs_dir, 'igbp.veg_fraction_metrics.nc')
+    except FileNotFoundError:
+        return None
+
+    if not os.path.exists(obs_file):
+        return None
+
+    try:
+        return xr.open_dataset(obs_file, decode_times=False)
+    except Exception as e:
+        print(f"  ⚠ Error loading IGBP spatial data: {e}")
+        return None
 
 
 def save_veg_metrics_to_csv(metrics: Dict[str, Dict[str, float]], expt: str, outdir: Path) -> pd.DataFrame:
@@ -346,6 +407,8 @@ def load_obs_veg_metrics(obs_file: Optional[str] = None) -> Dict[str, float]:
 __all__ = [
     'PFT_MAPPING',
     'calculate_veg_metrics',
+    'compute_spatial_rmse',
+    'load_igbp_spatial',
     'save_veg_metrics_to_csv',
     'compare_veg_metrics',
     'load_obs_veg_metrics',

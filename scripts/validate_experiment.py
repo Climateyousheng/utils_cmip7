@@ -562,6 +562,15 @@ def main():
             if 'shrub' in veg_metrics and 'global' in veg_metrics['shrub']:
                 print(f"  Shrub: {veg_metrics['shrub']['global']:.3f}")
 
+        # Show spatial RMSE per PFT
+        rmse_keys = sorted([k for k in um_metrics if k.startswith('rmse_')])
+        if rmse_keys:
+            print(f"\n  Spatial RMSE vs IGBP (per PFT):")
+            for rk in rmse_keys:
+                if 'global' in um_metrics[rk]:
+                    pft_label = rk.replace('rmse_', '')
+                    print(f"    {pft_label}: {um_metrics[rk]['global']:.4f}")
+
     print("="*80 + "\n")
 
 
