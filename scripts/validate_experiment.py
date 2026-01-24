@@ -37,15 +37,18 @@ from utils_cmip7.validation import (
     compare_metrics,
     summarize_comparison,
     plot_three_way_comparison,
+    plot_two_way_comparison,
     plot_regional_bias_heatmap,
     plot_timeseries_with_obs,
 )
 from utils_cmip7.validation.veg_fractions import (
+    PFT_MAPPING,
     calculate_veg_metrics,
-    save_veg_metrics_to_csv,
-    compare_veg_metrics,
     load_obs_veg_metrics,
 )
+
+# Vegetation metric names for plotting
+VEG_METRICS = ['BL', 'NL', 'C3', 'C4', 'shrub', 'bare_soil']
 from utils_cmip7.config import RECCAP_REGIONS
 
 
@@ -72,7 +75,13 @@ def save_um_metrics_to_csv(um_metrics, expt, outdir):
         Output directory
     """
     regions = get_all_regions()
-    metrics = ['GPP', 'NPP', 'CVeg', 'CSoil', 'Tau']
+    # Include all metrics that have canonical structure (dict with 'data' key)
+    metrics = []
+    for m in sorted(um_metrics.keys()):
+        # Check this is canonical structure (not scalar veg metrics)
+        sample_region = next(iter(um_metrics[m].values()), None)
+        if isinstance(sample_region, dict) and 'data' in sample_region:
+            metrics.append(m)
 
     # Build dataframe
     data = {}
@@ -80,7 +89,6 @@ def save_um_metrics_to_csv(um_metrics, expt, outdir):
         regional_data = []
         for metric in metrics:
             if metric in um_metrics and region in um_metrics[metric]:
-                # Compute time-mean
                 mean_val = np.mean(um_metrics[metric][region]['data'])
                 regional_data.append(mean_val)
             else:
@@ -92,7 +100,7 @@ def save_um_metrics_to_csv(um_metrics, expt, outdir):
     # Save
     csv_path = outdir / f'{expt}_metrics.csv'
     df.to_csv(csv_path)
-    print(f"  ✓ Saved UM metrics: {csv_path}")
+    print(f"  ✓ Saved UM metrics ({len(metrics)} variables): {csv_path}")
 
     return df
 
@@ -106,23 +114,15 @@ def save_bias_statistics(comparison, obs_name, expt, outdir):
     comparison : dict
         Comparison results from compare_metrics()
     obs_name : str
-        Observational dataset name ('CMIP6' or 'RECCAP2')
+        Observational dataset name ('CMIP6', 'RECCAP2', or 'IGBP')
     expt : str
         Experiment name
     outdir : Path
         Output directory
     """
-    regions = get_all_regions()
-    metrics = ['GPP', 'NPP', 'CVeg', 'CSoil', 'Tau']
-
     rows = []
-    for metric in metrics:
-        if metric not in comparison:
-            continue
-        for region in regions:
-            if region not in comparison[metric]:
-                continue
-
+    for metric in sorted(comparison.keys()):
+        for region in sorted(comparison[metric].keys()):
             comp = comparison[metric][region]
             rows.append({
                 'metric': metric,
@@ -149,6 +149,7 @@ def save_comparison_summary(
     reccap_metrics,
     comparison_cmip6,
     comparison_reccap,
+    comparison_igbp,
     expt,
     outdir
 ):
@@ -159,7 +160,7 @@ def save_comparison_summary(
     ----------
     um_metrics, cmip6_metrics, reccap_metrics : dict
         Metric dictionaries
-    comparison_cmip6, comparison_reccap : dict
+    comparison_cmip6, comparison_reccap, comparison_igbp : dict
         Comparison results
     expt : str
         Experiment name
@@ -234,6 +235,19 @@ def save_comparison_summary(
 
                     f.write(f"{metric:<10} {region:<20} {um_bias_pct:>10.1f}%  {cmip6_bias_pct:>12.1f}%  {winner:<10}\n")
 
+        # UM vs IGBP (vegetation fractions)
+        if comparison_igbp:
+            f.write("\n" + "="*80 + "\n")
+            f.write("UM vs IGBP VEGETATION FRACTIONS\n")
+            f.write("-"*80 + "\n")
+            for metric in sorted(comparison_igbp.keys()):
+                if 'global' in comparison_igbp[metric]:
+                    comp = comparison_igbp[metric]['global']
+                    f.write(f"\n{metric}:\n")
+                    f.write(f"  UM mean: {comp['um_mean']:.4f}\n")
+                    f.write(f"  IGBP obs: {comp['obs_mean']:.4f}\n")
+                    f.write(f"  Bias: {comp['bias']:+.4f} ({comp['bias_percent']:+.1f}%)\n")
+
         f.write("\n" + "="*80 + "\n")
 
     print(f"  ✓ Saved comparison summary: {summary_path}")
@@ -245,6 +259,8 @@ def create_all_plots(
     reccap_metrics,
     comparison_cmip6,
     comparison_reccap,
+    comparison_igbp,
+    igbp_metrics,
     outdir
 ):
     """
@@ -253,23 +269,25 @@ def create_all_plots(
     Parameters
     ----------
     um_metrics, cmip6_metrics, reccap_metrics : dict
-        Metric dictionaries
-    comparison_cmip6, comparison_reccap : dict
+        Metric dictionaries in canonical schema
+    comparison_cmip6, comparison_reccap, comparison_igbp : dict
         Comparison results
+    igbp_metrics : dict
+        IGBP obs metrics in canonical schema
     outdir : Path
         Output directory for plots
     """
     plots_dir = outdir / 'plots'
     plots_dir.mkdir(exist_ok=True)
 
-    metrics = ['GPP', 'NPP', 'CVeg', 'CSoil', 'Tau']
+    carbon_metrics = ['GPP', 'NPP', 'CVeg', 'CSoil', 'Tau']
+    all_metrics = carbon_metrics + VEG_METRICS
 
     print("\n  Creating plots...")
 
-    # 1. Three-way comparison plots
-    print("    - Three-way comparisons")
-    for metric in metrics:
-        # Check if metric exists in all three datasets with at least one common region
+    # 1. Three-way comparison plots (carbon metrics: UM vs CMIP6 vs RECCAP2)
+    print("    - Three-way comparisons (carbon)")
+    for metric in carbon_metrics:
         if (metric in um_metrics and metric in cmip6_metrics and metric in reccap_metrics and
             um_metrics[metric] and cmip6_metrics[metric] and reccap_metrics[metric]):
             plot_three_way_comparison(
@@ -283,10 +301,25 @@ def create_all_plots(
         else:
             print(f"      ⚠ Skipping {metric} (not available in all datasets)")
 
+    # 1b. Two-way comparison plots (veg metrics: UM vs IGBP)
+    print("    - Veg fraction comparisons (UM vs IGBP)")
+    for metric in VEG_METRICS:
+        if (metric in um_metrics and um_metrics[metric] and
+            metric in igbp_metrics and igbp_metrics[metric]):
+            plot_two_way_comparison(
+                um_metrics,
+                igbp_metrics,
+                metric=metric,
+                outdir=plots_dir,
+                filename=f'{metric}_vs_igbp.png'
+            )
+        else:
+            print(f"      ⚠ Skipping {metric} (not available)")
+
     # 2. Bias heatmaps
     print("    - Bias heatmaps")
-    # Filter to metrics that exist in comparisons
-    available_metrics = [m for m in metrics if m in comparison_cmip6 and comparison_cmip6[m]]
+    # Carbon metrics vs CMIP6
+    available_metrics = [m for m in carbon_metrics if m in comparison_cmip6 and comparison_cmip6[m]]
     if available_metrics:
         plot_regional_bias_heatmap(
             comparison_cmip6,
@@ -296,7 +329,8 @@ def create_all_plots(
             filename='bias_heatmap_vs_cmip6.png'
         )
 
-    available_metrics_reccap = [m for m in metrics if m in comparison_reccap and comparison_reccap[m]]
+    # Carbon metrics vs RECCAP2
+    available_metrics_reccap = [m for m in carbon_metrics if m in comparison_reccap and comparison_reccap[m]]
     if available_metrics_reccap:
         plot_regional_bias_heatmap(
             comparison_reccap,
@@ -306,9 +340,20 @@ def create_all_plots(
             filename='bias_heatmap_vs_reccap2.png'
         )
 
-    # 3. Time series plots (global only)
-    print("    - Time series")
-    for metric in metrics:
+    # Veg metrics vs IGBP
+    available_veg = [m for m in VEG_METRICS if m in comparison_igbp and comparison_igbp[m]]
+    if available_veg:
+        plot_regional_bias_heatmap(
+            comparison_igbp,
+            metrics=available_veg,
+            value_type='bias_percent',
+            outdir=plots_dir,
+            filename='bias_heatmap_vs_igbp.png'
+        )
+
+    # 3. Time series plots
+    print("    - Time series (carbon)")
+    for metric in carbon_metrics:
         if (metric in um_metrics and 'global' in um_metrics[metric] and
             metric in reccap_metrics and 'global' in reccap_metrics[metric]):
             plot_timeseries_with_obs(
@@ -320,7 +365,6 @@ def create_all_plots(
                 filename=f'{metric}_timeseries_global.png'
             )
         elif metric in um_metrics and um_metrics[metric]:
-            # Try with any available region if global doesn't exist
             available_regions = list(um_metrics[metric].keys())
             if (available_regions and metric in reccap_metrics and
                 available_regions[0] in reccap_metrics[metric]):
@@ -332,6 +376,20 @@ def create_all_plots(
                     outdir=plots_dir,
                     filename=f'{metric}_timeseries_{available_regions[0]}.png'
                 )
+
+    # 3b. Time series for veg metrics (UM vs IGBP)
+    print("    - Time series (veg fractions)")
+    for metric in VEG_METRICS:
+        if (metric in um_metrics and 'global' in um_metrics[metric] and
+            metric in igbp_metrics and 'global' in igbp_metrics[metric]):
+            plot_timeseries_with_obs(
+                um_metrics,
+                igbp_metrics,
+                metric=metric,
+                region='global',
+                outdir=plots_dir,
+                filename=f'{metric}_timeseries_global.png'
+            )
 
 
 def main():
@@ -391,7 +449,7 @@ def main():
     )
     print(f"✓ Computed {len(um_metrics)} standard metrics for {len(regions)} regions")
 
-    # Extract raw data for vegetation fractions
+    # Extract raw data for vegetation fractions (preserves time series)
     print(f"  Extracting vegetation fraction data...")
     raw_data = extract_annual_means(
         expts_list=[expt],
@@ -400,14 +458,35 @@ def main():
         base_dir=args.base_dir
     )
 
-    # Calculate vegetation fraction metrics for all regions
-    veg_metrics = calculate_veg_metrics(raw_data, expt, regions=regions)
-    if veg_metrics:
-        print(f"✓ Computed {len(veg_metrics)} vegetation metrics for {len(regions)} regions")
+    # Promote PFT time series to um_metrics with canonical structure
+    veg_count = 0
+    if expt in raw_data:
+        for pft_id, pft_name in sorted(PFT_MAPPING.items()):
+            pft_key = f'PFT {pft_id}'
+            um_metrics[pft_name] = {}
+            for region in regions:
+                if (region in raw_data[expt] and
+                    'frac' in raw_data[expt][region] and
+                    pft_key in raw_data[expt][region]['frac']):
+                    pft_data = raw_data[expt][region]['frac'][pft_key]
+                    um_metrics[pft_name][region] = {
+                        'years': pft_data['years'],
+                        'data': pft_data['data'],
+                        'units': 'fraction',
+                        'source': 'UM',
+                        'dataset': expt
+                    }
+            if um_metrics[pft_name]:
+                veg_count += 1
+            else:
+                del um_metrics[pft_name]
 
-        # Merge veg metrics into um_metrics
-        um_metrics.update(veg_metrics)
-        print(f"✓ Merged vegetation metrics: {len(um_metrics)} total metrics")
+    # Also compute scalar veg metrics (for CSV export and RMSE)
+    veg_metrics = calculate_veg_metrics(raw_data, expt, regions=regions)
+
+    if veg_count > 0:
+        print(f"✓ Promoted {veg_count} PFT time series to metrics")
+        print(f"✓ Total metrics: {len(um_metrics)}")
     else:
         print(f"⚠ No vegetation fraction data available")
 
@@ -432,10 +511,20 @@ def main():
     print(f"✓ Loaded CMIP6 ensemble data")
     print(f"✓ Loaded RECCAP2 observational data")
 
-    # Load vegetation fraction observations (IGBP)
+    # Load vegetation fraction observations (IGBP) in canonical schema
     obs_veg_metrics = load_obs_veg_metrics()
+    igbp_metrics = {}
     if obs_veg_metrics:
-        print(f"✓ Loaded IGBP vegetation fraction observations")
+        for pft_name in VEG_METRICS:
+            if pft_name in obs_veg_metrics:
+                igbp_metrics[pft_name] = {
+                    'global': {
+                        'data': np.array([obs_veg_metrics[pft_name]]),
+                        'units': 'fraction',
+                        'source': 'IGBP',
+                    }
+                }
+        print(f"✓ Loaded IGBP vegetation fraction observations ({len(igbp_metrics)} PFTs)")
 
     # =========================================================================
     # Step 3: Compare UM vs CMIP6 and UM vs RECCAP2
@@ -460,11 +549,15 @@ def main():
     print(f"✓ Computed bias statistics vs CMIP6")
     print(f"✓ Computed bias statistics vs RECCAP2")
 
-    # Compare vegetation fractions vs IGBP (global only)
-    veg_comparison = None
-    if veg_metrics and obs_veg_metrics:
-        veg_comparison = compare_veg_metrics(veg_metrics, obs_veg_metrics, region='global')
-        print(f"✓ Computed vegetation fraction bias vs IGBP (global)")
+    # Compare vegetation fractions vs IGBP using canonical comparison
+    comparison_igbp = {}
+    if igbp_metrics:
+        comparison_igbp = compare_metrics(
+            um_metrics, igbp_metrics,
+            metrics=VEG_METRICS,
+            regions=['global']
+        )
+        print(f"✓ Computed vegetation fraction bias vs IGBP ({len(comparison_igbp)} PFTs)")
 
     # =========================================================================
     # Step 4: Export to CSV
@@ -477,12 +570,8 @@ def main():
     save_bias_statistics(comparison_reccap, 'RECCAP2', expt, outdir)
 
     # Save vegetation fraction comparison (global only)
-    if veg_comparison:
-        veg_df = pd.DataFrame(veg_comparison).T
-        veg_df.index.name = 'metric'
-        veg_csv_path = outdir / f'{expt}_veg_bias_vs_igbp.csv'
-        veg_df.to_csv(veg_csv_path)
-        print(f"  ✓ Saved: {veg_csv_path.name}")
+    if comparison_igbp:
+        save_bias_statistics(comparison_igbp, 'IGBP', expt, outdir)
 
     save_comparison_summary(
         um_metrics,
@@ -490,6 +579,7 @@ def main():
         reccap_metrics,
         comparison_cmip6,
         comparison_reccap,
+        comparison_igbp,
         expt,
         outdir
     )
@@ -506,6 +596,8 @@ def main():
         reccap_metrics,
         comparison_cmip6,
         comparison_reccap,
+        comparison_igbp,
+        igbp_metrics,
         outdir
     )
 
@@ -519,8 +611,8 @@ def main():
     print(f"  - {expt}_metrics.csv            (UM results including veg fractions)")
     print(f"  - {expt}_bias_vs_cmip6.csv      (Bias vs CMIP6)")
     print(f"  - {expt}_bias_vs_reccap2.csv    (Bias vs RECCAP2)")
-    if veg_comparison:
-        print(f"  - {expt}_veg_bias_vs_igbp.csv   (Vegetation bias vs IGBP)")
+    if comparison_igbp:
+        print(f"  - {expt}_bias_vs_IGBP.csv       (Vegetation bias vs IGBP)")
     print(f"  - comparison_summary.txt        (Text summary)")
     print(f"  - plots/                        (All visualizations)")
 
@@ -535,41 +627,23 @@ def main():
         print(f"  NPP: {npp_summary['mean_bias']:+.1f} PgC/yr ({npp_summary['mean_bias_percent']:+.1f}%), "
               f"{npp_summary['fraction_within_uncertainty']:.0%} within uncertainty")
 
-    if veg_metrics:
+    if comparison_igbp:
         print(f"\nVegetation fractions (global) vs IGBP:")
-        if veg_comparison:
-            # Show trees
-            if 'trees' in veg_comparison:
-                trees = veg_comparison['trees']
-                print(f"  Trees (BL+NL): UM={trees['um_value']:.3f}, Obs={trees.get('obs_value', 'N/A'):.3f}, "
-                      f"Bias={trees.get('bias', 0):+.3f} ({trees.get('bias_percent', 0):+.1f}%)")
-            # Show grass
-            if 'grass' in veg_comparison:
-                grass = veg_comparison['grass']
-                print(f"  Grass (C3+C4): UM={grass['um_value']:.3f}, Obs={grass.get('obs_value', 'N/A'):.3f}, "
-                      f"Bias={grass.get('bias', 0):+.3f} ({grass.get('bias_percent', 0):+.1f}%)")
-            # Show shrub
-            if 'shrub' in veg_comparison:
-                shrub = veg_comparison['shrub']
-                print(f"  Shrub: UM={shrub['um_value']:.3f}, Obs={shrub.get('obs_value', 'N/A'):.3f}, "
-                      f"Bias={shrub.get('bias', 0):+.3f} ({shrub.get('bias_percent', 0):+.1f}%)")
-        else:
-            # Fallback if no comparison
-            if 'trees' in veg_metrics and 'global' in veg_metrics['trees']:
-                print(f"  Trees (BL+NL): {veg_metrics['trees']['global']:.3f}")
-            if 'grass' in veg_metrics and 'global' in veg_metrics['grass']:
-                print(f"  Grass (C3+C4): {veg_metrics['grass']['global']:.3f}")
-            if 'shrub' in veg_metrics and 'global' in veg_metrics['shrub']:
-                print(f"  Shrub: {veg_metrics['shrub']['global']:.3f}")
+        for pft_name in VEG_METRICS:
+            if pft_name in comparison_igbp and 'global' in comparison_igbp[pft_name]:
+                c = comparison_igbp[pft_name]['global']
+                print(f"  {pft_name}: UM={c['um_mean']:.3f}, Obs={c['obs_mean']:.3f}, "
+                      f"Bias={c['bias']:+.3f} ({c['bias_percent']:+.1f}%)")
 
         # Show spatial RMSE per PFT
-        rmse_keys = sorted([k for k in um_metrics if k.startswith('rmse_')])
-        if rmse_keys:
-            print(f"\n  Spatial RMSE vs IGBP (per PFT):")
-            for rk in rmse_keys:
-                if 'global' in um_metrics[rk]:
-                    pft_label = rk.replace('rmse_', '')
-                    print(f"    {pft_label}: {um_metrics[rk]['global']:.4f}")
+        if veg_metrics:
+            rmse_keys = sorted([k for k in veg_metrics if k.startswith('rmse_')])
+            if rmse_keys:
+                print(f"\n  Spatial RMSE vs IGBP (per PFT):")
+                for rk in rmse_keys:
+                    if 'global' in veg_metrics[rk]:
+                        pft_label = rk.replace('rmse_', '')
+                        print(f"    {pft_label}: {veg_metrics[rk]['global']:.4f}")
 
     print("="*80 + "\n")
 

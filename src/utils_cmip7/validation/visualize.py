@@ -469,10 +469,94 @@ def plot_three_way_comparison(
     return ax
 
 
+def plot_two_way_comparison(
+    um_metrics: Dict[str, Dict[str, Dict[str, Any]]],
+    obs_metrics: Dict[str, Dict[str, Dict[str, Any]]],
+    metric: str,
+    ax: Optional[plt.Axes] = None,
+    outdir: Optional[str] = None,
+    filename: Optional[str] = None
+) -> plt.Axes:
+    """
+    Plot UM compared against a single observational dataset.
+
+    Parameters
+    ----------
+    um_metrics : dict
+        UM metrics in canonical schema
+    obs_metrics : dict
+        Obs metrics in canonical schema (e.g., IGBP)
+    metric : str
+        Metric to plot
+    ax : plt.Axes, optional
+        Matplotlib axes to plot on
+    outdir : str, optional
+        Output directory for saving
+    filename : str, optional
+        Filename for saving
+
+    Returns
+    -------
+    plt.Axes
+        The axes object with the plot
+    """
+    if ax is None:
+        fig, ax = plt.subplots(figsize=(12, 6))
+
+    # Get regions present in both datasets
+    um_regions = set(um_metrics[metric].keys()) if metric in um_metrics else set()
+    obs_regions = set(obs_metrics[metric].keys()) if metric in obs_metrics else set()
+    regions = sorted(um_regions & obs_regions)
+
+    if not regions:
+        print(f"  ⚠ Warning: No common regions found for {metric}, skipping plot")
+        return ax
+
+    x_pos = np.arange(len(regions))
+
+    # Extract data
+    um_means = [np.mean(um_metrics[metric][r]['data']) for r in regions]
+    um_stds = [np.std(um_metrics[metric][r]['data']) for r in regions]
+
+    obs_means = [obs_metrics[metric][r]['data'][0] for r in regions]
+    obs_errors = [obs_metrics[metric][r].get('error', [0])[0] or 0 for r in regions]
+
+    # Plot bars
+    width = 0.35
+    bars_um = ax.bar(x_pos - width / 2, um_means, width, yerr=um_stds,
+                     label='UM (this study)', alpha=0.8, capsize=5, color='steelblue')
+    bars_obs = ax.bar(x_pos + width / 2, obs_means, width, yerr=obs_errors,
+                      label='Obs (IGBP)', alpha=0.8, capsize=5, color='forestgreen')
+
+    # Formatting
+    ax.set_xlabel('Region', fontsize=11)
+    units = um_metrics[metric][regions[0]]['units']
+    ax.set_ylabel(f"{metric} ({units})", fontsize=11)
+    obs_source = obs_metrics[metric][regions[0]].get('source', 'Obs')
+    ax.set_title(f'{metric}: UM vs {obs_source}', fontsize=13, fontweight='bold')
+    ax.set_xticks(x_pos)
+    ax.set_xticklabels(regions, rotation=45, ha='right')
+    ax.legend(frameon=False, loc='upper left')
+    ax.grid(axis='y', alpha=0.3, linewidth=0.5)
+
+    plt.tight_layout()
+
+    # Save if requested
+    if outdir is not None:
+        os.makedirs(outdir, exist_ok=True)
+        fname = filename if filename else f'{metric}_two_way_comparison.png'
+        filepath = os.path.join(outdir, fname)
+        plt.savefig(filepath, dpi=300, bbox_inches='tight')
+        print(f"✓ Saved: {filepath}")
+
+    return ax
+
+
 __all__ = [
     'plot_metric_comparison',
     'plot_regional_bias_heatmap',
     'plot_timeseries_with_obs',
     'create_validation_report',
     'plot_three_way_comparison',
+    'plot_two_way_comparison',
 ]
