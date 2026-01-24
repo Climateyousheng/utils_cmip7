@@ -103,39 +103,41 @@ def extract_igbp_regional_means():
                     if region == 'global':
                         # Global mean: area-weighted mean over all grid cells
                         weights = area_weights(pft_cube)
-                        mean_val = float(pft_cube.collapsed(
-                            ['latitude', 'longitude'],
-                            iris.analysis.MEAN,
-                            weights=weights
-                        ).data)
+                        total_weight = np.sum(weights)
+                        weighted_sum = np.sum(pft_cube.data * weights)
+                        mean_val = float(weighted_sum / total_weight)
                     else:
-                        # Regional mean: apply mask and compute area-weighted mean
+                        # Regional mean: apply mask and compute area-weighted mean manually
                         mask_cube = region_mask(region)
 
                         # Ensure mask and data have same shape
                         if mask_cube.shape != pft_cube.shape:
-                            # If shapes don't match, regrid mask to pft_cube grid
-                            # For now, just check they're compatible
                             raise ValueError(f"Shape mismatch: mask {mask_cube.shape} vs data {pft_cube.shape}")
 
-                        # Apply mask (1 = inside region, 0 = outside)
-                        masked_data = np.where(mask_cube.data == 1, pft_cube.data, np.nan)
-                        masked_cube = pft_cube.copy()
-                        masked_cube.data = masked_data
+                        # Get area weights for the data cube
+                        weights = area_weights(pft_cube)
 
-                        # Compute area-weighted mean (NaN-aware)
-                        weights = area_weights(masked_cube)
-                        mean_val = float(masked_cube.collapsed(
-                            ['latitude', 'longitude'],
-                            iris.analysis.MEAN,
-                            weights=weights
-                        ).data)
+                        # Apply regional mask to weights (zero out weights outside region)
+                        # mask_cube.data is 1 inside region, 0 outside
+                        regional_weights = weights * mask_cube.data
+
+                        # Compute area-weighted mean: sum(data * weights) / sum(weights)
+                        total_weight = np.sum(regional_weights)
+                        if total_weight > 0:
+                            weighted_sum = np.sum(pft_cube.data * regional_weights)
+                            mean_val = float(weighted_sum / total_weight)
+                        else:
+                            # No grid cells in this region
+                            print(f"    Warning: No grid cells in {region}")
+                            mean_val = np.nan
 
                     results[region][pft_name] = mean_val
                     success_count += 1
 
                 except Exception as e:
                     print(f"  ⚠ Failed to extract {region}: {e}")
+                    import traceback
+                    traceback.print_exc()
                     continue
 
             if success_count > 0:
