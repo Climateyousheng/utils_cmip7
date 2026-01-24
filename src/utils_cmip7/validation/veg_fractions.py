@@ -27,9 +27,10 @@ PFT_MAPPING = {
 
 
 def calculate_veg_metrics(um_metrics: Dict[str, Dict[str, Dict[str, Any]]],
-                         expt: str) -> Dict[str, float]:
+                         expt: str,
+                         regions: Optional[List[str]] = None) -> Dict[str, Dict[str, float]]:
     """
-    Calculate vegetation fraction metrics from extracted data.
+    Calculate vegetation fraction metrics from extracted data for all regions.
 
     Parameters
     ----------
@@ -37,87 +38,84 @@ def calculate_veg_metrics(um_metrics: Dict[str, Dict[str, Dict[str, Any]]],
         Extracted data with structure: {expt: {region: {var: {...}}}}
     expt : str
         Experiment name
+    regions : list of str, optional
+        List of regions to compute metrics for. If None, uses all available regions.
 
     Returns
     -------
     dict
-        Dictionary of vegetation metrics:
-        - global_mean_{pft}: Global mean fraction for each PFT
-        - global_mean_trees: Sum of BL + NL
-        - global_mean_grass: Sum of C3 + C4
-        - amazon_trees: Amazon region tree fraction (if available)
-        - subtropical_trees: 30S-30N tree fraction (if available)
-        - NH_trees: 30N-90N tree fraction (if available)
+        Dictionary with structure: {metric: {region: value}}
+        Metrics include:
+        - {pft_name}: Fraction for each PFT (BL, NL, C3, C4, shrub, bare_soil)
+        - trees: Sum of BL + NL
+        - grass: Sum of C3 + C4
 
     Notes
     -----
     Uses 'frac' variable from um_metrics which contains PFT fractions.
-    Regional metrics require regional extraction data.
+    Computes time-mean for each PFT and region.
     """
+    # Initialize metrics dict: {metric: {region: value}}
     metrics = {}
 
-    # Check if frac data exists
-    if expt not in um_metrics or 'global' not in um_metrics[expt]:
+    # Check if experiment exists
+    if expt not in um_metrics:
         return metrics
 
-    if 'frac' not in um_metrics[expt]['global']:
+    # Determine regions to process
+    if regions is None:
+        regions = list(um_metrics[expt].keys())
+
+    # Filter to regions that have frac data
+    regions_with_frac = [r for r in regions if r in um_metrics[expt] and 'frac' in um_metrics[expt][r]]
+
+    if not regions_with_frac:
         return metrics
 
-    frac_data = um_metrics[expt]['global']['frac']
-
-    # Calculate global mean for each PFT
+    # Initialize metric entries
     for pft_id, pft_name in PFT_MAPPING.items():
-        pft_key = f'PFT {pft_id}'
-        if pft_key in frac_data:
-            pft_series = frac_data[pft_key]
-            if 'data' in pft_series and len(pft_series['data']) > 0:
-                # Compute time-mean
-                mean_val = np.mean(pft_series['data'])
-                metrics[f'global_mean_{pft_name}'] = mean_val
+        metrics[pft_name] = {}
+    metrics['trees'] = {}
+    metrics['grass'] = {}
 
-    # Aggregates
-    if 'global_mean_BL' in metrics and 'global_mean_NL' in metrics:
-        metrics['global_mean_trees'] = metrics['global_mean_BL'] + metrics['global_mean_NL']
+    # Calculate metrics for each region
+    for region in regions_with_frac:
+        frac_data = um_metrics[expt][region]['frac']
 
-    if 'global_mean_C3' in metrics and 'global_mean_C4' in metrics:
-        metrics['global_mean_grass'] = metrics['global_mean_C3'] + metrics['global_mean_C4']
+        # Per-PFT metrics
+        pft_values = {}
+        for pft_id, pft_name in PFT_MAPPING.items():
+            pft_key = f'PFT {pft_id}'
+            if pft_key in frac_data:
+                pft_series = frac_data[pft_key]
+                if 'data' in pft_series and len(pft_series['data']) > 0:
+                    # Compute time-mean
+                    mean_val = np.mean(pft_series['data'])
+                    metrics[pft_name][region] = mean_val
+                    pft_values[pft_name] = mean_val
 
-    # Regional metrics (if regional data available)
-    # Note: For more accurate regional metrics, would need to reprocess with lat/lon masks
-    # For now, we can approximate using RECCAP2 regions as proxies
+        # Aggregates
+        if 'BL' in pft_values and 'NL' in pft_values:
+            metrics['trees'][region] = pft_values['BL'] + pft_values['NL']
 
-    # Amazon trees approximation (South America region as proxy)
-    if 'South_America' in um_metrics[expt]:
-        sa_frac = um_metrics[expt]['South_America'].get('frac', {})
-        bl = sa_frac.get('PFT 1', {}).get('data', [])
-        nl = sa_frac.get('PFT 2', {}).get('data', [])
-        if len(bl) > 0 and len(nl) > 0:
-            metrics['amazon_trees_approx'] = np.mean(bl) + np.mean(nl)
+        if 'C3' in pft_values and 'C4' in pft_values:
+            metrics['grass'][region] = pft_values['C3'] + pft_values['C4']
 
-    # Subtropical trees (could use combination of regions near equator)
-    # NH trees (could use North_America + Europe + North_Asia as proxy)
-    if all(r in um_metrics[expt] for r in ['North_America', 'Europe', 'North_Asia']):
-        nh_tree_fracs = []
-        for region in ['North_America', 'Europe', 'North_Asia']:
-            region_frac = um_metrics[expt][region].get('frac', {})
-            bl = region_frac.get('PFT 1', {}).get('data', [])
-            nl = region_frac.get('PFT 2', {}).get('data', [])
-            if len(bl) > 0 and len(nl) > 0:
-                nh_tree_fracs.append(np.mean(bl) + np.mean(nl))
-        if nh_tree_fracs:
-            metrics['NH_trees_approx'] = np.mean(nh_tree_fracs)
+    # Remove empty metrics
+    metrics = {k: v for k, v in metrics.items() if v}
 
     return metrics
 
 
-def save_veg_metrics_to_csv(metrics: Dict[str, float], expt: str, outdir: Path) -> pd.DataFrame:
+def save_veg_metrics_to_csv(metrics: Dict[str, Dict[str, float]], expt: str, outdir: Path) -> pd.DataFrame:
     """
-    Save vegetation metrics to CSV.
+    Save vegetation metrics to CSV in same format as main metrics.
 
     Parameters
     ----------
     metrics : dict
         Vegetation metrics from calculate_veg_metrics()
+        Structure: {metric: {region: value}}
     expt : str
         Experiment name
     outdir : Path
@@ -126,38 +124,40 @@ def save_veg_metrics_to_csv(metrics: Dict[str, float], expt: str, outdir: Path) 
     Returns
     -------
     pandas.DataFrame
-        DataFrame with metrics
+        DataFrame with metrics as rows and regions as columns
     """
     if not metrics:
         print(f"  ⚠ No vegetation metrics to save for {expt}")
         return None
 
-    # Create DataFrame
-    df = pd.DataFrame({
-        'metric': list(metrics.keys()),
-        'value': list(metrics.values())
-    })
+    # Create DataFrame: metrics as rows, regions as columns
+    df = pd.DataFrame(metrics).T
+    df.index.name = 'metric'
 
     # Save
     csv_path = outdir / f'{expt}_veg_fractions.csv'
-    df.to_csv(csv_path, index=False)
+    df.to_csv(csv_path)
     print(f"  ✓ Saved vegetation fraction metrics: {csv_path}")
-    print(f"    Metrics: {len(metrics)}")
+    print(f"    Metrics: {len(metrics)}, Regions: {len(df.columns)}")
 
     return df
 
 
-def compare_veg_metrics(um_metrics: Dict[str, float],
-                       obs_metrics: Optional[Dict[str, float]] = None) -> Dict[str, Dict[str, float]]:
+def compare_veg_metrics(um_metrics: Dict[str, Dict[str, float]],
+                       obs_metrics: Optional[Dict[str, float]] = None,
+                       region: str = 'global') -> Dict[str, Dict[str, float]]:
     """
-    Compare UM vegetation metrics against observations.
+    Compare UM vegetation metrics against observations for a specific region.
 
     Parameters
     ----------
     um_metrics : dict
-        UM vegetation metrics
+        UM vegetation metrics with structure: {metric: {region: value}}
     obs_metrics : dict, optional
         Observational vegetation metrics (e.g., from IGBP)
+        Structure: {metric: value} for global observations
+    region : str, optional
+        Region to compare (default: 'global')
 
     Returns
     -------
@@ -171,10 +171,15 @@ def compare_veg_metrics(um_metrics: Dict[str, float],
     Notes
     -----
     If obs_metrics not provided, returns only UM values.
+    Only compares for the specified region (typically 'global' for IGBP).
     """
     comparison = {}
 
-    for metric, um_val in um_metrics.items():
+    for metric, regional_values in um_metrics.items():
+        if region not in regional_values:
+            continue
+
+        um_val = regional_values[region]
         comparison[metric] = {
             'um_value': um_val
         }
@@ -195,42 +200,42 @@ def compare_veg_metrics(um_metrics: Dict[str, float],
 
 def load_obs_veg_metrics(obs_file: Optional[str] = None) -> Dict[str, float]:
     """
-    Load observational vegetation fraction metrics.
+    Load observational vegetation fraction metrics (IGBP global values).
 
     Parameters
     ----------
     obs_file : str, optional
         Path to observational NetCDF file
-        If None, returns empty dict
+        If None, uses hardcoded IGBP values
 
     Returns
     -------
     dict
-        Observational vegetation metrics
+        Observational vegetation metrics with structure: {metric: value}
+        Keys match PFT names: BL, NL, C3, C4, shrub, bare_soil, trees, grass
 
     Notes
     -----
-    This is a placeholder. Implement loading from NetCDF if obs file provided.
-    For now, could use hardcoded IGBP values if available.
+    This is a placeholder using approximate IGBP global mean values.
+    Implement loading from NetCDF if obs file provided.
     """
-    # Placeholder - would load from NetCDF or package data
-    # Example hardcoded values (replace with actual IGBP data):
+    # Placeholder - using approximate IGBP global values
+    # Replace with actual observations when available
     obs_metrics = {
-        # These are example values - replace with actual observations
-        'global_mean_BL': 0.15,  # ~15% broadleaf globally
-        'global_mean_NL': 0.08,  # ~8% needleleaf
-        'global_mean_C3': 0.12,  # ~12% C3 grass
-        'global_mean_C4': 0.05,  # ~5% C4 grass
-        'global_mean_shrub': 0.10,  # ~10% shrub
-        'global_mean_bare_soil': 0.20,  # ~20% bare soil
-        'global_mean_trees': 0.23,  # BL + NL
-        'global_mean_grass': 0.17,  # C3 + C4
+        'BL': 0.15,          # ~15% broadleaf globally
+        'NL': 0.08,          # ~8% needleleaf
+        'C3': 0.12,          # ~12% C3 grass
+        'C4': 0.05,          # ~5% C4 grass
+        'shrub': 0.10,       # ~10% shrub
+        'bare_soil': 0.20,   # ~20% bare soil
+        'trees': 0.23,       # BL + NL
+        'grass': 0.17,       # C3 + C4
     }
 
     if obs_file:
         # TODO: Implement actual loading from NetCDF
         print(f"  ⚠ Loading from NetCDF not yet implemented")
-        print(f"    Using placeholder values for demonstration")
+        print(f"    Using placeholder IGBP values")
 
     return obs_metrics
 

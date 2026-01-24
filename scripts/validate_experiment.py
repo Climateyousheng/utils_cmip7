@@ -377,38 +377,37 @@ def main():
     metrics = ['GPP', 'NPP', 'CVeg', 'CSoil', 'Tau']
 
     # =========================================================================
-    # Step 1: Compute UM metrics for all regions
+    # Step 1: Compute UM metrics (including vegetation fractions) for all regions
     # =========================================================================
     print(f"\n[1/5] Computing UM metrics from {args.base_dir}/{expt}/...")
     print("-"*80)
 
+    # Compute standard carbon cycle metrics
     um_metrics = compute_metrics_from_annual_means(
         expt_name=expt,
         metrics=metrics,
         regions=regions,
         base_dir=args.base_dir
     )
+    print(f"✓ Computed {len(um_metrics)} standard metrics for {len(regions)} regions")
 
-    print(f"✓ Computed {len(um_metrics)} metrics for {len(regions)} regions")
-
-    # =========================================================================
-    # Step 1b: Extract raw data for vegetation fractions
-    # =========================================================================
-    print(f"\n[1b/6] Extracting vegetation fraction data...")
-    print("-"*80)
-
-    # Extract raw data including frac variable
+    # Extract raw data for vegetation fractions
+    print(f"  Extracting vegetation fraction data...")
     raw_data = extract_annual_means(
         expts_list=[expt],
-        var_list=['frac'],  # Only need frac for vegetation metrics
+        var_list=['frac'],
         regions=regions,
         base_dir=args.base_dir
     )
 
-    # Calculate vegetation fraction metrics
-    veg_metrics = calculate_veg_metrics(raw_data, expt)
+    # Calculate vegetation fraction metrics for all regions
+    veg_metrics = calculate_veg_metrics(raw_data, expt, regions=regions)
     if veg_metrics:
-        print(f"✓ Computed {len(veg_metrics)} vegetation fraction metrics")
+        print(f"✓ Computed {len(veg_metrics)} vegetation metrics for {len(regions)} regions")
+
+        # Merge veg metrics into um_metrics
+        um_metrics.update(veg_metrics)
+        print(f"✓ Merged vegetation metrics: {len(um_metrics)} total metrics")
     else:
         print(f"⚠ No vegetation fraction data available")
 
@@ -461,11 +460,11 @@ def main():
     print(f"✓ Computed bias statistics vs CMIP6")
     print(f"✓ Computed bias statistics vs RECCAP2")
 
-    # Compare vegetation fractions vs IGBP
+    # Compare vegetation fractions vs IGBP (global only)
     veg_comparison = None
     if veg_metrics and obs_veg_metrics:
-        veg_comparison = compare_veg_metrics(veg_metrics, obs_veg_metrics)
-        print(f"✓ Computed vegetation fraction bias vs IGBP")
+        veg_comparison = compare_veg_metrics(veg_metrics, obs_veg_metrics, region='global')
+        print(f"✓ Computed vegetation fraction bias vs IGBP (global)")
 
     # =========================================================================
     # Step 4: Export to CSV
@@ -477,11 +476,7 @@ def main():
     save_bias_statistics(comparison_cmip6, 'CMIP6', expt, outdir)
     save_bias_statistics(comparison_reccap, 'RECCAP2', expt, outdir)
 
-    # Save vegetation fraction metrics
-    if veg_metrics:
-        save_veg_metrics_to_csv(veg_metrics, expt, outdir)
-
-    # Save vegetation fraction comparison
+    # Save vegetation fraction comparison (global only)
     if veg_comparison:
         veg_df = pd.DataFrame(veg_comparison).T
         veg_df.index.name = 'metric'
@@ -521,11 +516,9 @@ def main():
     print("VALIDATION COMPLETE!")
     print("="*80)
     print(f"\nResults saved to: {outdir}/")
-    print(f"  - {expt}_metrics.csv            (UM results)")
+    print(f"  - {expt}_metrics.csv            (UM results including veg fractions)")
     print(f"  - {expt}_bias_vs_cmip6.csv      (Bias vs CMIP6)")
     print(f"  - {expt}_bias_vs_reccap2.csv    (Bias vs RECCAP2)")
-    if veg_metrics:
-        print(f"  - {expt}_veg_fractions.csv      (Vegetation fraction metrics)")
     if veg_comparison:
         print(f"  - {expt}_veg_bias_vs_igbp.csv   (Vegetation bias vs IGBP)")
     print(f"  - comparison_summary.txt        (Text summary)")
@@ -543,31 +536,31 @@ def main():
               f"{npp_summary['fraction_within_uncertainty']:.0%} within uncertainty")
 
     if veg_metrics:
-        print(f"\nVegetation fractions vs IGBP:")
+        print(f"\nVegetation fractions (global) vs IGBP:")
         if veg_comparison:
             # Show trees
-            if 'global_mean_trees' in veg_comparison:
-                trees = veg_comparison['global_mean_trees']
+            if 'trees' in veg_comparison:
+                trees = veg_comparison['trees']
                 print(f"  Trees (BL+NL): UM={trees['um_value']:.3f}, Obs={trees.get('obs_value', 'N/A'):.3f}, "
                       f"Bias={trees.get('bias', 0):+.3f} ({trees.get('bias_percent', 0):+.1f}%)")
             # Show grass
-            if 'global_mean_grass' in veg_comparison:
-                grass = veg_comparison['global_mean_grass']
+            if 'grass' in veg_comparison:
+                grass = veg_comparison['grass']
                 print(f"  Grass (C3+C4): UM={grass['um_value']:.3f}, Obs={grass.get('obs_value', 'N/A'):.3f}, "
                       f"Bias={grass.get('bias', 0):+.3f} ({grass.get('bias_percent', 0):+.1f}%)")
             # Show shrub
-            if 'global_mean_shrub' in veg_comparison:
-                shrub = veg_comparison['global_mean_shrub']
+            if 'shrub' in veg_comparison:
+                shrub = veg_comparison['shrub']
                 print(f"  Shrub: UM={shrub['um_value']:.3f}, Obs={shrub.get('obs_value', 'N/A'):.3f}, "
                       f"Bias={shrub.get('bias', 0):+.3f} ({shrub.get('bias_percent', 0):+.1f}%)")
         else:
             # Fallback if no comparison
-            if 'global_mean_trees' in veg_metrics:
-                print(f"  Trees (BL+NL): {veg_metrics['global_mean_trees']:.3f}")
-            if 'global_mean_grass' in veg_metrics:
-                print(f"  Grass (C3+C4): {veg_metrics['global_mean_grass']:.3f}")
-            if 'global_mean_shrub' in veg_metrics:
-                print(f"  Shrub: {veg_metrics['global_mean_shrub']:.3f}")
+            if 'trees' in veg_metrics and 'global' in veg_metrics['trees']:
+                print(f"  Trees (BL+NL): {veg_metrics['trees']['global']:.3f}")
+            if 'grass' in veg_metrics and 'global' in veg_metrics['grass']:
+                print(f"  Grass (C3+C4): {veg_metrics['grass']['global']:.3f}")
+            if 'shrub' in veg_metrics and 'global' in veg_metrics['shrub']:
+                print(f"  Shrub: {veg_metrics['shrub']['global']:.3f}")
 
     print("="*80 + "\n")
 
