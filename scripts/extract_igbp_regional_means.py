@@ -37,8 +37,11 @@ warnings.filterwarnings('ignore', message='.*DEFAULT_SPHERICAL_EARTH_RADIUS.*')
 from iris import Constraint
 
 from utils_cmip7.validation.veg_fractions import PFT_MAPPING, get_obs_dir
-from utils_cmip7.processing.regional import compute_regional_annual_mean
+from utils_cmip7.processing.regional import load_reccap_mask, region_mask
 from utils_cmip7.config import RECCAP_REGIONS
+
+import iris.analysis
+from iris.analysis.cartography import area_weights
 
 
 def extract_igbp_regional_means():
@@ -82,18 +85,42 @@ def extract_igbp_regional_means():
                 print(f"  ⚠ PFT {pft_id} not found, skipping")
                 continue
 
-            # Extract regional means for all regions
+            # Squeeze out singleton dimensions to get (lat, lon)
+            # Shape after extract is likely (1, lat, lon) - squeeze first dim
+            if pft_cube.shape[0] == 1:
+                pft_cube = pft_cube[0]
+
+            # Extract regional means for all regions (static field, no time dimension)
             for region in regions:
                 try:
-                    # Use 'frac' as conversion key (no conversion, just fraction)
-                    output = compute_regional_annual_mean(pft_cube, 'frac', region)
+                    if region == 'global':
+                        # Global mean: area-weighted mean over all grid cells
+                        weights = area_weights(pft_cube)
+                        mean_val = float(pft_cube.collapsed(
+                            ['latitude', 'longitude'],
+                            iris.analysis.MEAN,
+                            weights=weights
+                        ).data)
+                    else:
+                        # Regional mean: apply mask and compute area-weighted mean
+                        mask_cube = region_mask(region)
+                        masked_data = np.where(mask_cube.data == 1, pft_cube.data, np.nan)
+                        masked_cube = pft_cube.copy()
+                        masked_cube.data = masked_data
 
-                    # Store time-mean value
-                    mean_val = float(np.mean(output['data']))
+                        weights = area_weights(masked_cube)
+                        mean_val = float(masked_cube.collapsed(
+                            ['latitude', 'longitude'],
+                            iris.analysis.MEAN,
+                            weights=weights
+                        ).data)
+
                     results[region][pft_name] = mean_val
 
                 except Exception as e:
                     print(f"  ⚠ Failed to extract {region}: {e}")
+                    import traceback
+                    traceback.print_exc()
                     continue
 
             print(f"  ✓ Extracted {pft_name} for {len(results)} regions")
@@ -115,12 +142,30 @@ def main():
     print("IGBP Regional Means Extraction")
     print("="*80)
 
+    # Check input file exists
+    try:
+        obs_dir = get_obs_dir()
+        igbp_file = os.path.join(obs_dir, 'qrparm.veg.frac_igbp.pp.hadcm3bl.nc')
+        print(f"\nInput file: {igbp_file}")
+        if not os.path.exists(igbp_file):
+            print(f"❌ ERROR: Input file not found!")
+            print(f"   Expected: {igbp_file}")
+            sys.exit(1)
+    except Exception as e:
+        print(f"❌ ERROR: {e}")
+        sys.exit(1)
+
     # Extract regional means
     df = extract_igbp_regional_means()
 
+    if df.empty:
+        print(f"\n❌ ERROR: Extraction produced no data")
+        sys.exit(1)
+
     print(f"\n✓ Extracted {len(df.columns)} PFTs for {len(df)} regions")
     print(f"\nPreview:")
-    print(df.head())
+    print(df.head(10))
+    print(f"\nFull dataset shape: {df.shape}")
 
     # Save to CSV
     output_dir = Path(__file__).parent.parent / 'src' / 'utils_cmip7' / 'data' / 'obs'
@@ -128,8 +173,13 @@ def main():
 
     df.to_csv(output_file)
     print(f"\n✓ Saved to: {output_file}")
+    print(f"  Rows: {len(df)} regions")
+    print(f"  Cols: {len(df.columns)} PFTs")
 
     print("\n" + "="*80)
+    print("SUCCESS! IGBP regional means extracted.")
+    print("You can now run: python scripts/validate_experiment.py <expt>")
+    print("="*80)
 
 
 if __name__ == '__main__':
