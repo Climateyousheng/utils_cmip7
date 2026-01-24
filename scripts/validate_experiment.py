@@ -11,11 +11,14 @@ Usage:
 
 Outputs:
     - validation_outputs/single_val_{expt}/
-        ├── {expt}_metrics.csv           # UM results in obs format
+        ├── {expt}_metrics.csv           # UM results (carbon + veg)
         ├── {expt}_bias_vs_cmip6.csv     # Bias statistics vs CMIP6
         ├── {expt}_bias_vs_reccap2.csv   # Bias statistics vs RECCAP2
+        ├── {expt}_bias_vs_igbp.csv      # Bias statistics vs IGBP (veg)
         ├── comparison_summary.txt       # Text summary
         └── plots/                       # All comparison plots
+            ├── bias_heatmap_unified.png # Carbon + veg unified heatmap
+            └── ...
 """
 
 import os
@@ -318,38 +321,38 @@ def create_all_plots(
 
     # 2. Bias heatmaps
     print("    - Bias heatmaps")
-    # Carbon metrics vs CMIP6
-    available_metrics = [m for m in carbon_metrics if m in comparison_cmip6 and comparison_cmip6[m]]
-    if available_metrics:
+    # Separate heatmap for CMIP6 (carbon metrics only)
+    available_metrics_cmip6 = [m for m in carbon_metrics if m in comparison_cmip6 and comparison_cmip6[m]]
+    if available_metrics_cmip6:
         plot_regional_bias_heatmap(
             comparison_cmip6,
-            metrics=available_metrics,
+            metrics=available_metrics_cmip6,
             value_type='bias_percent',
             outdir=plots_dir,
             filename='bias_heatmap_vs_cmip6.png'
         )
 
-    # Carbon metrics vs RECCAP2
-    available_metrics_reccap = [m for m in carbon_metrics if m in comparison_reccap and comparison_reccap[m]]
-    if available_metrics_reccap:
-        plot_regional_bias_heatmap(
-            comparison_reccap,
-            metrics=available_metrics_reccap,
-            value_type='bias_percent',
-            outdir=plots_dir,
-            filename='bias_heatmap_vs_reccap2.png'
-        )
-
-    # Veg metrics vs IGBP
+    # UNIFIED heatmap: Carbon metrics (vs RECCAP2) + Veg metrics (vs IGBP)
+    combined_comparison = {}
+    available_carbon = [m for m in carbon_metrics if m in comparison_reccap and comparison_reccap[m]]
     available_veg = [m for m in VEG_METRICS if m in comparison_igbp and comparison_igbp[m]]
-    if available_veg:
+
+    # Merge comparisons into single dict
+    for m in available_carbon:
+        combined_comparison[m] = comparison_reccap[m]
+    for m in available_veg:
+        combined_comparison[m] = comparison_igbp[m]
+
+    if combined_comparison:
+        all_combined_metrics = available_carbon + available_veg
         plot_regional_bias_heatmap(
-            comparison_igbp,
-            metrics=available_veg,
+            combined_comparison,
+            metrics=all_combined_metrics,
             value_type='bias_percent',
             outdir=plots_dir,
-            filename='bias_heatmap_vs_igbp.png'
+            filename='bias_heatmap_unified.png'
         )
+        print(f"      ✓ Created unified heatmap ({len(all_combined_metrics)} metrics)")
 
     # 3. Time series plots
     print("    - Time series (carbon)")
@@ -511,20 +514,20 @@ def main():
     print(f"✓ Loaded CMIP6 ensemble data")
     print(f"✓ Loaded RECCAP2 observational data")
 
-    # Load vegetation fraction observations (IGBP) in canonical schema
-    obs_veg_metrics = load_obs_veg_metrics()
+    # Load vegetation fraction observations (IGBP) in canonical schema for all regions
+    obs_veg_metrics = load_obs_veg_metrics(regions=regions)
     igbp_metrics = {}
     if obs_veg_metrics:
         for pft_name in VEG_METRICS:
             if pft_name in obs_veg_metrics:
-                igbp_metrics[pft_name] = {
-                    'global': {
-                        'data': np.array([obs_veg_metrics[pft_name]]),
+                igbp_metrics[pft_name] = {}
+                for region in obs_veg_metrics[pft_name].keys():
+                    igbp_metrics[pft_name][region] = {
+                        'data': np.array([obs_veg_metrics[pft_name][region]]),
                         'units': 'fraction',
                         'source': 'IGBP',
                     }
-                }
-        print(f"✓ Loaded IGBP vegetation fraction observations ({len(igbp_metrics)} PFTs)")
+        print(f"✓ Loaded IGBP vegetation fraction observations ({len(igbp_metrics)} PFTs, {len(regions)} regions)")
 
     # =========================================================================
     # Step 3: Compare UM vs CMIP6 and UM vs RECCAP2
@@ -549,15 +552,15 @@ def main():
     print(f"✓ Computed bias statistics vs CMIP6")
     print(f"✓ Computed bias statistics vs RECCAP2")
 
-    # Compare vegetation fractions vs IGBP using canonical comparison
+    # Compare vegetation fractions vs IGBP using canonical comparison (all regions)
     comparison_igbp = {}
     if igbp_metrics:
         comparison_igbp = compare_metrics(
             um_metrics, igbp_metrics,
             metrics=VEG_METRICS,
-            regions=['global']
+            regions=regions
         )
-        print(f"✓ Computed vegetation fraction bias vs IGBP ({len(comparison_igbp)} PFTs)")
+        print(f"✓ Computed vegetation fraction bias vs IGBP ({len(comparison_igbp)} PFTs, all regions)")
 
     # =========================================================================
     # Step 4: Export to CSV
@@ -628,18 +631,21 @@ def main():
               f"{npp_summary['fraction_within_uncertainty']:.0%} within uncertainty")
 
     if comparison_igbp:
-        print(f"\nVegetation fractions (global) vs IGBP:")
-        for pft_name in VEG_METRICS:
-            if pft_name in comparison_igbp and 'global' in comparison_igbp[pft_name]:
-                c = comparison_igbp[pft_name]['global']
-                print(f"  {pft_name}: UM={c['um_mean']:.3f}, Obs={c['obs_mean']:.3f}, "
-                      f"Bias={c['bias']:+.3f} ({c['bias_percent']:+.1f}%)")
+        print(f"\nVegetation fractions vs IGBP:")
+        # Show summary for global region
+        if any('global' in comparison_igbp.get(pft, {}) for pft in VEG_METRICS):
+            print(f"  Global:")
+            for pft_name in VEG_METRICS:
+                if pft_name in comparison_igbp and 'global' in comparison_igbp[pft_name]:
+                    c = comparison_igbp[pft_name]['global']
+                    print(f"    {pft_name}: UM={c['um_mean']:.3f}, Obs={c['obs_mean']:.3f}, "
+                          f"Bias={c['bias']:+.3f} ({c['bias_percent']:+.1f}%)")
 
         # Show spatial RMSE per PFT
         if veg_metrics:
             rmse_keys = sorted([k for k in veg_metrics if k.startswith('rmse_')])
             if rmse_keys:
-                print(f"\n  Spatial RMSE vs IGBP (per PFT):")
+                print(f"\n  Spatial RMSE vs IGBP:")
                 for rk in rmse_keys:
                     if 'global' in veg_metrics[rk]:
                         pft_label = rk.replace('rmse_', '')
