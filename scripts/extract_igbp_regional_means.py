@@ -73,6 +73,26 @@ def extract_igbp_regional_means():
     # Initialize results dict: {region: {pft_name: value}}
     results = {region: {} for region in regions}
 
+    # Create land-sea mask by summing all vegetation PFTs
+    # Ocean cells will have very low/zero total vegetation
+    print(f"\nCreating land-sea mask from total vegetation...")
+    total_veg = None
+    for pft_id in PFT_MAPPING.keys():
+        pft_cube = cube.extract(Constraint(coord_values={'generic': pft_id}))
+        if pft_cube:
+            if pft_cube.shape[0] == 1:
+                pft_cube = pft_cube[0]
+            if total_veg is None:
+                total_veg = pft_cube.data.copy()
+            else:
+                total_veg += pft_cube.data
+
+    # Land mask: total vegetation > 0.01 (1%)
+    land_mask = (total_veg > 0.01).astype(float)
+    n_land = np.sum(land_mask)
+    n_total = land_mask.size
+    print(f"  Land cells: {n_land}/{n_total} ({100*n_land/n_total:.1f}%)")
+
     # Extract each PFT
     for pft_id, pft_name in sorted(PFT_MAPPING.items()):
         print(f"\nProcessing PFT {pft_id} ({pft_name})...")
@@ -100,35 +120,37 @@ def extract_igbp_regional_means():
             # Extract regional means for all regions (static field, no time dimension)
             for region in regions:
                 try:
+                    # Get area weights
+                    weights = area_weights(pft_cube)
+
                     if region == 'global':
-                        # Global mean: area-weighted mean over all grid cells
-                        weights = area_weights(pft_cube)
-                        total_weight = np.sum(weights)
-                        weighted_sum = np.sum(pft_cube.data * weights)
+                        # Global mean: area-weighted mean over LAND cells only
+                        land_weights = weights * land_mask
+                        total_weight = np.sum(land_weights)
+                        weighted_sum = np.sum(pft_cube.data * land_weights)
                         mean_val = float(weighted_sum / total_weight)
                     else:
-                        # Regional mean: apply mask and compute area-weighted mean manually
+                        # Regional mean: apply both regional mask AND land mask
                         mask_cube = region_mask(region)
 
                         # Ensure mask and data have same shape
                         if mask_cube.shape != pft_cube.shape:
                             raise ValueError(f"Shape mismatch: mask {mask_cube.shape} vs data {pft_cube.shape}")
 
-                        # Get area weights for the data cube
-                        weights = area_weights(pft_cube)
+                        # Combined mask: region AND land (both must be 1)
+                        combined_mask = mask_cube.data * land_mask
 
-                        # Apply regional mask to weights (zero out weights outside region)
-                        # mask_cube.data is 1 inside region, 0 outside
-                        regional_weights = weights * mask_cube.data
+                        # Apply combined mask to weights
+                        regional_land_weights = weights * combined_mask
 
                         # Compute area-weighted mean: sum(data * weights) / sum(weights)
-                        total_weight = np.sum(regional_weights)
+                        total_weight = np.sum(regional_land_weights)
                         if total_weight > 0:
-                            weighted_sum = np.sum(pft_cube.data * regional_weights)
+                            weighted_sum = np.sum(pft_cube.data * regional_land_weights)
                             mean_val = float(weighted_sum / total_weight)
                         else:
-                            # No grid cells in this region
-                            print(f"    Warning: No grid cells in {region}")
+                            # No land cells in this region
+                            print(f"    Warning: No land cells in {region}")
                             mean_val = np.nan
 
                     results[region][pft_name] = mean_val
