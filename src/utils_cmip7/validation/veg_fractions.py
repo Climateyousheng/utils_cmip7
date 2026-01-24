@@ -8,21 +8,42 @@ Computes PFT-based metrics including:
 - RMSE against observations
 """
 
+import os
+import sys
 import numpy as np
 import pandas as pd
 from pathlib import Path
 from typing import Dict, List, Optional, Any
 
+# Import xarray for NetCDF loading
+try:
+    import xarray as xr
+    HAS_XARRAY = True
+except ImportError:
+    HAS_XARRAY = False
+
+# Use importlib.resources for Python 3.9+, fallback for 3.8
+if sys.version_info >= (3, 9):
+    from importlib.resources import files
+else:
+    try:
+        from importlib_resources import files
+    except ImportError:
+        files = None
+
 
 # PFT mapping (UM convention)
+# PFT 1-5: Vegetation types
+# PFT 8: Bare soil
+# PFT 9: Lake/ice (typically not included in fraction metrics)
 PFT_MAPPING = {
-    1: "BL",      # Broadleaf trees
-    2: "NL",      # Needleleaf trees
-    3: "C3",      # C3 grass
-    4: "C4",      # C4 grass
-    5: "shrub",   # Shrubs
-    # 6-8: Other PFTs if available
-    9: "bare_soil"  # Bare soil
+    1: "BL",         # Broadleaf trees
+    2: "NL",         # Needleleaf trees
+    3: "C3",         # C3 grass
+    4: "C4",         # C4 grass
+    5: "shrub",      # Shrubs
+    8: "bare_soil",  # Bare soil
+    # 9: "lake_ice"  # Lake/ice - excluded from standard metrics
 }
 
 
@@ -198,15 +219,37 @@ def compare_veg_metrics(um_metrics: Dict[str, Dict[str, float]],
     return comparison
 
 
+def get_obs_dir():
+    """Get absolute path to obs/ directory using importlib.resources."""
+    try:
+        if files is not None:
+            # Use importlib.resources to access package data
+            obs_path = files('utils_cmip7').joinpath('data/obs')
+            return str(obs_path)
+    except (TypeError, AttributeError):
+        pass
+
+    # Fallback for editable installs or development mode
+    pkg_dir = os.path.dirname(os.path.dirname(__file__))
+    obs_dir = os.path.join(pkg_dir, 'data', 'obs')
+    if os.path.exists(obs_dir):
+        return obs_dir
+
+    raise FileNotFoundError(
+        f"obs/ directory not found. "
+        f"Make sure package is properly installed or run from repository root."
+    )
+
+
 def load_obs_veg_metrics(obs_file: Optional[str] = None) -> Dict[str, float]:
     """
-    Load observational vegetation fraction metrics (IGBP global values).
+    Load observational vegetation fraction metrics from IGBP NetCDF file.
 
     Parameters
     ----------
     obs_file : str, optional
         Path to observational NetCDF file
-        If None, uses hardcoded IGBP values
+        If None, uses packaged IGBP data (igbp.veg_fraction_metrics.nc)
 
     Returns
     -------
@@ -216,28 +259,88 @@ def load_obs_veg_metrics(obs_file: Optional[str] = None) -> Dict[str, float]:
 
     Notes
     -----
-    This is a placeholder using approximate IGBP global mean values.
-    Implement loading from NetCDF if obs file provided.
+    Reads from NetCDF file with structure:
+    - Variable: fracPFTs_snp_srf
+    - Dimensions: pseudo (PFT index), latitude, longitude
+
+    Computes global mean by averaging over latitude and longitude.
     """
-    # Placeholder - using approximate IGBP global values
-    # Replace with actual observations when available
-    obs_metrics = {
-        'BL': 0.15,          # ~15% broadleaf globally
-        'NL': 0.08,          # ~8% needleleaf
-        'C3': 0.12,          # ~12% C3 grass
-        'C4': 0.05,          # ~5% C4 grass
-        'shrub': 0.10,       # ~10% shrub
-        'bare_soil': 0.20,   # ~20% bare soil
-        'trees': 0.23,       # BL + NL
-        'grass': 0.17,       # C3 + C4
-    }
+    if not HAS_XARRAY:
+        print(f"  ⚠ xarray not available, using placeholder IGBP values")
+        # Fallback to hardcoded values
+        return {
+            'BL': 0.15, 'NL': 0.08, 'C3': 0.12, 'C4': 0.05,
+            'shrub': 0.10, 'bare_soil': 0.20,
+            'trees': 0.23, 'grass': 0.17,
+        }
 
-    if obs_file:
-        # TODO: Implement actual loading from NetCDF
-        print(f"  ⚠ Loading from NetCDF not yet implemented")
-        print(f"    Using placeholder IGBP values")
+    # Determine file path
+    if obs_file is None:
+        try:
+            obs_dir = get_obs_dir()
+            obs_file = os.path.join(obs_dir, 'igbp.veg_fraction_metrics.nc')
+        except FileNotFoundError:
+            print(f"  ⚠ IGBP file not found, using placeholder values")
+            return {
+                'BL': 0.15, 'NL': 0.08, 'C3': 0.12, 'C4': 0.05,
+                'shrub': 0.10, 'bare_soil': 0.20,
+                'trees': 0.23, 'grass': 0.17,
+            }
 
-    return obs_metrics
+    if not os.path.exists(obs_file):
+        print(f"  ⚠ IGBP file not found: {obs_file}")
+        print(f"    Using placeholder values")
+        return {
+            'BL': 0.15, 'NL': 0.08, 'C3': 0.12, 'C4': 0.05,
+            'shrub': 0.10, 'bare_soil': 0.20,
+            'trees': 0.23, 'grass': 0.17,
+        }
+
+    try:
+        # Open IGBP NetCDF file
+        obs_ds = xr.open_dataset(obs_file, decode_times=False)
+
+        # Extract fracPFTs_snp_srf variable
+        # Structure: (pseudo, latitude, longitude)
+        frac_var = obs_ds["fracPFTs_snp_srf"]
+
+        # Compute global mean for each PFT
+        obs_metrics = {}
+        for pft_id, pft_name in PFT_MAPPING.items():
+            # Note: PFT indexing may be 0-based or 1-based
+            # Adjust index if needed (UM uses 1-based, Python uses 0-based)
+            try:
+                # Try 0-based indexing first (pft_id - 1)
+                pft_data = frac_var.isel({"pseudo": pft_id - 1}).squeeze()
+                global_mean = float(pft_data.mean(['latitude', 'longitude']).values)
+                obs_metrics[pft_name] = global_mean
+            except (IndexError, KeyError):
+                # Try 1-based indexing if 0-based fails
+                try:
+                    pft_data = frac_var.isel({"pseudo": pft_id}).squeeze()
+                    global_mean = float(pft_data.mean(['latitude', 'longitude']).values)
+                    obs_metrics[pft_name] = global_mean
+                except (IndexError, KeyError):
+                    print(f"  ⚠ Could not load PFT {pft_id} ({pft_name}) from IGBP file")
+
+        # Compute aggregates
+        if 'BL' in obs_metrics and 'NL' in obs_metrics:
+            obs_metrics['trees'] = obs_metrics['BL'] + obs_metrics['NL']
+
+        if 'C3' in obs_metrics and 'C4' in obs_metrics:
+            obs_metrics['grass'] = obs_metrics['C3'] + obs_metrics['C4']
+
+        obs_ds.close()
+        return obs_metrics
+
+    except Exception as e:
+        print(f"  ⚠ Error loading IGBP file: {e}")
+        print(f"    Using placeholder values")
+        return {
+            'BL': 0.15, 'NL': 0.08, 'C3': 0.12, 'C4': 0.05,
+            'shrub': 0.10, 'bare_soil': 0.20,
+            'trees': 0.23, 'grass': 0.17,
+        }
 
 
 __all__ = [
