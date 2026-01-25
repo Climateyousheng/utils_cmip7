@@ -6,16 +6,19 @@ Generates comprehensive validation report with visualizations comparing multiple
 ensemble members based on their overall performance scores.
 
 Usage:
-    python scripts/validate_ppe.py --csv ensemble_results.csv --name soil_tuning_2026
-    python scripts/validate_ppe.py --csv results.csv --name my_ensemble --top-n 20 --top-k 40
+    python scripts/validate_ppe.py xqhuc
+    python scripts/validate_ppe.py xqhuc --top-n 20 --top-k 40
+    python scripts/validate_ppe.py xqhuc --highlight xqhua,xqhub
 
 Outputs:
-    - validation_outputs/ppe_{name}/
+    - validation_outputs/ppe_{expt}/
         ├── ensemble_table.csv          # Copy of input data
         ├── score_distribution.pdf      # Histogram + ECDF of scores
         ├── validation_heatmap.pdf      # Normalized metrics heatmap
         ├── parameter_shifts.pdf        # Parameter distribution shifts
         └── top_experiments.txt         # Text summary
+
+The specified experiment will automatically be highlighted in all plots.
 """
 
 import os
@@ -39,11 +42,12 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  python scripts/validate_ppe.py --csv ensemble.csv --name soil_tuning_2026
-  python scripts/validate_ppe.py --csv results.csv --name my_ppe --top-n 20 --top-k 40 --q 0.15
+  python scripts/validate_ppe.py xqhuc
+  python scripts/validate_ppe.py xqhuc --top-n 20 --top-k 40 --q 0.15
+  python scripts/validate_ppe.py xqhuc --highlight xqhua,xqhub
 
 Output Structure:
-  validation_outputs/ppe_{name}/
+  validation_outputs/ppe_{expt}/
     ├── ensemble_table.csv          # Input data copy
     ├── score_distribution.pdf      # Score histogram + ECDF with top-N labels
     ├── validation_heatmap.pdf      # Normalized metrics for top-K experiments
@@ -61,22 +65,24 @@ Input CSV Format:
 
   RMSE metrics (prefixed with "rmse_") are automatically inverted in heatmap
   so that higher normalized values = better performance.
+
+The specified experiment will be automatically highlighted in all plots.
         """
     )
 
-    # Required arguments
+    # Positional argument for experiment to validate
+    parser.add_argument(
+        'expt',
+        type=str,
+        help='Experiment ID to validate (used for output dir and auto-highlighted in plots)'
+    )
+
+    # CSV input (optional with default)
     parser.add_argument(
         '--csv',
         type=str,
-        required=True,
-        help='Path to ensemble results CSV file',
-        default='validation_outputs/random_sampling_combined_overview_table.csv'
-    )
-    parser.add_argument(
-        '--name',
-        type=str,
-        required=True,
-        help='Ensemble name for output directory (e.g., soil_tuning_2026)'
+        default='validation_outputs/random_sampling_combined_overview_table.csv',
+        help='Path to ensemble results CSV file (default: validation_outputs/random_sampling_combined_overview_table.csv)'
     )
 
     # Optional arguments
@@ -135,7 +141,7 @@ Input CSV Format:
         '--highlight',
         type=str,
         action='append',
-        help='Experiment(s) to highlight (can be comma-separated or repeated). Example: --highlight xqhuc --highlight xqhua'
+        help='Additional experiment(s) to highlight (can be comma-separated or repeated). Example: --highlight xqhua,xqhub'
     )
     highlight_group.add_argument(
         '--include-highlight',
@@ -184,7 +190,10 @@ Input CSV Format:
     param_cols = [c.strip() for c in args.param_cols.split(',') if c.strip()]
 
     # Parse highlight experiments
-    highlight_expts = []
+    # Automatically include the target experiment
+    highlight_expts = [args.expt]
+
+    # Add any additional highlighted experiments
     if args.highlight:
         for h in args.highlight:
             # Support comma-separated lists
@@ -193,7 +202,7 @@ Input CSV Format:
     # Generate report
     generate_ppe_validation_report(
         csv_path=str(csv_path),
-        ensemble_name=args.name,
+        ensemble_name=args.expt,
         output_dir=args.output_dir,
         top_n=args.top_n,
         top_k=args.top_k,
@@ -202,7 +211,7 @@ Input CSV Format:
         id_col=args.id_col if args.id_col else None,
         param_cols=param_cols,
         bins=args.bins,
-        highlight_expts=highlight_expts if highlight_expts else None,
+        highlight_expts=highlight_expts,
         include_highlight=args.include_highlight,
         highlight_style=args.highlight_style,
         highlight_label=args.highlight_label,
