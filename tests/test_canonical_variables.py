@@ -3,12 +3,7 @@
 Quick test script to verify canonical variable registry implementation.
 """
 
-import sys
-import os
-
-# Import directly from config.py to avoid dependency issues
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src', 'utils_cmip7'))
-import config
+from utils_cmip7 import config
 
 CANONICAL_VARIABLES = config.CANONICAL_VARIABLES
 resolve_variable_name = config.resolve_variable_name
