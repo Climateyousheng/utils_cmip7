@@ -1212,7 +1212,7 @@ Input CSV:
         # Generate main validation report
         generate_ppe_validation_report(
             csv_path=args.csv,
-            expt=args.expt,
+            ensemble_name=args.expt,
             output_dir=args.output_dir,
             top_n=args.top_n,
             top_k=args.top_k,
@@ -1221,7 +1221,7 @@ Input CSV:
             id_col=args.id_col,
             param_cols=param_cols,
             bins=args.bins,
-            highlight=highlight_list,
+            highlight_expts=highlight_list,
             include_highlight=args.include_highlight,
             highlight_style=args.highlight_style,
             highlight_label=args.highlight_label,
@@ -1233,12 +1233,13 @@ Input CSV:
             print("PARAMETER IMPORTANCE ANALYSIS")
             print("="*80 + "\n")
 
+            param_viz_outdir = f"{args.output_dir}/param_viz_{args.expt}"
             run_param_importance_suite(
-                csv_path=args.csv,
-                expt=args.expt,
-                output_dir=args.output_dir,
+                overview_csv=args.csv,
+                outdir=param_viz_outdir,
+                variables=args.param_viz_vars,
+                id_col=args.id_col,
                 param_cols=param_cols,
-                skill_vars=args.param_viz_vars,
             )
 
         print("\n" + "="*80)
