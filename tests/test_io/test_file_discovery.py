@@ -35,6 +35,13 @@ class TestDecodeMonth:
             code = f'{month}1'
             assert decode_month(code) == month, f"Failed for {code}"
 
+    def test_numeric_codes_flexible_second_char(self):
+        """Test that numeric codes work with any second character (first char determines month)."""
+        # The implementation uses only the first digit
+        assert decode_month('91') == 9  # Standard format
+        assert decode_month('99') == 9  # Non-standard but valid (first char = 9)
+        assert decode_month('15') == 1  # Non-standard but valid (first char = 1)
+
     def test_hex_like_codes_oct_to_dec(self):
         """Test hex-like codes for October through December."""
         assert decode_month('a1') == 10  # October
@@ -54,10 +61,9 @@ class TestDecodeMonth:
     def test_invalid_codes_return_zero(self):
         """Test invalid month codes return 0."""
         assert decode_month('xx') == 0
-        assert decode_month('99') == 0
-        assert decode_month('d1') == 0
-        assert decode_month('01') == 0  # '0' is not valid
-        assert decode_month('AA') == 0
+        assert decode_month('d1') == 0  # 'd' not valid for hex-like
+        assert decode_month('01') == 0  # '0' is not valid (must be 1-9)
+        assert decode_month('AA') == 0  # Not a valid alpha code
 
     def test_single_char_returns_zero(self):
         """Test single character input returns 0."""

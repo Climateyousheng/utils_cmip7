@@ -3,14 +3,10 @@
 Test to verify Tau metric is computed correctly with canonical variable names.
 """
 
-import sys
-import os
-
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
+from utils_cmip7.diagnostics.metrics import VARIABLE_TO_METRIC
 
 def test_variable_to_metric_mapping():
     """Test that canonical names map correctly to metrics."""
-    from utils_cmip7.diagnostics.metrics import VARIABLE_TO_METRIC
 
     print("Testing VARIABLE_TO_METRIC mapping...")
 
@@ -80,9 +76,7 @@ def test_required_vars_for_tau():
 
 def test_extraction_var_map():
     """Test that extraction variable map handles canonical names."""
-    import sys
-    sys.path.insert(0, 'src/utils_cmip7/diagnostics')
-    import metrics
+    from utils_cmip7.diagnostics import metrics
 
     print("\nTesting extraction variable map...")
 

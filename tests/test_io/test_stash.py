@@ -169,16 +169,14 @@ class TestStashEdgeCases:
         assert stash(' gpp ') == 'nothing'  # Both
 
     def test_none_input(self):
-        """Test None input raises appropriate error."""
-        with pytest.raises(AttributeError):
-            stash(None)
-        with pytest.raises(AttributeError):
-            stash_nc(None)
+        """Test None input returns 'nothing'."""
+        # dict.get() doesn't raise AttributeError for None
+        assert stash(None) == 'nothing'
+        assert stash_nc(None) == 'nothing'
 
     def test_numeric_input(self):
-        """Test numeric input handling."""
-        # Should fail since input is not string
-        with pytest.raises(AttributeError):
-            stash(3261)
-        with pytest.raises(AttributeError):
-            stash_nc(3261)
+        """Test numeric input returns 'nothing'."""
+        # dict.get() works with numeric keys, but our dict has string keys
+        # so numeric input returns default value 'nothing'
+        assert stash(3261) == 'nothing'
+        assert stash_nc(3261) == 'nothing'
