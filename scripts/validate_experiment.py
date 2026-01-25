@@ -688,7 +688,7 @@ def main():
     scores = {}
 
     # Carbon cycle metrics (mean values from global region)
-    for metric in ['GPP', 'CVeg']:
+    for metric in ['GPP', 'NPP', 'CVeg', 'CSoil']:
         if metric in um_metrics and 'global' in um_metrics[metric]:
             scores[metric] = np.mean(um_metrics[metric]['global']['data'])
 

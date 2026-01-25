@@ -32,7 +32,7 @@ STANDARD_COLUMNS = [
     # Soil parameters (BL-tree values)
     'ALPHA', 'G_AREA', 'LAI_MIN', 'NL0', 'R_GROW', 'TLOW', 'TUPP', 'V_CRIT',
     # Carbon cycle metrics
-    'GPP', 'CVeg',
+    'GPP', 'NPP', 'CVeg', 'CSoil',
     # Regional tree metrics
     'Tr30SN', 'Tr30-90N', 'AMZTrees',
     # Global mean vegetation fractions

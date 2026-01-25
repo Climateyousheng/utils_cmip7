@@ -699,7 +699,7 @@ def generate_ppe_validation_report(
             regions=['global'],
             include_errors=False
         )
-        for metric in ['GPP', 'CVeg']:  # Only include metrics in overview table
+        for metric in ['GPP', 'NPP', 'CVeg', 'CSoil']:
             if metric in reccap_metrics and 'global' in reccap_metrics[metric]:
                 obs_values[metric] = reccap_metrics[metric]['global']['data'][0]
 
