@@ -107,9 +107,9 @@ def save_um_metrics_to_csv(um_metrics, expt, outdir):
 
     df = pd.DataFrame(data, index=metrics)
 
-    # Save
+    # Save with 5 decimal precision
     csv_path = outdir / f'{expt}_metrics.csv'
-    df.to_csv(csv_path)
+    df.to_csv(csv_path, float_format='%.5f')
     print(f"  ✓ Saved UM metrics ({len(metrics)} variables): {csv_path}")
 
     return df
@@ -147,7 +147,7 @@ def save_bias_statistics(comparison, obs_name, expt, outdir):
 
     df = pd.DataFrame(rows)
     csv_path = outdir / f'{expt}_bias_vs_{obs_name.lower()}.csv'
-    df.to_csv(csv_path, index=False)
+    df.to_csv(csv_path, index=False, float_format='%.5f')
     print(f"  ✓ Saved bias statistics vs {obs_name}: {csv_path}")
 
     return df
@@ -724,17 +724,25 @@ def main():
             else:
                 scores[rmse_col] = np.nan
 
-    # Overall score (simple metric: average absolute bias % across key variables)
+    # Overall score (normalized match quality: 1 = perfect match, 0 = 100% bias)
+    # Include all carbon metrics (GPP, NPP, CVeg, CSoil) and PFTs (BL, NL, C3, C4)
     bias_pcts = []
-    for metric in ['GPP', 'CVeg']:
+
+    # Carbon cycle metrics vs RECCAP2
+    for metric in ['GPP', 'NPP', 'CVeg', 'CSoil']:
         if metric in comparison_reccap and 'global' in comparison_reccap[metric]:
             bias_pcts.append(abs(comparison_reccap[metric]['global']['bias_percent']))
+
+    # Vegetation fractions vs IGBP
     if comparison_igbp:
         for pft in ['BL', 'NL', 'C3', 'C4']:
             if pft in comparison_igbp and 'global' in comparison_igbp[pft]:
                 bias_pcts.append(abs(comparison_igbp[pft]['global']['bias_percent']))
+
     if bias_pcts:
-        scores['overall_score'] = np.mean(bias_pcts) / 100.0  # Normalize to 0-1 range
+        mean_abs_bias = np.mean(bias_pcts)
+        # Reverse normalization: 1 = perfect match (0% bias), 0 = 100% bias
+        scores['overall_score'] = 1.0 - (mean_abs_bias / 100.0)
     else:
         scores['overall_score'] = np.nan
 

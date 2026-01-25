@@ -64,7 +64,7 @@ def write_single_validation_bundle(
     if scores:
         scores_path = bundle_dir / 'validation_scores.csv'
         scores_df = pd.DataFrame([scores])
-        scores_df.to_csv(scores_path, index=False)
+        scores_df.to_csv(scores_path, index=False, float_format='%.5f')
         print(f"  ✓ Saved validation scores: {scores_path}")
 
 

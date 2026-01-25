@@ -141,8 +141,8 @@ def write_atomic_csv(df: pd.DataFrame, path: str):
         # Close the file descriptor (we'll use pandas to write)
         os.close(fd)
 
-        # Write DataFrame
-        df.to_csv(temp_path, index=False)
+        # Write DataFrame with 5 decimal precision
+        df.to_csv(temp_path, index=False, float_format='%.5f')
 
         # Atomic rename
         shutil.move(temp_path, path)
