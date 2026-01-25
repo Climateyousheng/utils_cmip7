@@ -124,20 +124,68 @@ def normalize_metrics_for_heatmap(
     df_metrics: pd.DataFrame,
     invert_prefixes: Sequence[str] = DEFAULT_RMSE_PREFIXES,
     norm_cfg: NormalizeConfig = NormalizeConfig(),
+    obs_values: Optional[Dict[str, float]] = None,
 ) -> pd.DataFrame:
     """
-    Normalize each metric column to [0,1], optionally invert metrics (e.g., rmse_*).
-    Convention returned: higher = better.
-    """
-    if norm_cfg.method != "minmax":
-        raise ValueError(f"Unsupported normalization method: {norm_cfg.method}")
+    Normalize each metric column to [0,1] based on distance from observations.
+    Convention: 1.0 = perfect match with obs, 0.0 = far from obs.
 
+    Parameters
+    ----------
+    df_metrics : pd.DataFrame
+        Model metrics to normalize
+    invert_prefixes : Sequence[str]
+        Metric prefixes where lower is better (e.g., rmse_)
+    norm_cfg : NormalizeConfig
+        Normalization configuration
+    obs_values : dict, optional
+        Observation values {metric_name: obs_value}
+        If provided, normalizes based on distance from observations
+        If None, falls back to ensemble-relative normalization
+
+    Returns
+    -------
+    pd.DataFrame
+        Normalized metrics [0,1] where higher = better match to obs
+    """
     norm = pd.DataFrame(index=df_metrics.index)
-    for c in df_metrics.columns:
-        x = _minmax_normalize_series(df_metrics[c], norm_cfg.clip_quantiles)
-        if any(c.startswith(pfx) for pfx in invert_prefixes):
-            x = 1 - x
-        norm[c] = x
+
+    if obs_values is None:
+        # Fallback to ensemble-relative normalization
+        if norm_cfg.method != "minmax":
+            raise ValueError(f"Unsupported normalization method: {norm_cfg.method}")
+        for c in df_metrics.columns:
+            x = _minmax_normalize_series(df_metrics[c], norm_cfg.clip_quantiles)
+            if any(c.startswith(pfx) for pfx in invert_prefixes):
+                x = 1 - x
+            norm[c] = x
+    else:
+        # Observation-based normalization
+        for c in df_metrics.columns:
+            if c not in obs_values:
+                # No observation available - use ensemble-relative
+                x = _minmax_normalize_series(df_metrics[c], norm_cfg.clip_quantiles)
+                if any(c.startswith(pfx) for pfx in invert_prefixes):
+                    x = 1 - x
+                norm[c] = x
+            else:
+                # Normalize based on distance from observation
+                obs_val = obs_values[c]
+                model_vals = pd.to_numeric(df_metrics[c], errors="coerce").astype(float)
+
+                # Compute absolute bias percentage
+                bias_pct = np.abs((model_vals - obs_val) / obs_val * 100.0)
+
+                # Convert to goodness score: 1.0 = perfect match, decreases with bias
+                # Using 1 / (1 + bias/100) gives smooth decay
+                # At 0% bias: goodness = 1.0
+                # At 50% bias: goodness = 0.67
+                # At 100% bias: goodness = 0.5
+                # At 200% bias: goodness = 0.33
+                goodness = 1.0 / (1.0 + bias_pct / 100.0)
+
+                norm[c] = goodness
+
     return norm
 
 
@@ -266,6 +314,7 @@ def plot_validation_heatmap(
     highlight_col: Optional[str] = None,
     highlight_style: str = 'both',
     highlight_label: bool = True,
+    obs_values: Optional[Dict[str, float]] = None,
 ) -> plt.Axes:
     """
     Heatmap for top-k runs, normalized 0..1 per metric with 'higher=better'.
@@ -310,10 +359,16 @@ def plot_validation_heatmap(
         raise ValueError("No numeric metric columns found for heatmap.")
 
     mat = top[metrics_ordered].apply(pd.to_numeric, errors="coerce")
-    norm = normalize_metrics_for_heatmap(mat, invert_prefixes=invert_prefixes, norm_cfg=norm_cfg)
+    norm = normalize_metrics_for_heatmap(mat, invert_prefixes=invert_prefixes, norm_cfg=norm_cfg, obs_values=obs_values)
 
     ax = ax or plt.gca()
     im = ax.imshow(norm.values, aspect="auto", cmap='RdYlGn')
+
+    # Update title to indicate observation-based normalization
+    if title is None and obs_values:
+        title = f"Top {top_k} runs: goodness vs observations (1.0=perfect match, green=better)"
+    elif title is None:
+        title = f"Top {top_k} runs: normalized validation metrics (higher=better)"
 
     # Check if highlighting is enabled
     has_highlight = highlight_col and highlight_col in top.columns
@@ -336,8 +391,9 @@ def plot_validation_heatmap(
     ax.set_xticks(range(len(metrics_ordered)))
     ax.set_xticklabels(metrics_ordered, rotation=90)
 
-    ax.set_title(title or f"Top {top_k} runs: normalized validation metrics (higher=better)")
-    plt.colorbar(im, ax=ax, label="Normalized goodness")
+    ax.set_title(title)
+    colorbar_label = "Match to observations (1.0=perfect)" if obs_values else "Normalized goodness"
+    plt.colorbar(im, ax=ax, label=colorbar_label)
 
     # Add row outlines for highlighted experiments
     if has_highlight and (highlight_style in ['outline', 'rowcol', 'both']):
@@ -449,6 +505,7 @@ def save_heatmap_pdf(
     highlight_col: Optional[str] = None,
     highlight_style: str = 'both',
     highlight_label: bool = True,
+    obs_values: Optional[Dict[str, float]] = None,
 ) -> None:
     fig_width = max(10, 0.35 * (len(metrics) if metrics else 25))
     fig_height = max(6, 0.30 * top_k + 2)
@@ -466,6 +523,7 @@ def save_heatmap_pdf(
             highlight_col=highlight_col,
             highlight_style=highlight_style,
             highlight_label=highlight_label,
+            obs_values=obs_values,
         )
         fig.tight_layout()
         pdf.savefig(fig)
@@ -618,6 +676,50 @@ def generate_ppe_validation_report(
         df = rank_by_score(df_all, score_col=score_col, descending=True)
         highlight_col_name = None
 
+    # Load observation values for normalization
+    print("\nLoading observation data...")
+    print("-" * 80)
+    obs_values = {}
+    try:
+        # Try to load RECCAP2 and IGBP observations
+        import sys
+        from pathlib import Path as PathObj
+
+        # Add src to path if needed
+        src_path = PathObj(__file__).parent.parent.parent
+        if src_path.exists() and str(src_path) not in sys.path:
+            sys.path.insert(0, str(src_path))
+
+        from utils_cmip7.io import load_reccap_metrics
+        from utils_cmip7.validation.veg_fractions import load_obs_veg_metrics
+
+        # Load RECCAP2 for carbon metrics (global region)
+        reccap_metrics = load_reccap_metrics(
+            metrics=['GPP', 'NPP', 'CVeg', 'CSoil'],
+            regions=['global'],
+            include_errors=False
+        )
+        for metric in ['GPP', 'CVeg']:  # Only include metrics in overview table
+            if metric in reccap_metrics and 'global' in reccap_metrics[metric]:
+                obs_values[metric] = reccap_metrics[metric]['global']['data'][0]
+
+        # Load IGBP for vegetation fractions (global region)
+        igbp_metrics = load_obs_veg_metrics(regions=['global'])
+        for pft_name in ['BL', 'NL', 'C3', 'C4', 'bare_soil']:
+            gm_col = f'GM_{pft_name.replace("bare_soil", "BS")}'
+            if pft_name in igbp_metrics and 'global' in igbp_metrics[pft_name]:
+                obs_values[gm_col] = igbp_metrics[pft_name]['global']
+
+        # RMSE metrics don't have observations (they are already distance measures)
+        # So we skip them - they'll use ensemble-relative normalization
+
+        print(f"  ✓ Loaded {len(obs_values)} observation values for normalization")
+
+    except Exception as e:
+        print(f"  ⚠ Warning: Could not load observations: {e}")
+        print(f"  → Using ensemble-relative normalization")
+        obs_values = None
+
     # Generate plots
     print("\nGenerating visualizations...")
     print("-" * 80)
@@ -644,8 +746,9 @@ def generate_ppe_validation_report(
         highlight_col=highlight_col_name,
         highlight_style=highlight_style,
         highlight_label=highlight_label,
+        obs_values=obs_values,
     )
-    print(f"  ✓ Validation heatmap ({len(df)} experiments)")
+    print(f"  ✓ Validation heatmap ({len(df)} experiments, observation-based normalization)")
 
     save_shift_plots_pdf(
         df_all,  # Use full dataset for shift analysis
