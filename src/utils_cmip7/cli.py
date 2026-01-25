@@ -525,6 +525,286 @@ Soil Parameters (REQUIRED):
     # Import veg metrics constants
     VEG_METRICS = ['BL', 'NL', 'C3', 'C4', 'shrub', 'bare_soil']
 
+    # Helper functions for saving results
+    def save_um_metrics_to_csv(um_metrics, expt, outdir):
+        """Save UM metrics to CSV in observational data format."""
+        regions = get_all_regions()
+        # Include all metrics that have canonical structure (dict with 'data' key)
+        metrics = []
+        for m in sorted(um_metrics.keys()):
+            # Check this is canonical structure (not scalar veg metrics)
+            sample_region = next(iter(um_metrics[m].values()), None)
+            if isinstance(sample_region, dict) and 'data' in sample_region:
+                metrics.append(m)
+
+        # Build dataframe
+        data = {}
+        for region in regions:
+            regional_data = []
+            for metric in metrics:
+                if metric in um_metrics and region in um_metrics[metric]:
+                    mean_val = np.mean(um_metrics[metric][region]['data'])
+                    regional_data.append(mean_val)
+                else:
+                    regional_data.append(np.nan)
+            data[region] = regional_data
+
+        df = pd.DataFrame(data, index=metrics)
+
+        # Save with 5 decimal precision
+        csv_path = outdir / f'{expt}_metrics.csv'
+        df.to_csv(csv_path, float_format='%.5f')
+        print(f"  ✓ Saved UM metrics ({len(metrics)} variables): {csv_path}")
+
+        return df
+
+    def save_bias_statistics(comparison, obs_name, expt, outdir):
+        """Save bias statistics to CSV."""
+        rows = []
+        for metric in sorted(comparison.keys()):
+            for region in sorted(comparison[metric].keys()):
+                comp = comparison[metric][region]
+                rows.append({
+                    'metric': metric,
+                    'region': region,
+                    'um_mean': comp['um_mean'],
+                    'obs_mean': comp['obs_mean'],
+                    'bias': comp['bias'],
+                    'bias_percent': comp['bias_percent'],
+                    'rmse': comp['rmse'],
+                    'within_uncertainty': comp['within_uncertainty'],
+                })
+
+        df = pd.DataFrame(rows)
+        csv_path = outdir / f'{expt}_bias_vs_{obs_name.lower()}.csv'
+        df.to_csv(csv_path, index=False, float_format='%.5f')
+        print(f"  ✓ Saved bias statistics vs {obs_name}: {csv_path}")
+
+        return df
+
+    def save_comparison_summary(
+        um_metrics,
+        cmip6_metrics,
+        reccap_metrics,
+        comparison_cmip6,
+        comparison_reccap,
+        comparison_igbp,
+        expt,
+        outdir
+    ):
+        """Save text summary of validation results."""
+        summary_path = outdir / 'comparison_summary.txt'
+
+        with open(summary_path, 'w') as f:
+            f.write("="*80 + "\n")
+            f.write(f"VALIDATION SUMMARY: {expt}\n")
+            f.write("="*80 + "\n\n")
+
+            # UM vs CMIP6
+            f.write("UM vs CMIP6 ENSEMBLE\n")
+            f.write("-"*80 + "\n")
+            for metric in ['GPP', 'NPP', 'CVeg', 'CSoil', 'Tau']:
+                if metric in comparison_cmip6 and metric in um_metrics:
+                    # Get any available region to determine units
+                    available_regions = list(um_metrics[metric].keys())
+                    if available_regions:
+                        summary = summarize_comparison(comparison_cmip6, metric=metric)
+                        units = um_metrics[metric][available_regions[0]]['units']
+                        f.write(f"\n{metric}:\n")
+                        f.write(f"  Mean bias: {summary['mean_bias']:.2f} {units}\n")
+                        f.write(f"  Mean bias %: {summary['mean_bias_percent']:.1f}%\n")
+                        f.write(f"  Fraction within uncertainty: {summary['fraction_within_uncertainty']:.1%}\n")
+
+            # UM vs RECCAP2
+            f.write("\n" + "="*80 + "\n")
+            f.write("UM vs RECCAP2 OBSERVATIONS\n")
+            f.write("-"*80 + "\n")
+            for metric in ['GPP', 'NPP', 'CVeg', 'CSoil', 'Tau']:
+                if metric in comparison_reccap and metric in um_metrics:
+                    # Get any available region to determine units
+                    available_regions = list(um_metrics[metric].keys())
+                    if available_regions:
+                        summary = summarize_comparison(comparison_reccap, metric=metric)
+                        units = um_metrics[metric][available_regions[0]]['units']
+                        f.write(f"\n{metric}:\n")
+                        f.write(f"  Mean bias: {summary['mean_bias']:.2f} {units}\n")
+                        f.write(f"  Mean bias %: {summary['mean_bias_percent']:.1f}%\n")
+                        f.write(f"  Fraction within uncertainty: {summary['fraction_within_uncertainty']:.1%}\n")
+
+            # UM vs CMIP6 performance comparison
+            f.write("\n" + "="*80 + "\n")
+            f.write("UM vs CMIP6 PERFORMANCE (against RECCAP2)\n")
+            f.write("-"*80 + "\n")
+            f.write(f"{'Metric':<10} {'Region':<20} {'UM Bias %':<12} {'CMIP6 Bias %':<15} {'Winner':<10}\n")
+            f.write("-"*80 + "\n")
+
+            regions = get_all_regions()
+            for metric in ['GPP', 'NPP', 'CVeg', 'CSoil']:
+                for region in regions:
+                    if (metric in um_metrics and region in um_metrics[metric] and
+                        metric in cmip6_metrics and region in cmip6_metrics[metric] and
+                        metric in reccap_metrics and region in reccap_metrics[metric]):
+
+                        um_val = np.mean(um_metrics[metric][region]['data'])
+                        cmip6_val = cmip6_metrics[metric][region]['data'][0]
+                        reccap_val = reccap_metrics[metric][region]['data'][0]
+
+                        um_bias_pct = 100 * (um_val - reccap_val) / reccap_val
+                        cmip6_bias_pct = 100 * (cmip6_val - reccap_val) / reccap_val
+
+                        if abs(um_bias_pct) < abs(cmip6_bias_pct):
+                            winner = "UM"
+                        elif abs(um_bias_pct) > abs(cmip6_bias_pct):
+                            winner = "CMIP6"
+                        else:
+                            winner = "Tie"
+
+                        f.write(f"{metric:<10} {region:<20} {um_bias_pct:>10.1f}%  {cmip6_bias_pct:>12.1f}%  {winner:<10}\n")
+
+            # UM vs IGBP (vegetation fractions)
+            if comparison_igbp:
+                f.write("\n" + "="*80 + "\n")
+                f.write("UM vs IGBP VEGETATION FRACTIONS\n")
+                f.write("-"*80 + "\n")
+                for metric in sorted(comparison_igbp.keys()):
+                    if 'global' in comparison_igbp[metric]:
+                        comp = comparison_igbp[metric]['global']
+                        f.write(f"\n{metric}:\n")
+                        f.write(f"  UM mean: {comp['um_mean']:.4f}\n")
+                        f.write(f"  IGBP obs: {comp['obs_mean']:.4f}\n")
+                        f.write(f"  Bias: {comp['bias']:+.4f} ({comp['bias_percent']:+.1f}%)\n")
+
+            f.write("\n" + "="*80 + "\n")
+
+        print(f"  ✓ Saved comparison summary: {summary_path}")
+
+    def create_all_plots(
+        um_metrics,
+        cmip6_metrics,
+        reccap_metrics,
+        comparison_cmip6,
+        comparison_reccap,
+        comparison_igbp,
+        igbp_metrics,
+        outdir
+    ):
+        """Create all validation plots."""
+        plots_dir = outdir / 'plots'
+        plots_dir.mkdir(exist_ok=True)
+
+        carbon_metrics = ['GPP', 'NPP', 'CVeg', 'CSoil', 'Tau']
+        all_metrics = carbon_metrics + VEG_METRICS
+
+        print("\n  Creating plots...")
+
+        # 1. Three-way comparison plots (carbon metrics: UM vs CMIP6 vs RECCAP2)
+        print("    - Three-way comparisons (carbon)")
+        for metric in carbon_metrics:
+            if (metric in um_metrics and metric in cmip6_metrics and metric in reccap_metrics and
+                um_metrics[metric] and cmip6_metrics[metric] and reccap_metrics[metric]):
+                plot_three_way_comparison(
+                    um_metrics,
+                    cmip6_metrics,
+                    reccap_metrics,
+                    metric=metric,
+                    outdir=plots_dir,
+                    filename=f'{metric}_three_way.png'
+                )
+            else:
+                print(f"      ⚠ Skipping {metric} (not available in all datasets)")
+
+        # 1b. Two-way comparison plots (veg metrics: UM vs IGBP)
+        print("    - Veg fraction comparisons (UM vs IGBP)")
+        for metric in VEG_METRICS:
+            if (metric in um_metrics and um_metrics[metric] and
+                metric in igbp_metrics and igbp_metrics[metric]):
+                plot_two_way_comparison(
+                    um_metrics,
+                    igbp_metrics,
+                    metric=metric,
+                    outdir=plots_dir,
+                    filename=f'{metric}_vs_igbp.png'
+                )
+            else:
+                print(f"      ⚠ Skipping {metric} (not available)")
+
+        # 2. Bias heatmaps
+        print("    - Bias heatmaps")
+        # Separate heatmap for CMIP6 (carbon metrics only)
+        available_metrics_cmip6 = [m for m in carbon_metrics if m in comparison_cmip6 and comparison_cmip6[m]]
+        if available_metrics_cmip6:
+            plot_regional_bias_heatmap(
+                comparison_cmip6,
+                metrics=available_metrics_cmip6,
+                value_type='bias_percent',
+                outdir=plots_dir,
+                filename='bias_heatmap_vs_cmip6.png'
+            )
+
+        # UNIFIED heatmap: Carbon metrics (vs RECCAP2) + Veg metrics (vs IGBP)
+        combined_comparison = {}
+        available_carbon = [m for m in carbon_metrics if m in comparison_reccap and comparison_reccap[m]]
+        available_veg = [m for m in VEG_METRICS if m in comparison_igbp and comparison_igbp[m]]
+
+        # Merge comparisons into single dict
+        for m in available_carbon:
+            combined_comparison[m] = comparison_reccap[m]
+        for m in available_veg:
+            combined_comparison[m] = comparison_igbp[m]
+
+        if combined_comparison:
+            all_combined_metrics = available_carbon + available_veg
+            plot_regional_bias_heatmap(
+                combined_comparison,
+                metrics=all_combined_metrics,
+                value_type='bias_percent',
+                outdir=plots_dir,
+                filename='bias_heatmap_unified.png'
+            )
+            print(f"      ✓ Created unified heatmap ({len(all_combined_metrics)} metrics)")
+
+        # 3. Time series plots
+        print("    - Time series (carbon)")
+        for metric in carbon_metrics:
+            if (metric in um_metrics and 'global' in um_metrics[metric] and
+                metric in reccap_metrics and 'global' in reccap_metrics[metric]):
+                plot_timeseries_with_obs(
+                    um_metrics,
+                    reccap_metrics,
+                    metric=metric,
+                    region='global',
+                    outdir=plots_dir,
+                    filename=f'{metric}_timeseries_global.png'
+                )
+            elif metric in um_metrics and um_metrics[metric]:
+                available_regions = list(um_metrics[metric].keys())
+                if (available_regions and metric in reccap_metrics and
+                    available_regions[0] in reccap_metrics[metric]):
+                    plot_timeseries_with_obs(
+                        um_metrics,
+                        reccap_metrics,
+                        metric=metric,
+                        region=available_regions[0],
+                        outdir=plots_dir,
+                        filename=f'{metric}_timeseries_{available_regions[0]}.png'
+                    )
+
+        # 3b. Time series for veg metrics (UM vs IGBP)
+        print("    - Time series (veg fractions)")
+        for metric in VEG_METRICS:
+            if (metric in um_metrics and 'global' in um_metrics[metric] and
+                metric in igbp_metrics and 'global' in igbp_metrics[metric]):
+                plot_timeseries_with_obs(
+                    um_metrics,
+                    igbp_metrics,
+                    metric=metric,
+                    region='global',
+                    outdir=plots_dir,
+                    filename=f'{metric}_timeseries_global.png'
+                )
+
+        print(f"  ✓ Created all plots in {plots_dir}/")
+
     print("\n" + "="*80)
     print(f"VALIDATION WORKFLOW: {args.expt}")
     print("="*80)
@@ -634,7 +914,6 @@ Soil Parameters (REQUIRED):
     print("-"*80)
 
     # Save UM metrics
-    from scripts.validate_experiment import save_um_metrics_to_csv, save_bias_statistics, save_comparison_summary
     save_um_metrics_to_csv(um_metrics, args.expt, outdir)
     save_bias_statistics(comparison_cmip6, 'CMIP6', args.expt, outdir)
     save_bias_statistics(comparison_reccap, 'RECCAP2', args.expt, outdir)
@@ -650,7 +929,6 @@ Soil Parameters (REQUIRED):
     print("\n[5/7] Creating validation plots...")
     print("-"*80)
 
-    from scripts.validate_experiment import create_all_plots
     create_all_plots(
         um_metrics, cmip6_metrics, reccap_metrics,
         comparison_cmip6, comparison_reccap, comparison_igbp,
