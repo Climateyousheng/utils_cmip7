@@ -250,6 +250,35 @@ class SoilParamSet:
 
         return bl_subset
 
+    def to_overview_table_format(self, bl_index: int = BL_INDEX) -> Dict[str, float]:
+        """
+        Extract BL-tree parameters in overview table column format.
+
+        Matches existing schema: ALPHA, G_AREA, LAI_MIN, NL0, R_GROW, TLOW, TUPP, V_CRIT
+        (excludes F0, Q10, KAPS which aren't in the standard overview table)
+
+        Parameters
+        ----------
+        bl_index : int, default=BL_INDEX (0)
+            Index of BL tree in PFT arrays
+
+        Returns
+        -------
+        dict
+            Dictionary with keys matching overview table columns
+        """
+        params = {}
+
+        # Array parameters: extract BL index (no _BL suffix)
+        for key in ['ALPHA', 'G_AREA', 'LAI_MIN', 'NL0', 'R_GROW', 'TLOW', 'TUPP']:
+            arr = getattr(self, key)
+            params[key] = arr[bl_index]
+
+        # V_CRIT_ALPHA -> V_CRIT
+        params['V_CRIT'] = self.V_CRIT_ALPHA
+
+        return params
+
     def to_dict(self) -> Dict[str, Any]:
         """
         Convert to dictionary (for JSON/YAML export).

@@ -681,21 +681,61 @@ def main():
     print("\n[6/7] Updating overview table and writing validation bundle...")
     print("-"*80)
 
-    # Extract BL-tree parameters for overview table
-    bl_params = soil_params.to_bl_subset()
+    # Extract BL-tree parameters in overview table format
+    bl_params = soil_params.to_overview_table_format()
 
-    # Prepare validation scores (include spatial RMSE values)
+    # Prepare all validation metrics for overview table
     scores = {}
-    if veg_metrics:
-        # Add spatial RMSE metrics
-        for key in veg_metrics:
-            if key.startswith('rmse_') and 'global' in veg_metrics[key]:
-                scores[key] = veg_metrics[key]['global']
 
-        # Add mean bias percentages for key metrics vs RECCAP2
-        for metric in ['GPP', 'NPP', 'CVeg', 'CSoil']:
-            if metric in comparison_reccap and 'global' in comparison_reccap[metric]:
-                scores[f'{metric}_bias_pct'] = comparison_reccap[metric]['global']['bias_percent']
+    # Carbon cycle metrics (mean values from global region)
+    for metric in ['GPP', 'CVeg']:
+        if metric in um_metrics and 'global' in um_metrics[metric]:
+            scores[metric] = np.mean(um_metrics[metric]['global']['data'])
+
+    # Regional metrics (specific regions needed for overview table)
+    region_map = {
+        'Tr30SN': 'Temperate North',
+        'Tr30-90N': 'Boreal North',
+        'AMZTrees': 'South America Tropical'
+    }
+    for col_name, region_name in region_map.items():
+        # Try to get CVeg for these regions (or use a representative metric)
+        if 'CVeg' in um_metrics and region_name in um_metrics['CVeg']:
+            scores[col_name] = np.mean(um_metrics['CVeg'][region_name]['data'])
+        else:
+            scores[col_name] = np.nan
+
+    # Global mean vegetation fractions
+    for pft_name in ['BL', 'NL', 'C3', 'C4', 'bare_soil']:
+        gm_col = f'GM_{pft_name.replace("bare_soil", "BS")}'
+        if pft_name in um_metrics and 'global' in um_metrics[pft_name]:
+            scores[gm_col] = np.mean(um_metrics[pft_name]['global']['data'])
+        else:
+            scores[gm_col] = np.nan
+
+    # RMSE values
+    if veg_metrics:
+        for pft_name in ['BL', 'NL', 'C3', 'C4', 'bare_soil']:
+            rmse_key = f'rmse_{pft_name}'
+            rmse_col = rmse_key.replace('bare_soil', 'BS')
+            if rmse_key in veg_metrics and 'global' in veg_metrics[rmse_key]:
+                scores[rmse_col] = veg_metrics[rmse_key]['global']
+            else:
+                scores[rmse_col] = np.nan
+
+    # Overall score (simple metric: average absolute bias % across key variables)
+    bias_pcts = []
+    for metric in ['GPP', 'CVeg']:
+        if metric in comparison_reccap and 'global' in comparison_reccap[metric]:
+            bias_pcts.append(abs(comparison_reccap[metric]['global']['bias_percent']))
+    if comparison_igbp:
+        for pft in ['BL', 'NL', 'C3', 'C4']:
+            if pft in comparison_igbp and 'global' in comparison_igbp[pft]:
+                bias_pcts.append(abs(comparison_igbp[pft]['global']['bias_percent']))
+    if bias_pcts:
+        scores['overall_score'] = np.mean(bias_pcts) / 100.0  # Normalize to 0-1 range
+    else:
+        scores['overall_score'] = np.nan
 
     # Update overview table
     overview_path = Path('validation_outputs') / 'random_sampling_combined_overview_table.csv'
