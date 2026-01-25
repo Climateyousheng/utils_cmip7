@@ -49,6 +49,13 @@ from utils_cmip7.validation.veg_fractions import (
     calculate_veg_metrics,
     load_obs_veg_metrics,
 )
+from utils_cmip7.soil_params import SoilParamSet
+from utils_cmip7.validation import (
+    load_overview_table,
+    upsert_overview_row,
+    write_atomic_csv,
+    write_single_validation_bundle,
+)
 
 # Vegetation metric names for plotting
 VEG_METRICS = ['BL', 'NL', 'C3', 'C4', 'shrub', 'bare_soil']
@@ -418,12 +425,76 @@ def main():
         help='Base directory containing annual mean files (default: ~/annual_mean)'
     )
 
+    # Soil parameter arguments (REQUIRED unless --use-default-soil-params)
+    soil_group = parser.add_argument_group('soil parameters')
+    soil_group.add_argument(
+        '--soil-param-file',
+        help='Path to soil parameter file (JSON or YAML)'
+    )
+    soil_group.add_argument(
+        '--soil-log-file',
+        help='Path to UM/Rose log file containing &LAND_CC block'
+    )
+    soil_group.add_argument(
+        '--soil-params',
+        help='Manual soil parameters as key=value pairs (e.g., "ALPHA_BL=0.08,F0_BL=0.875")'
+    )
+    soil_group.add_argument(
+        '--use-default-soil-params',
+        action='store_true',
+        help='Use default LAND_CC soil parameters (opt-in required)'
+    )
+
     args = parser.parse_args()
 
     # Get experiment name from positional or flag argument
     expt = args.expt or args.expt_flag
     if not expt:
         parser.error("Experiment name required (e.g., python validate_experiment.py xqhuc)")
+
+    # =========================================================================
+    # Load soil parameters (REQUIRED for PPE tracking)
+    # =========================================================================
+    soil_param_sources = [
+        args.soil_param_file,
+        args.soil_log_file,
+        args.soil_params,
+        args.use_default_soil_params
+    ]
+
+    if not any(soil_param_sources):
+        parser.error(
+            "Soil parameters required for validation tracking.\n"
+            "Provide one of:\n"
+            "  --soil-param-file FILE       (JSON/YAML parameter file)\n"
+            "  --soil-log-file FILE         (UM/Rose log with &LAND_CC block)\n"
+            "  --soil-params KEY=VAL,...    (Manual parameters)\n"
+            "  --use-default-soil-params    (Use default LAND_CC values)"
+        )
+
+    # Load soil parameters from provided source
+    soil_params = None
+
+    if args.soil_param_file:
+        soil_params = SoilParamSet.from_file(args.soil_param_file)
+        print(f"✓ Loaded soil parameters from file: {args.soil_param_file}")
+
+    elif args.soil_log_file:
+        soil_params = SoilParamSet.from_log_file(args.soil_log_file)
+        print(f"✓ Parsed soil parameters from log: {args.soil_log_file}")
+
+    elif args.soil_params:
+        # Parse manual key=value pairs
+        manual_params = {}
+        for pair in args.soil_params.split(','):
+            key, value = pair.split('=')
+            manual_params[key.strip()] = float(value.strip())
+        soil_params = SoilParamSet.from_dict(manual_params, source='manual')
+        print(f"✓ Loaded manual soil parameters ({len(manual_params)} values)")
+
+    elif args.use_default_soil_params:
+        soil_params = SoilParamSet.from_default()
+        print(f"✓ Using default LAND_CC soil parameters")
 
     print("\n" + "="*80)
     print(f"VALIDATION WORKFLOW: {expt}")
@@ -440,7 +511,7 @@ def main():
     # =========================================================================
     # Step 1: Compute UM metrics (including vegetation fractions) for all regions
     # =========================================================================
-    print(f"\n[1/5] Computing UM metrics from {args.base_dir}/{expt}/...")
+    print(f"\n[1/7] Computing UM metrics from {args.base_dir}/{expt}/...")
     print("-"*80)
 
     # Compute standard carbon cycle metrics
@@ -496,7 +567,7 @@ def main():
     # =========================================================================
     # Step 2: Load observational data
     # =========================================================================
-    print("\n[2/6] Loading observational data...")
+    print("\n[2/7] Loading observational data...")
     print("-"*80)
 
     cmip6_metrics = load_cmip6_metrics(
@@ -532,7 +603,7 @@ def main():
     # =========================================================================
     # Step 3: Compare UM vs CMIP6 and UM vs RECCAP2
     # =========================================================================
-    print("\n[3/6] Computing comparison statistics...")
+    print("\n[3/7] Computing comparison statistics...")
     print("-"*80)
 
     comparison_cmip6 = compare_metrics(
@@ -565,7 +636,7 @@ def main():
     # =========================================================================
     # Step 4: Export to CSV
     # =========================================================================
-    print("\n[4/6] Exporting results to CSV...")
+    print("\n[4/7] Exporting results to CSV...")
     print("-"*80)
 
     save_um_metrics_to_csv(um_metrics, expt, outdir)
@@ -590,7 +661,7 @@ def main():
     # =========================================================================
     # Step 5: Create plots
     # =========================================================================
-    print("\n[5/6] Creating validation plots...")
+    print("\n[5/7] Creating validation plots...")
     print("-"*80)
 
     create_all_plots(
@@ -603,6 +674,45 @@ def main():
         igbp_metrics,
         outdir
     )
+
+    # =========================================================================
+    # Step 6: Update overview table and write validation bundle
+    # =========================================================================
+    print("\n[6/7] Updating overview table and writing validation bundle...")
+    print("-"*80)
+
+    # Extract BL-tree parameters for overview table
+    bl_params = soil_params.to_bl_subset()
+
+    # Prepare validation scores (include spatial RMSE values)
+    scores = {}
+    if veg_metrics:
+        # Add spatial RMSE metrics
+        for key in veg_metrics:
+            if key.startswith('rmse_') and 'global' in veg_metrics[key]:
+                scores[key] = veg_metrics[key]['global']
+
+        # Add mean bias percentages for key metrics vs RECCAP2
+        for metric in ['GPP', 'NPP', 'CVeg', 'CSoil']:
+            if metric in comparison_reccap and 'global' in comparison_reccap[metric]:
+                scores[f'{metric}_bias_pct'] = comparison_reccap[metric]['global']['bias_percent']
+
+    # Update overview table
+    overview_path = Path('validation_outputs') / 'random_sampling_combined_overview_table.csv'
+    overview_df = load_overview_table(str(overview_path))
+    overview_df = upsert_overview_row(overview_df, expt, bl_params, scores)
+    write_atomic_csv(overview_df, str(overview_path))
+    print(f"  ✓ Updated overview table: {overview_path}")
+
+    # Write single-experiment validation bundle
+    write_single_validation_bundle(
+        outdir=Path('validation_outputs'),
+        expt_id=expt,
+        soil_params=soil_params,
+        metrics=um_metrics,
+        scores=scores
+    )
+    print(f"  ✓ Wrote validation bundle: {outdir}/")
 
     # =========================================================================
     # Summary

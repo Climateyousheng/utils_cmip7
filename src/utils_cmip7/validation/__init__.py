@@ -28,6 +28,14 @@ from .veg_fractions import (
     compare_veg_metrics,
     load_obs_veg_metrics,
 )
+from .overview_table import (
+    load_overview_table,
+    upsert_overview_row,
+    write_atomic_csv,
+)
+from .outputs import (
+    write_single_validation_bundle,
+)
 
 __all__ = [
     # Comparison functions
@@ -50,4 +58,10 @@ __all__ = [
     'save_veg_metrics_to_csv',
     'compare_veg_metrics',
     'load_obs_veg_metrics',
+    # Overview table functions
+    'load_overview_table',
+    'upsert_overview_row',
+    'write_atomic_csv',
+    # Output bundle functions
+    'write_single_validation_bundle',
 ]
