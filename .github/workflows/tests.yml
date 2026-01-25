@@ -1,0 +1,105 @@
+name: Tests
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest]
+        python-version: ['3.8', '3.9', '3.10', '3.11']
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ matrix.python-version }}
+
+    - name: Cache pip packages
+      uses: actions/cache@v4
+      with:
+        path: ~/.cache/pip
+        key: ${{ runner.os }}-pip-${{ hashFiles('**/pyproject.toml') }}
+        restore-keys: |
+          ${{ runner.os }}-pip-
+
+    - name: Install system dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y libgeos-dev libproj-dev
+
+    - name: Install package with dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -e .[dev]
+
+    - name: Run linting with flake8
+      run: |
+        # Stop the build if there are Python syntax errors or undefined names
+        flake8 src/utils_cmip7 --count --select=E9,F63,F7,F82 --show-source --statistics
+        # Exit-zero treats all errors as warnings
+        flake8 src/utils_cmip7 --count --exit-zero --max-line-length=100 --statistics
+      continue-on-error: true
+
+    - name: Run tests with pytest
+      run: |
+        pytest tests/ -v --cov=src/utils_cmip7 --cov-report=xml --cov-report=term-missing
+
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v4
+      with:
+        file: ./coverage.xml
+        flags: unittests
+        name: codecov-umbrella
+        fail_ci_if_error: false
+
+    - name: Generate coverage report
+      run: |
+        coverage report --show-missing
+        coverage html
+
+    - name: Upload coverage HTML
+      uses: actions/upload-artifact@v4
+      with:
+        name: coverage-html-py${{ matrix.python-version }}
+        path: htmlcov/
+        retention-days: 7
+
+  code-quality:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.10'
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -e .[dev]
+
+    - name: Check code formatting with black
+      run: |
+        black --check src/utils_cmip7 tests/
+      continue-on-error: true
+
+    - name: Check import sorting with isort
+      run: |
+        isort --check-only src/utils_cmip7 tests/
+      continue-on-error: true
+
+    - name: Type checking with mypy
+      run: |
+        mypy src/utils_cmip7 --ignore-missing-imports
+      continue-on-error: true

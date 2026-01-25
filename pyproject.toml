@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "utils_cmip7"
-version = "0.2.1"
+version = "0.3.0.dev0"
 description = "Carbon cycle analysis toolkit for Unified Model outputs"
 readme = "README.md"
 license = {text = "MIT"}
@@ -75,7 +75,30 @@ utils_cmip7 = ["data/obs/*.csv"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = "-q"
+addopts = [
+    "-v",
+    "--cov=src/utils_cmip7",
+    "--cov-report=term-missing",
+    "--cov-report=html",
+    "--cov-report=xml",
+]
+python_files = "test_*.py"
+python_classes = "Test*"
+python_functions = "test_*"
+
+[tool.coverage.run]
+source = ["src/utils_cmip7"]
+omit = ["*/tests/*", "*/__pycache__/*"]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+    "if TYPE_CHECKING:",
+]
 
 [tool.black]
 line-length = 100

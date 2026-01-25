@@ -1,0 +1,28 @@
+[flake8]
+max-line-length = 100
+exclude =
+    .git,
+    __pycache__,
+    build,
+    dist,
+    .eggs,
+    *.egg-info,
+    .tox,
+    .venv,
+    venv,
+    docs/conf.py
+
+# Ignore specific rules
+ignore =
+    E203,  # Whitespace before ':' (conflicts with black)
+    W503,  # Line break before binary operator (conflicts with black)
+    E501,  # Line too long (handled by black)
+    E402,  # Module level import not at top of file (sometimes necessary)
+
+# Complexity
+max-complexity = 15
+
+# Per-file ignores
+per-file-ignores =
+    __init__.py:F401  # Unused imports in __init__.py are often re-exports
+    tests/*:F401,F811  # Allow redefinition and unused imports in tests
