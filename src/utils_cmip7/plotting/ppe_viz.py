@@ -275,8 +275,30 @@ def plot_validation_heatmap(
     top = ranked.head(top_k).copy()
 
     existing_param_cols = [c for c in param_cols if c in df.columns]
+
+    # Define columns to exclude from heatmap metrics
+    exclude_cols = set(existing_param_cols + [score_col, id_col if id_col else 'ID'])
+
+    # Also exclude parameter columns with _BL suffix (leftover from old code)
+    param_bl_cols = [f'{p}_BL' for p in ['ALPHA', 'F0', 'G_AREA', 'LAI_MIN', 'NL0', 'R_GROW', 'TLOW', 'TUPP']]
+    exclude_cols.update(param_bl_cols)
+
+    # Exclude scalar parameters
+    exclude_cols.update(['Q10', 'V_CRIT_ALPHA', 'KAPS'])
+
+    # Exclude bias percentage columns (these are intermediate, not final metrics)
+    bias_pct_cols = [f'{m}_bias_pct' for m in ['GPP', 'NPP', 'CVeg', 'CSoil', 'Rh']]
+    exclude_cols.update(bias_pct_cols)
+
+    # Exclude regional metrics (Tr30SN, Tr30-90N, AMZTrees) - these are intermediate
+    exclude_cols.update(['Tr30SN', 'Tr30-90N', 'AMZTrees'])
+
+    # Exclude highlight column if present
+    if highlight_col:
+        exclude_cols.add(highlight_col)
+
     if metrics is None:
-        metrics = select_numeric_metrics(top, exclude_cols=list(existing_param_cols) + [score_col])
+        metrics = select_numeric_metrics(top, exclude_cols=list(exclude_cols))
 
     # Order metrics: rmse_* first (if present), then others
     metrics = [c for c in metrics if c in top.columns]
