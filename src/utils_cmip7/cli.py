@@ -512,27 +512,247 @@ Soil Parameters (REQUIRED):
         soil_params = SoilParamSet.from_default()
         print(f"✓ Using default LAND_CC soil parameters")
 
+    # Import config for regions
+    from .config import RECCAP_REGIONS
+
+    def get_all_regions():
+        """Get all RECCAP2 regions plus global."""
+        regions = ['global'] + list(RECCAP_REGIONS.values())
+        if 'Africa' not in regions:
+            regions.append('Africa')
+        return regions
+
+    # Import veg metrics constants
+    VEG_METRICS = ['BL', 'NL', 'C3', 'C4', 'shrub', 'bare_soil']
+
     print("\n" + "="*80)
     print(f"VALIDATION WORKFLOW: {args.expt}")
     print("="*80)
 
-    # Delegate to the script's main workflow
-    # Import the actual validation workflow
-    script_path = PathLib(__file__).parent.parent.parent / 'scripts' / 'validate_experiment.py'
+    # Create output directory
+    outdir = PathLib('validation_outputs') / f'single_val_{args.expt}'
+    outdir.mkdir(parents=True, exist_ok=True)
 
-    # For now, print instructions
-    print(f"\nRunning validation for experiment: {args.expt}")
-    print(f"Base directory: {args.base_dir}")
-    print(f"Soil parameters: {soil_params.source}")
-    print("\nValidation workflow is complex - delegating to scripts/validate_experiment.py")
-    print(f"Please run: python scripts/validate_experiment.py {args.expt} " +
-          f"--base-dir {args.base_dir} " +
-          ("--use-default-soil-params" if args.use_default_soil_params else
-           f"--soil-param-file {args.soil_param_file}" if args.soil_param_file else
-           f"--soil-log-file {args.soil_log_file}" if args.soil_log_file else
-           f"--soil-params {args.soil_params}"))
+    # Get all regions and metrics
+    regions = get_all_regions()
+    metrics = ['GPP', 'NPP', 'CVeg', 'CSoil', 'Tau']
 
-    sys.exit(0)
+    # Step 1: Compute UM metrics
+    print(f"\n[1/7] Computing UM metrics from {args.base_dir}/{args.expt}/...")
+    print("-"*80)
+
+    um_metrics = compute_metrics_from_annual_means(
+        expt_name=args.expt,
+        metrics=metrics,
+        regions=regions,
+        base_dir=args.base_dir
+    )
+    print(f"✓ Computed {len(um_metrics)} standard metrics for {len(regions)} regions")
+
+    # Extract vegetation fractions
+    print(f"  Extracting vegetation fraction data...")
+    raw_data = extract_annual_means(
+        expts_list=[args.expt],
+        var_list=['frac'],
+        regions=regions,
+        base_dir=args.base_dir
+    )
+
+    # Promote PFT time series to um_metrics
+    veg_count = 0
+    if args.expt in raw_data:
+        for pft_id, pft_name in sorted(PFT_MAPPING.items()):
+            pft_key = f'PFT {pft_id}'
+            um_metrics[pft_name] = {}
+            for region in regions:
+                if (region in raw_data[args.expt] and
+                    'frac' in raw_data[args.expt][region] and
+                    pft_key in raw_data[args.expt][region]['frac']):
+                    pft_data = raw_data[args.expt][region]['frac'][pft_key]
+                    um_metrics[pft_name][region] = {
+                        'years': pft_data['years'],
+                        'data': pft_data['data'],
+                        'units': 'fraction',
+                        'source': 'UM',
+                        'dataset': args.expt
+                    }
+            if um_metrics[pft_name]:
+                veg_count += 1
+            else:
+                del um_metrics[pft_name]
+
+    # Compute scalar veg metrics
+    veg_metrics = calculate_veg_metrics(raw_data, args.expt, regions=regions)
+
+    if veg_count > 0:
+        print(f"✓ Promoted {veg_count} PFT time series to metrics")
+        print(f"✓ Total metrics: {len(um_metrics)}")
+    else:
+        print(f"⚠ No vegetation fraction data available")
+
+    # Step 2: Load observational data
+    print("\n[2/7] Loading observational data...")
+    print("-"*80)
+
+    cmip6_metrics = load_cmip6_metrics(metrics=metrics, regions=regions, include_errors=True)
+    reccap_metrics = load_reccap_metrics(metrics=metrics, regions=regions, include_errors=True)
+    print(f"✓ Loaded CMIP6 ensemble data")
+    print(f"✓ Loaded RECCAP2 observational data")
+
+    # Load IGBP vegetation observations
+    obs_veg_metrics = load_obs_veg_metrics(regions=regions)
+    igbp_metrics = {}
+    if obs_veg_metrics:
+        for pft_name in VEG_METRICS:
+            if pft_name in obs_veg_metrics:
+                igbp_metrics[pft_name] = {}
+                for region in obs_veg_metrics[pft_name].keys():
+                    igbp_metrics[pft_name][region] = {
+                        'data': np.array([obs_veg_metrics[pft_name][region]]),
+                        'units': 'fraction',
+                        'source': 'IGBP',
+                    }
+        print(f"✓ Loaded IGBP vegetation fraction observations ({len(igbp_metrics)} PFTs)")
+
+    # Step 3: Compare UM vs observations
+    print("\n[3/7] Computing comparison statistics...")
+    print("-"*80)
+
+    comparison_cmip6 = compare_metrics(um_metrics, cmip6_metrics, metrics=metrics, regions=regions)
+    comparison_reccap = compare_metrics(um_metrics, reccap_metrics, metrics=metrics, regions=regions)
+    print(f"✓ Computed bias statistics vs CMIP6")
+    print(f"✓ Computed bias statistics vs RECCAP2")
+
+    # Compare vegetation fractions
+    comparison_igbp = {}
+    if igbp_metrics:
+        comparison_igbp = compare_metrics(um_metrics, igbp_metrics, metrics=VEG_METRICS, regions=regions)
+        print(f"✓ Computed vegetation fraction bias vs IGBP")
+
+    # Step 4: Export to CSV
+    print("\n[4/7] Exporting results to CSV...")
+    print("-"*80)
+
+    # Save UM metrics
+    from scripts.validate_experiment import save_um_metrics_to_csv, save_bias_statistics, save_comparison_summary
+    save_um_metrics_to_csv(um_metrics, args.expt, outdir)
+    save_bias_statistics(comparison_cmip6, 'CMIP6', args.expt, outdir)
+    save_bias_statistics(comparison_reccap, 'RECCAP2', args.expt, outdir)
+    if comparison_igbp:
+        save_bias_statistics(comparison_igbp, 'IGBP', args.expt, outdir)
+    save_comparison_summary(
+        um_metrics, cmip6_metrics, reccap_metrics,
+        comparison_cmip6, comparison_reccap, comparison_igbp,
+        args.expt, outdir
+    )
+
+    # Step 5: Create plots
+    print("\n[5/7] Creating validation plots...")
+    print("-"*80)
+
+    from scripts.validate_experiment import create_all_plots
+    create_all_plots(
+        um_metrics, cmip6_metrics, reccap_metrics,
+        comparison_cmip6, comparison_reccap, comparison_igbp,
+        igbp_metrics, outdir
+    )
+
+    # Step 6: Update overview table
+    print("\n[6/7] Updating overview table and writing validation bundle...")
+    print("-"*80)
+
+    bl_params = soil_params.to_overview_table_format()
+
+    # Prepare validation scores
+    scores = {}
+    for metric in ['GPP', 'NPP', 'CVeg', 'CSoil']:
+        if metric in um_metrics and 'global' in um_metrics[metric]:
+            scores[metric] = np.mean(um_metrics[metric]['global']['data'])
+
+    # Regional tree metrics
+    if args.expt in raw_data and 'global' in raw_data[args.expt] and 'frac' in raw_data[args.expt]['global']:
+        frac_data = raw_data[args.expt]['global']['frac']
+        for metric_name in ['Tr30SN', 'Tr30-90N', 'AMZTrees']:
+            if metric_name in frac_data and 'data' in frac_data[metric_name]:
+                scores[metric_name] = np.mean(frac_data[metric_name]['data'])
+            else:
+                scores[metric_name] = np.nan
+    else:
+        for metric_name in ['Tr30SN', 'Tr30-90N', 'AMZTrees']:
+            scores[metric_name] = np.nan
+
+    # Global mean vegetation fractions
+    for pft_name in ['BL', 'NL', 'C3', 'C4', 'bare_soil']:
+        gm_col = f'GM_{pft_name.replace("bare_soil", "BS")}'
+        if pft_name in um_metrics and 'global' in um_metrics[pft_name]:
+            scores[gm_col] = np.mean(um_metrics[pft_name]['global']['data'])
+        else:
+            scores[gm_col] = np.nan
+
+    # RMSE values
+    if veg_metrics:
+        for pft_name in ['BL', 'NL', 'C3', 'C4', 'bare_soil']:
+            rmse_key = f'rmse_{pft_name}'
+            rmse_col = rmse_key.replace('bare_soil', 'BS')
+            if rmse_key in veg_metrics and 'global' in veg_metrics[rmse_key]:
+                scores[rmse_col] = veg_metrics[rmse_key]['global']
+            else:
+                scores[rmse_col] = np.nan
+
+    # Overall score
+    bias_pcts = []
+    for metric in ['GPP', 'NPP', 'CVeg', 'CSoil']:
+        if metric in comparison_reccap and 'global' in comparison_reccap[metric]:
+            bias_pcts.append(abs(comparison_reccap[metric]['global']['bias_percent']))
+    if comparison_igbp:
+        for pft in ['BL', 'NL', 'C3', 'C4']:
+            if pft in comparison_igbp and 'global' in comparison_igbp[pft]:
+                bias_pcts.append(abs(comparison_igbp[pft]['global']['bias_percent']))
+    if bias_pcts:
+        mean_abs_bias = np.mean(bias_pcts)
+        scores['overall_score'] = 1.0 - (mean_abs_bias / 100.0)
+    else:
+        scores['overall_score'] = np.nan
+
+    # Update overview table
+    overview_path = PathLib('validation_outputs') / 'random_sampling_combined_overview_table.csv'
+    overview_df = load_overview_table(str(overview_path))
+    overview_df = upsert_overview_row(overview_df, args.expt, bl_params, scores)
+    write_atomic_csv(overview_df, str(overview_path))
+    print(f"  ✓ Updated overview table: {overview_path}")
+
+    # Write validation bundle
+    write_single_validation_bundle(
+        outdir=PathLib('validation_outputs'),
+        expt_id=args.expt,
+        soil_params=soil_params,
+        metrics=um_metrics,
+        scores=scores
+    )
+    print(f"  ✓ Wrote validation bundle: {outdir}/")
+
+    # Step 7: Summary
+    print("\n" + "="*80)
+    print("VALIDATION COMPLETE!")
+    print("="*80)
+    print(f"\nResults saved to: {outdir}/")
+    print(f"  - {args.expt}_metrics.csv")
+    print(f"  - {args.expt}_bias_vs_cmip6.csv")
+    print(f"  - {args.expt}_bias_vs_reccap2.csv")
+    if comparison_igbp:
+        print(f"  - {args.expt}_bias_vs_IGBP.csv")
+    print(f"  - comparison_summary.txt")
+    print(f"  - plots/")
+
+    # Quick summary
+    print(f"\nKey findings vs RECCAP2:")
+    if 'GPP' in comparison_reccap and 'global' in comparison_reccap['GPP']:
+        gpp_summary = summarize_comparison(comparison_reccap, 'GPP')
+        print(f"  GPP: {gpp_summary['mean_bias']:+.1f} PgC/yr ({gpp_summary['mean_bias_percent']:+.1f}%)")
+    if 'NPP' in comparison_reccap and 'global' in comparison_reccap['NPP']:
+        npp_summary = summarize_comparison(comparison_reccap, 'NPP')
+        print(f"  NPP: {npp_summary['mean_bias']:+.1f} PgC/yr ({npp_summary['mean_bias_percent']:+.1f}%)")
+    print("="*80 + "\n")
 
 
 def validate_ppe_cli():
