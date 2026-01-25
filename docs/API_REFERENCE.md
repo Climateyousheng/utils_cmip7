@@ -27,23 +27,30 @@ utils_cmip7/
 │   └── metrics.py     # Metrics computation from annual means
 ├── validation/        # Model validation against observations
 │   ├── compare.py     # Bias, RMSE, and uncertainty checks
-│   └── visualize.py   # Three-way comparison plots and visualizations
-├── plotting/          # Visualisation utilities (no I/O)
-│   └── [TODO]         # To be split from plot.py
-├── soil_params/       # Soil parameter analysis
-│   └── [TODO]         # To be migrated from root
+│   ├── visualize.py   # Three-way comparison plots and visualizations
+│   ├── overview_table.py  # PPE overview table management
+│   └── outputs.py     # Single-experiment validation bundle writing
+├── plotting/          # Visualization utilities
+│   ├── timeseries.py  # Time series plotting
+│   ├── spatial.py     # Regional/spatial plotting (pies, bars)
+│   ├── styles.py      # Styling utilities and constants
+│   ├── ppe_viz.py     # PPE validation plots (histograms, heatmaps)
+│   └── ppe_param_viz.py  # Parameter importance analysis
+├── soil_params/       # Soil parameter management
+│   ├── params.py      # SoilParamSet dataclass and loaders
+│   └── parsers.py     # LAND_CC namelist parser
 ├── config.py          # Configuration and constants
-└── cli.py             # [TODO] Command-line entry points
+└── cli.py             # Command-line entry points
 ```
 
-**Current Status (v0.2.1):**
+**Current Status (v0.2.2):**
 - ✅ `io/` - Complete (4 modules including obs_loader)
 - ✅ `processing/` - Complete (4 modules including metrics)
 - ✅ `diagnostics/` - Complete (3 modules including metrics)
-- ✅ `validation/` - Complete (2 modules: compare, visualize)
-- ⚠️ `plotting/` - Exists in root `plot.py`, needs migration
-- ⚠️ `soil_params/` - Exists in root, needs migration
-- ❌ `cli.py` - Not yet implemented
+- ✅ `validation/` - Complete (4 modules: compare, visualize, overview_table, outputs)
+- ✅ `plotting/` - Complete (5 modules: timeseries, spatial, styles, ppe_viz, ppe_param_viz)
+- ✅ `soil_params/` - Complete (2 modules: params, parsers)
+- ✅ `cli.py` - Complete (2 CLI entry points)
 
 ---
 
@@ -977,4 +984,346 @@ Refer to `CLAUDE.md` Section 3: API Stability Matrix for stability guarantees.
   - CSV export in observational format
   - Graceful handling of missing metrics and regions
 - **v0.2.0**: Core extraction functionality complete, package structure established
+- **v0.1.0**: Initial scripts and functions
+
+## Command-Line Interface (`utils_cmip7.cli`)
+
+**New in v0.2.2**
+
+### Entry Points
+
+Two CLI commands are registered via `pyproject.toml`:
+
+#### `utils-cmip7-extract-preprocessed`
+Extract annual means from pre-processed NetCDF files.
+
+**Usage:**
+```bash
+utils-cmip7-extract-preprocessed xqhuc
+utils-cmip7-extract-preprocessed xqhuc --base-dir ~/annual_mean
+utils-cmip7-extract-preprocessed xqhuc --regions global Europe Africa
+utils-cmip7-extract-preprocessed xqhuc --output results.csv
+```
+
+**Arguments:**
+- `expt` - Experiment name (required)
+- `--base-dir` - Base directory containing annual mean files (default: `~/annual_mean`)
+- `--regions` - Regions to extract (default: all RECCAP2 regions + global)
+- `--var-list` - Variables to extract (default: all available)
+- `--output` - Output CSV file path (default: print to stdout)
+- `--verbose` - Enable verbose output
+
+**Output:**
+- Prints structured data to stdout (unless `--output` specified)
+- Saves time-mean values to CSV if `--output` provided
+
+---
+
+#### `utils-cmip7-extract-raw`
+Extract annual means from raw monthly UM output files.
+
+**Usage:**
+```bash
+utils-cmip7-extract-raw xqhuj
+utils-cmip7-extract-raw xqhuj --base-dir ~/dump2hold
+utils-cmip7-extract-raw xqhuj --start-year 2000 --end-year 2010
+utils-cmip7-extract-raw xqhuj --output timeseries.csv
+```
+
+**Arguments:**
+- `expt` - Experiment name (required)
+- `--base-dir` - Base directory containing raw monthly files (default: `~/dump2hold`)
+- `--start-year` - Start year (default: all available years)
+- `--end-year` - End year (default: all available years)
+- `--output` - Output CSV file path (default: print to stdout)
+- `--verbose` - Enable verbose output
+
+**Output:**
+- Prints time series summary to stdout (unless `--output` specified)
+- Saves full time series to CSV if `--output` provided
+
+**Variables Extracted:**
+GPP, NPP, soilResp, VegCarb, soilCarbon, NEP
+
+---
+
+## Plotting Layer (`utils_cmip7.plotting`)
+
+**Refactored in v0.2.2**
+
+The plotting module is now split into logical sub-modules with consistent APIs.
+
+### Time Series Plotting (`plotting.timeseries`)
+
+#### `plot_timeseries_grouped(data, expts_list, region, ...)`
+Plot time series of all variables grouped by prefix.
+
+**New in v0.2.2:** Accepts `ax` parameter for custom axes.
+
+**Parameters:**
+- `data` (dict): Nested dict[expt][region][var] -> series dict
+- `expts_list` (list): List of experiment names to plot
+- `region` (str): Region name (e.g., 'global', 'Europe')
+- `outdir` (str, optional): Output directory for saved figure
+- `legend_labels` (dict, optional): Custom labels for experiments
+- `color_map` (dict, optional): Custom colors for experiments
+- `show` (bool): Whether to display interactively (default: False)
+- `exclude` (tuple): Variable prefixes to exclude (default: ('fracPFTs', 'frac'))
+- `ncols` (int): Number of columns in subplot grid (default: 3)
+- `ax` (Axes or array-like, optional): **NEW** Pre-existing axes to plot on
+
+**Returns:**
+- `fig` (Figure): The figure object
+- `axes` (ndarray): Array of Axes objects
+
+**Example:**
+```python
+from utils_cmip7.plotting import plot_timeseries_grouped
+
+# Auto-create figure
+fig, axes = plot_timeseries_grouped(
+    data, ['exp1', 'exp2'], 'global', outdir='./plots'
+)
+
+# Use custom axes
+import matplotlib.pyplot as plt
+fig, axes = plt.subplots(2, 3, figsize=(12, 8))
+plot_timeseries_grouped(data, ['exp1'], 'global', ax=axes)
+plt.savefig('custom_plot.png')
+```
+
+---
+
+#### `plot_pft_timeseries(data, expts_list, region, ...)`
+Plot PFT fraction time series for one region.
+
+**New in v0.2.2:** Accepts `ax` parameter.
+
+**Parameters:**
+- `data` (dict): dict[expt][region]["fracPFTs"]["PFT n"] -> series dict
+- `expts_list` (list): List of experiment names
+- `region` (str): Region name
+- `outdir` (str, optional): Output directory
+- `legend_labels` (dict, optional): Custom labels
+- `color_map` (dict, optional): Custom colors
+- `show` (bool): Display interactively (default: False)
+- `pfts` (tuple): PFT indices to plot (default: (1, 2, 3, 4, 5))
+- `ax` (Axes or array-like, optional): **NEW** Pre-existing axes
+
+**Returns:**
+- `fig` (Figure)
+- `axes` (ndarray)
+
+---
+
+### Spatial Plotting (`plotting.spatial`)
+
+#### `plot_regional_pie(data, varname, expt, year, ...)`
+Plot pie chart of a variable across regions for one experiment and year.
+
+**New in v0.2.2:** Accepts `ax` parameter.
+
+**Parameters:**
+- `data` (dict): dict[expt][region][var] -> series dict
+- `varname` (str): Variable name (e.g., 'GPP', 'soilResp')
+- `expt` (str): Experiment name
+- `year` (int): Year to plot
+- `outdir` (str, optional): Output directory
+- `legend_labels` (dict, optional): Custom labels
+- `show` (bool): Display interactively (default: False)
+- `ax` (Axes, optional): **NEW** Pre-existing axes
+
+**Returns:**
+- `fig` (Figure)
+- `ax` (Axes)
+
+**Example:**
+```python
+from utils_cmip7.plotting import plot_regional_pie
+
+plot_regional_pie(data, 'GPP', 'exp1', 2020, outdir='./plots')
+```
+
+---
+
+#### `plot_regional_pies(data, varname, expts_list, year, ...)`
+Plot side-by-side pie charts for multiple experiments.
+
+**New in v0.2.2:** Accepts `ax` parameter.
+
+**Parameters:**
+- `data` (dict): dict[expt][region][var] -> series dict
+- `varname` (str): Variable name
+- `expts_list` (list): List of experiment names
+- `year` (int): Year to plot
+- `outdir` (str, optional): Output directory
+- `legend_labels` (dict, optional): Custom labels
+- `show` (bool): Display interactively
+- `ax` (array-like of Axes, optional): **NEW** Pre-existing axes
+
+**Returns:**
+- `fig` (Figure)
+- `axes` (ndarray)
+
+---
+
+#### `plot_pft_grouped_bars(data, expts_list, year, ...)`
+Plot grouped bar charts for PFT fractions by region.
+
+**New in v0.2.2:** Accepts `ax` parameter.
+
+**Parameters:**
+- `data` (dict): dict[expt][region]["fracPFTs"]["PFT n"] -> series dict
+- `expts_list` (list): List of experiment names
+- `year` (int): Year to plot
+- `outdir` (str, optional): Output directory
+- `legend_labels` (dict, optional): Custom labels
+- `color_map` (dict, optional): Custom colors
+- `pfts` (tuple): PFT indices (default: (1, 2, 3, 4, 5))
+- `show` (bool): Display interactively
+- `ax` (array-like of Axes, optional): **NEW** Pre-existing axes
+
+**Returns:**
+- `fig` (Figure)
+- `axes` (ndarray)
+
+---
+
+### Styling Utilities (`plotting.styles`)
+
+#### `DEFAULT_LEGEND_LABELS`
+Dictionary of default legend labels for common experiments.
+
+```python
+{
+    "xqhsh": "PI LU COU spinup",
+    "xqhuc": "PI HadCM3 spinup",
+}
+```
+
+#### `DEFAULT_COLOR_MAP`
+Dictionary of default colors for experiments.
+
+```python
+{
+    "xqhsh": "k",
+    "xqhuc": "r",
+}
+```
+
+#### `group_vars_by_prefix(data, expts_list, region, exclude)`
+Group variables by their common prefix.
+
+**Parameters:**
+- `data` (dict): dict[expt][region][var] -> series dict
+- `expts_list` (list, optional): Experiments to consider
+- `region` (str): Region to extract from (default: 'global')
+- `exclude` (tuple): Prefixes to exclude (default: ('fracPFTs', 'frac'))
+
+**Returns:**
+- dict: Mapping prefix -> sorted list of variable names
+
+**Example:**
+```python
+from utils_cmip7.plotting import group_vars_by_prefix
+
+grouped = group_vars_by_prefix(data, ['exp1'], 'global')
+# {'GPP': ['GPP_flux', 'GPP_mean'], 'NPP': ['NPP'], ...}
+```
+
+---
+
+## Soil Parameters (`utils_cmip7.soil_params`)
+
+**New in v0.2.1.1**
+
+### `SoilParamSet` (dataclass)
+Structured representation of UM LAND_CC soil parameters.
+
+**Fields:**
+- Array parameters (list of 5 PFT values):
+  - `ALPHA` - Quantum efficiency
+  - `F0` - CI/CA for DQ=0
+  - `G_AREA` - Leaf turnover rate
+  - `LAI_MIN` - Minimum LAI
+  - `NL0` - Top leaf nitrogen concentration
+  - `R_GROW` - Growth respiration fraction
+  - `TLOW` - Lower temperature for photosynthesis
+  - `TUPP` - Upper temperature for photosynthesis
+- Scalar parameters:
+  - `Q10` - Q10 for soil respiration
+  - `V_CRIT_ALPHA` - Critical stem volume
+  - `KAPS` - Specific hydraulic conductivity
+- Metadata:
+  - `source` - Origin ('default', 'manual', 'file', 'log')
+  - `metadata` - Additional provenance information
+
+**Class Methods:**
+```python
+SoilParamSet.from_default()  # Use default values
+SoilParamSet.from_file(path)  # Load from JSON/YAML
+SoilParamSet.from_log_file(path)  # Parse UM/Rose log
+SoilParamSet.from_dict(data, source)  # From dictionary
+```
+
+**Instance Methods:**
+```python
+params.to_bl_subset(bl_index=0)  # Extract BL-tree parameters
+params.to_overview_table_format()  # For overview table columns
+params.to_dict()  # Convert to dictionary
+params.to_file(path)  # Save to JSON/YAML
+```
+
+**Example:**
+```python
+from utils_cmip7.soil_params import SoilParamSet
+
+# Load from UM log
+params = SoilParamSet.from_log_file('rose_log.txt')
+
+# Extract BL-tree parameters for overview table
+bl_params = params.to_overview_table_format()
+# {'ALPHA': 0.08, 'G_AREA': 0.004, ..., 'V_CRIT': 0.343}
+
+# Save to file
+params.to_file('soil_params.json')
+```
+
+---
+
+## Updated Stability Matrix (v0.2.2)
+
+| Component                | Stability     |
+|-------------------------|---------------|
+| Soil carbon diagnostics | Stable        |
+| Carbon flux diagnostics | Stable        |
+| Soil parameter management | Stable      |
+| Annual-mean processing  | Stable        |
+| Validation workflow     | Provisional   |
+| Plotting API            | Provisional   |
+| CLI interface           | Provisional   |
+| Raw data extraction     | Provisional   |
+
+---
+
+## Updated Version History
+
+- **v0.2.2** (2025-01-25): CLI and plotting refactor complete
+  - Added `cli.py` with two entry points: extract-preprocessed, extract-raw
+  - Refactored plotting: split into timeseries.py, spatial.py, styles.py
+  - All plotting functions now accept `ax` parameter for custom axes
+  - Backward-compatible wrappers maintained in root `plot.py`
+  - Documentation: added MIGRATION_GUIDE.md
+- **v0.2.1.1** (2025-01-25): Soil parameter tracking complete
+  - Added `soil_params/` module (params.py, parsers.py)
+  - Added `validation/overview_table.py` for PPE tracking
+  - Added `validation/outputs.py` for validation bundle writing
+  - Tests: test_soil_params_parser.py, test_overview_upsert.py
+- **v0.2.1**: Model validation framework complete
+  - Added `validation/` module (compare, visualize)
+  - Added `io/obs_loader.py` for CMIP6/RECCAP2 data loading
+  - Added `processing/metrics.py` for metric definitions
+  - Added `diagnostics/metrics.py` for regional metrics computation
+  - Three-way comparison visualization (UM vs CMIP6 vs RECCAP2)
+- **v0.2.0**: Core extraction functionality, package structure established
 - **v0.1.0**: Initial scripts and functions

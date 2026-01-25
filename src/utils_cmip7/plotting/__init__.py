@@ -1,9 +1,11 @@
 """
 Plotting module for utils_cmip7.
 
-Provides visualization functions for PPE validation and ensemble analysis.
+Provides visualization functions for PPE validation, ensemble analysis,
+time series plots, and spatial distribution plots.
 """
 
+# PPE validation and parameter analysis
 from .ppe_viz import (
     # Core plotting functions
     plot_score_histogram,
@@ -32,8 +34,28 @@ from .ppe_param_viz import (
     plot_embedding_pca,
 )
 
+# Time series plotting
+from .timeseries import (
+    plot_timeseries_grouped,
+    plot_pft_timeseries,
+)
+
+# Spatial distribution plotting
+from .spatial import (
+    plot_regional_pie,
+    plot_regional_pies,
+    plot_pft_grouped_bars,
+)
+
+# Styling utilities
+from .styles import (
+    DEFAULT_LEGEND_LABELS,
+    DEFAULT_COLOR_MAP,
+    group_vars_by_prefix,
+)
+
 __all__ = [
-    # Core plotting functions
+    # PPE validation plots
     'plot_score_histogram',
     'plot_score_ecdf',
     'plot_validation_heatmap',
@@ -55,4 +77,15 @@ __all__ = [
     'rf_permutation_importance',
     'plot_importance_bar',
     'plot_embedding_pca',
+    # Time series plotting
+    'plot_timeseries_grouped',
+    'plot_pft_timeseries',
+    # Spatial plotting
+    'plot_regional_pie',
+    'plot_regional_pies',
+    'plot_pft_grouped_bars',
+    # Styling
+    'DEFAULT_LEGEND_LABELS',
+    'DEFAULT_COLOR_MAP',
+    'group_vars_by_prefix',
 ]
