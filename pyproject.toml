@@ -48,6 +48,9 @@ docs = [
     "sphinx>=4.5",
     "sphinx-rtd-theme>=1.0",
 ]
+param-viz = [
+    "scikit-learn>=1.0",
+]
 
 [project.urls]
 Homepage = "https://github.com/Climateyousheng/utils_cmip7"

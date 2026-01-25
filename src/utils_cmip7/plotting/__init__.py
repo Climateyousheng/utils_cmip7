@@ -23,6 +23,15 @@ from .ppe_viz import (
     NormalizeConfig,
 )
 
+from .ppe_param_viz import (
+    # Parameter importance analysis
+    run_suite as run_param_importance_suite,
+    spearman_importance,
+    rf_permutation_importance,
+    plot_importance_bar,
+    plot_embedding_pca,
+)
+
 __all__ = [
     # Core plotting functions
     'plot_score_histogram',
@@ -40,4 +49,10 @@ __all__ = [
     'rank_by_score',
     'normalize_metrics_for_heatmap',
     'NormalizeConfig',
+    # Parameter importance
+    'run_param_importance_suite',
+    'spearman_importance',
+    'rf_permutation_importance',
+    'plot_importance_bar',
+    'plot_embedding_pca',
 ]

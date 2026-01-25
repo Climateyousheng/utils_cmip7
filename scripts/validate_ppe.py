@@ -9,6 +9,7 @@ Usage:
     python scripts/validate_ppe.py xqhuc
     python scripts/validate_ppe.py xqhuc --top-n 20 --top-k 40
     python scripts/validate_ppe.py xqhuc --highlight xqhua,xqhub
+    python scripts/validate_ppe.py xqhuc --param-viz --param-viz-vars GPP NPP CVeg
 
 Outputs:
     - validation_outputs/ppe_{expt}/
@@ -17,6 +18,14 @@ Outputs:
         ├── validation_heatmap.pdf      # Normalized metrics heatmap
         ├── parameter_shifts.pdf        # Parameter distribution shifts
         └── top_experiments.txt         # Text summary
+    - validation_outputs/param_viz_{expt}/ (if --param-viz)
+        ├── expanded_parameters.csv     # Expanded parameter matrix
+        ├── importance_spearman_{var}.csv  # Spearman correlations
+        ├── importance_rfperm_{var}.csv    # RF permutation importance
+        ├── bar_spearman_{var}.png         # Importance bar charts
+        ├── bar_rfperm_{var}.png
+        ├── pca_{var}.png                  # PCA embeddings
+        └── summary.json                   # Analysis metadata
 
 The specified experiment will automatically be highlighted in all plots.
 """
@@ -31,7 +40,7 @@ src_path = Path(__file__).parent.parent / 'src'
 if src_path.exists():
     sys.path.insert(0, str(src_path))
 
-from utils_cmip7.plotting import generate_ppe_validation_report
+from utils_cmip7.plotting import generate_ppe_validation_report, run_param_importance_suite
 
 
 def main():
@@ -45,6 +54,7 @@ Examples:
   python scripts/validate_ppe.py xqhuc
   python scripts/validate_ppe.py xqhuc --top-n 20 --top-k 40 --q 0.15
   python scripts/validate_ppe.py xqhuc --highlight xqhua,xqhub
+  python scripts/validate_ppe.py xqhuc --param-viz --param-viz-vars GPP NPP CVeg CSoil
 
 Output Structure:
   validation_outputs/ppe_{expt}/
@@ -174,6 +184,31 @@ The specified experiment will be automatically highlighted in all plots.
         help='Disable labels for highlighted experiments'
     )
 
+    # Parameter importance analysis
+    param_group = parser.add_argument_group('parameter importance analysis')
+    param_group.add_argument(
+        '--param-viz',
+        action='store_true',
+        help='Run parameter importance analysis (Spearman + RandomForest)'
+    )
+    param_group.add_argument(
+        '--param-viz-vars',
+        type=str,
+        nargs='+',
+        help='Variables to analyze (e.g., GPP NPP CVeg CSoil). If not specified, analyzes all skill columns.'
+    )
+    param_group.add_argument(
+        '--param-viz-method',
+        choices=['spearman', 'rf', 'both'],
+        default='both',
+        help='Importance method: spearman (fast), rf (slow, captures nonlinear), or both (default: both)'
+    )
+    param_group.add_argument(
+        '--param-viz-outdir',
+        type=str,
+        help='Output directory for parameter importance results (default: validation_outputs/param_viz_{expt})'
+    )
+
     args = parser.parse_args()
 
     # Validate inputs
@@ -216,6 +251,18 @@ The specified experiment will be automatically highlighted in all plots.
         highlight_style=args.highlight_style,
         highlight_label=args.highlight_label,
     )
+
+    # Run parameter importance analysis if requested
+    if args.param_viz:
+        param_viz_outdir = args.param_viz_outdir or f'{args.output_dir}/param_viz_{args.expt}'
+        run_param_importance_suite(
+            overview_csv=str(csv_path),
+            outdir=param_viz_outdir,
+            variables=args.param_viz_vars,
+            id_col=args.id_col if args.id_col else None,
+            param_cols=param_cols,
+            method=args.param_viz_method
+        )
 
 
 if __name__ == '__main__':
