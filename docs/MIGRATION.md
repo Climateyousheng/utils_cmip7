@@ -113,6 +113,171 @@ It may only compare, summarise, and visualise metric results.
 
 Any deviation from this separation is blocking technical debt.
 
+#### 6. Add new feature, update logs, and overview table
+
+Feature: require soil-parameter set per experiment + update PPE overview table
+
+Goal
+When validating an experiment, require an associated soil parameter set (flexible source: parsed from logs, or manually provided). After validation, upsert the experiment row into validation_outputs/random_sampling_combined_overview_table.csv, and write a per-experiment “single validation” output bundle under validation_outputs/ (directory name: single_val_<EXPT> or similar). Only store the Broadleaf (BL) tree parameter values in the overview table.
+
+Context (current repo)
+
+Existing overview table: validation/random_sampling_combined_overview_table.csv (rename validation/ → validation_outputs/ if/when that migration lands).
+
+Validation entrypoint script exists: scripts/validate_experiment.py.
+
+Package has src/utils_cmip7/validation/compare.py and src/utils_cmip7/processing/metrics.py/diagnostics/metrics.py.
+
+Required behaviour
+
+Soil parameter set is mandatory
+
+Validation must fail fast unless soil params are available from one of:
+
+--soil-params (manual override string or key=value list)
+
+--soil-param-file (YAML/JSON; preferred)
+
+--soil-log-file (parse UM/rose/namelist log containing &LAND_CC ... /)
+
+default &LAND_CC block (only used if user explicitly opts in: --use-default-soil-params)
+
+Default soil parameters (if opted in)
+Use this as the default full set:
+
+&LAND_CC
+ ALPHA=0.08,0.08,0.08,0.040,0.08,
+ F0=0.875,0.875,0.900,0.800,0.900,
+ G_AREA=0.004,0.004,0.10,0.10,0.05,
+ LAI_MIN=4.0,4.0,1.0,1.0,1.0,
+ NL0=0.050,0.030,0.060,0.030,0.030,
+ R_GROW=0.25,0.25,0.25,0.25,0.25,
+ TLOW=-0.0,-5.0,0.0,13.0,0.0,
+ TUPP=36.0,31.0,36.0,45.0,36.0,
+ Q10=2.0,
+ V_CRIT_ALPHA=0.343,
+ KAPS=5e-009,
+/
+
+
+Overview table updates (upsert)
+
+Read validation_outputs/random_sampling_combined_overview_table.csv
+
+Identify the row by experiment id column (use existing name; do not introduce a second id column)
+
+If experiment exists → update values
+
+If not → append a new row
+
+Persist in-place (atomic write: write temp file then replace)
+
+Only keep BL-tree parameter columns
+
+For array parameters, store only the BL value in the overview table (assume BL corresponds to index 0 unless your existing code defines otherwise; keep the BL-index mapping in one constant).
+
+Add/update only these columns (example names; match your CSV conventions):
+
+ALPHA_BL, F0_BL, G_AREA_BL, LAI_MIN_BL, NL0_BL, R_GROW_BL, TLOW_BL, TUPP_BL
+
+Scalars: Q10, V_CRIT_ALPHA, KAPS
+
+Do not write the other PFT entries to the overview table.
+
+Per-experiment validation bundle
+After validation completes, write an output directory under validation_outputs/:
+
+Directory: validation_outputs/single_val_<EXPT>/ (or single_validation_<EXPT>/—choose one and keep stable)
+
+Must include:
+
+soil_params.json (full structured params + source + BL-index mapping)
+
+metrics_global.csv and metrics_regional.csv (or whatever your canonical outputs are)
+
+validation_scores.csv (the row that is written/updated in the overview table, plus any extra internal columns)
+
+Naming requirement: do not name the directory exactly /single_val_{expt} if you already have conflicts; pick one stable convention and document it here.
+
+Implementation steps (actionable)
+
+A. Add soil parameter model + loaders
+
+New module: src/utils_cmip7/soil_params/params.py
+
+@dataclass SoilParamSet: stores full LAND_CC fields, plus source metadata
+
+Methods:
+
+from_default()
+
+from_dict()
+
+from_file(path)
+
+from_log_text(text) / from_log_file(path) (parse &LAND_CC ... /)
+
+Export helper: to_bl_subset(bl_index=0) -> dict[str, float]
+
+New module: src/utils_cmip7/soil_params/parsers.py
+
+Implement robust LAND_CC parser:
+
+find block start &LAND_CC
+
+accumulate until /
+
+parse scalars and comma-separated lists (strip trailing commas)
+
+Define one constant somewhere central:
+
+BL_INDEX = 0 (or a mapping if your PFT order differs)
+
+B. Wire into validation
+
+Update scripts/validate_experiment.py to require soil params:
+
+Add args: --soil-param-file, --soil-log-file, --soil-params, --use-default-soil-params
+
+Load SoilParamSet before running validation
+
+If missing and no default opt-in: exit non-zero with clear message
+
+Update/extend src/utils_cmip7/validation/:
+
+Add overview_table.py with:
+
+load_overview_table(path)
+
+upsert_overview_row(df, expt_id, bl_params, scores)
+
+write_atomic_csv(df, path)
+
+Called at the end of validation.
+
+C. Update output writing
+
+Add helper: src/utils_cmip7/validation/outputs.py
+
+write_single_validation_bundle(outdir, soil_params, metrics, scores)
+
+Ensure outdir = validation_outputs/<bundle_name> is created
+
+D. Add minimal tests
+
+tests/test_soil_params_parser.py
+
+parse the provided default block and validate keys + list lengths
+
+tests/test_overview_upsert.py
+
+upsert updates existing row and appends new row; BL columns only
+
+Notes / constraints
+
+Do not hardcode repo-relative paths for overview table; accept path argument with default validation_outputs/random_sampling_combined_overview_table.csv (but keep backward-compatible fallback to current validation/random_sampling_combined_overview_table.csv for one release if needed).
+
+Keep soil params flexible and provenance-aware (source = "default"|"manual"|"log"|"file").
 ## Medium Priority (v0.2.2 – v0.3.0)
 
 ### Plotting Refactor
