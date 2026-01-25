@@ -48,6 +48,33 @@ class NormalizeConfig:
 # Core utilities
 # -----------------------------
 
+def get_expt_col(df: pd.DataFrame) -> str:
+    """
+    Find experiment ID column in DataFrame.
+
+    Checks common column names in order: ID, expt, experiment, expt_id, runid.
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        DataFrame to search
+
+    Returns
+    -------
+    str
+        Name of experiment ID column
+
+    Raises
+    ------
+    ValueError
+        If no experiment ID column found
+    """
+    for col in ["ID", "expt", "experiment", "expt_id", "runid"]:
+        if col in df.columns:
+            return col
+    raise ValueError("No experiment ID column found. Expected one of: ID, expt, experiment, expt_id, runid")
+
+
 def read_table(csv_path: str) -> pd.DataFrame:
     """Read CSV into a DataFrame."""
     return pd.read_csv(csv_path)
@@ -126,6 +153,8 @@ def plot_score_histogram(
     bins: int = 40,
     title: Optional[str] = None,
     ax: Optional[plt.Axes] = None,
+    highlight_col: Optional[str] = None,
+    highlight_label: bool = True,
 ) -> plt.Axes:
     """
     Histogram of overall_score with vertical markers and a top-N label box.
@@ -140,20 +169,35 @@ def plot_score_histogram(
     ax.set_ylabel("Count")
     ax.set_title(title or f"Histogram of {score_col} (top-{top_n} labeled)")
 
-    # markers
+    # markers for top-N
     for _, r in top.iterrows():
         x = float(r[score_col])
-        ax.axvline(x, linewidth=1)
+        ax.axvline(x, linewidth=1, color='C0', alpha=0.5)
 
-    # labels
+    # markers and labels for highlighted experiments
+    has_highlight = highlight_col and highlight_col in df.columns
+    if has_highlight:
+        highlighted = df[df[highlight_col] == True]
+        for _, r in highlighted.iterrows():
+            x = float(r[score_col])
+            ax.axvline(x, linewidth=2.5, color='red', linestyle='--', zorder=10, alpha=0.8)
+            if highlight_label:
+                rid = format_run_id(r, fallback="?", id_col=id_col)
+                ylim = ax.get_ylim()
+                y_pos = ylim[1] * 0.85
+                ax.text(x, y_pos, rid, rotation=90, va='bottom', ha='right',
+                       fontsize=9, color='red', weight='bold')
+
+    # labels for top-N
     lines = []
-    for i, r in top.iterrows():
-        rid = format_run_id(r, fallback=f"rank{i+1}", id_col=id_col)
-        lines.append(f"{i+1:>2}. {rid}  {float(r[score_col]):.4g}")
+    for idx, (i, r) in enumerate(top.iterrows(), start=1):
+        rid = format_run_id(r, fallback=f"rank{idx}", id_col=id_col)
+        lines.append(f"{idx:>2}. {rid}  {float(r[score_col]):.4g}")
     ax.text(
         0.98, 0.98, "\n".join(lines),
         transform=ax.transAxes, va="top", ha="right",
         bbox=dict(boxstyle="round", facecolor="white", alpha=0.9),
+        fontsize=8,
     )
     return ax
 
@@ -165,6 +209,8 @@ def plot_score_ecdf(
     top_n: int = 15,
     title: Optional[str] = None,
     ax: Optional[plt.Axes] = None,
+    highlight_col: Optional[str] = None,
+    highlight_label: bool = True,
 ) -> plt.Axes:
     """
     ECDF of overall_score with top-N points labeled.
@@ -177,17 +223,31 @@ def plot_score_ecdf(
     xs = np.sort(scores)
     ys = np.arange(1, len(xs) + 1) / len(xs)
 
-    ax.plot(xs, ys)
+    ax.plot(xs, ys, color='C0')
     ax.set_xlabel(score_col)
     ax.set_ylabel("ECDF")
     ax.set_title(title or f"ECDF of {score_col} (top-{top_n} labeled)")
 
-    for i, r in top.iterrows():
+    # Plot top-N points
+    for idx, (i, r) in enumerate(top.iterrows(), start=1):
         x = float(r[score_col])
         y = np.searchsorted(xs, x, side="right") / len(xs)
-        rid = format_run_id(r, fallback=f"rank{i+1}", id_col=id_col)
-        ax.plot([x], [y], marker="o")
-        ax.annotate(f"{i+1}:{rid}", (x, y), textcoords="offset points", xytext=(5, 5), fontsize=8)
+        rid = format_run_id(r, fallback=f"rank{idx}", id_col=id_col)
+        ax.plot([x], [y], marker="o", color='C0')
+        ax.annotate(f"{idx}:{rid}", (x, y), textcoords="offset points", xytext=(5, 5), fontsize=8)
+
+    # Plot highlighted experiments
+    has_highlight = highlight_col and highlight_col in df.columns
+    if has_highlight:
+        highlighted = df[df[highlight_col] == True]
+        for _, r in highlighted.iterrows():
+            x = float(r[score_col])
+            y = np.searchsorted(xs, x, side="right") / len(xs)
+            ax.plot([x], [y], marker='*', markersize=12, color='red', zorder=10)
+            if highlight_label:
+                rid = format_run_id(r, fallback="?", id_col=id_col)
+                ax.annotate(f"★{rid}", (x, y), textcoords="offset points",
+                           xytext=(8, 8), fontsize=9, color='red', weight='bold')
 
     return ax
 
@@ -203,6 +263,9 @@ def plot_validation_heatmap(
     norm_cfg: NormalizeConfig = NormalizeConfig(),
     title: Optional[str] = None,
     ax: Optional[plt.Axes] = None,
+    highlight_col: Optional[str] = None,
+    highlight_style: str = 'both',
+    highlight_label: bool = True,
 ) -> plt.Axes:
     """
     Heatmap for top-k runs, normalized 0..1 per metric with 'higher=better'.
@@ -228,12 +291,23 @@ def plot_validation_heatmap(
     norm = normalize_metrics_for_heatmap(mat, invert_prefixes=invert_prefixes, norm_cfg=norm_cfg)
 
     ax = ax or plt.gca()
-    im = ax.imshow(norm.values, aspect="auto")
+    im = ax.imshow(norm.values, aspect="auto", cmap='RdYlGn')
+
+    # Check if highlighting is enabled
+    has_highlight = highlight_col and highlight_col in top.columns
 
     ylabels = [
         format_run_id(row, fallback=f"rank{i+1}", id_col=id_col)
         for i, row in top.iterrows()
     ]
+
+    # Add marker (*) to highlighted experiment labels
+    if has_highlight and highlight_label and (highlight_style in ['marker', 'rowcol', 'both']):
+        ylabels = [
+            f"{label} *" if row[highlight_col] else label
+            for label, (i, row) in zip(ylabels, top.iterrows())
+        ]
+
     ax.set_yticks(range(len(ylabels)))
     ax.set_yticklabels(ylabels)
 
@@ -242,6 +316,25 @@ def plot_validation_heatmap(
 
     ax.set_title(title or f"Top {top_k} runs: normalized validation metrics (higher=better)")
     plt.colorbar(im, ax=ax, label="Normalized goodness")
+
+    # Add row outlines for highlighted experiments
+    if has_highlight and (highlight_style in ['outline', 'rowcol', 'both']):
+        from matplotlib.patches import Rectangle
+        ncols = len(metrics_ordered)
+        for row_idx, (i, row) in enumerate(top.iterrows()):
+            if row[highlight_col]:
+                # Draw thick rectangle around highlighted row
+                rect = Rectangle(
+                    (-0.5, row_idx - 0.5),
+                    width=ncols,
+                    height=1,
+                    fill=False,
+                    edgecolor='red',
+                    linewidth=2.5,
+                    zorder=10
+                )
+                ax.add_patch(rect)
+
     return ax
 
 
@@ -302,16 +395,20 @@ def save_score_plots_pdf(
     id_col: Optional[str] = DEFAULT_ID_COL,
     top_n: int = 15,
     bins: int = 40,
+    highlight_col: Optional[str] = None,
+    highlight_label: bool = True,
 ) -> None:
     with PdfPages(out_pdf) as pdf:
         fig = plt.figure(figsize=(10, 6))
-        plot_score_histogram(df, score_col=score_col, id_col=id_col, top_n=top_n, bins=bins)
+        plot_score_histogram(df, score_col=score_col, id_col=id_col, top_n=top_n, bins=bins,
+                            highlight_col=highlight_col, highlight_label=highlight_label)
         fig.tight_layout()
         pdf.savefig(fig)
         plt.close(fig)
 
         fig = plt.figure(figsize=(10, 6))
-        plot_score_ecdf(df, score_col=score_col, id_col=id_col, top_n=top_n)
+        plot_score_ecdf(df, score_col=score_col, id_col=id_col, top_n=top_n,
+                       highlight_col=highlight_col, highlight_label=highlight_label)
         fig.tight_layout()
         pdf.savefig(fig)
         plt.close(fig)
@@ -327,6 +424,9 @@ def save_heatmap_pdf(
     metrics: Optional[Sequence[str]] = None,
     invert_prefixes: Sequence[str] = DEFAULT_RMSE_PREFIXES,
     norm_cfg: NormalizeConfig = NormalizeConfig(),
+    highlight_col: Optional[str] = None,
+    highlight_style: str = 'both',
+    highlight_label: bool = True,
 ) -> None:
     fig_width = max(10, 0.35 * (len(metrics) if metrics else 25))
     fig_height = max(6, 0.30 * top_k + 2)
@@ -341,6 +441,9 @@ def save_heatmap_pdf(
             metrics=metrics,
             invert_prefixes=invert_prefixes,
             norm_cfg=norm_cfg,
+            highlight_col=highlight_col,
+            highlight_style=highlight_style,
+            highlight_label=highlight_label,
         )
         fig.tight_layout()
         pdf.savefig(fig)
@@ -377,6 +480,10 @@ def generate_ppe_validation_report(
     id_col: Optional[str] = DEFAULT_ID_COL,
     param_cols: Sequence[str] = DEFAULT_PARAM_COLS,
     bins: int = 40,
+    highlight_expts: Optional[List[str]] = None,
+    include_highlight: bool = True,
+    highlight_style: str = 'both',
+    highlight_label: bool = True,
 ) -> None:
     """
     Generate complete PPE validation report in validation_outputs structure.
@@ -403,6 +510,14 @@ def generate_ppe_validation_report(
         Parameter column names to analyze
     bins : int
         Number of bins for histograms
+    highlight_expts : List[str], optional
+        Experiment IDs to highlight in plots
+    include_highlight : bool
+        Force-include highlighted experiments even if filtered out (default: True)
+    highlight_style : str
+        Highlight style for heatmaps: 'outline', 'marker', 'rowcol', or 'both' (default: 'both')
+    highlight_label : bool
+        Add labels to highlighted experiments (default: True)
 
     Creates
     -------
@@ -411,7 +526,8 @@ def generate_ppe_validation_report(
         ├── score_distribution.pdf      # Histogram + ECDF
         ├── validation_heatmap.pdf      # Normalized metrics
         ├── parameter_shifts.pdf        # Top vs bottom comparisons
-        └── top_experiments.txt         # Text summary
+        ├── top_experiments.txt         # Text summary
+        └── highlighted_expts.csv       # Highlighted experiments (if --highlight used)
     """
     from pathlib import Path
     import shutil
@@ -430,8 +546,55 @@ def generate_ppe_validation_report(
     print(f"✓ Copied input CSV to ensemble_table.csv")
 
     # Read data
-    df = read_table(csv_path)
-    print(f"✓ Loaded {len(df)} experiments from CSV")
+    df_all = read_table(csv_path)
+    print(f"✓ Loaded {len(df_all)} experiments from CSV")
+
+    # Apply highlight filtering logic
+    if highlight_expts:
+        # Find experiment ID column
+        expt_col = get_expt_col(df_all) if id_col is None else id_col
+
+        # Create highlight set
+        highlight_set = set(highlight_expts)
+
+        # Filter to top-K (this is the "existing filter" in the instructions)
+        df_ranked = rank_by_score(df_all, score_col=score_col, descending=True)
+        df_plot = df_ranked.head(top_k).copy()
+
+        # Find highlighted experiments in full dataset
+        df_highlighted = df_all[df_all[expt_col].isin(highlight_set)].copy()
+
+        # Force-include highlighted experiments if requested
+        if include_highlight and not df_highlighted.empty:
+            # Append highlighted expts that aren't already in df_plot
+            already_included = df_plot[expt_col].isin(highlight_set)
+            missing_highlights = df_highlighted[~df_highlighted[expt_col].isin(df_plot[expt_col])]
+
+            if not missing_highlights.empty:
+                df_plot = pd.concat([df_plot, missing_highlights], ignore_index=True)
+                print(f"  ✓ Force-included {len(missing_highlights)} highlighted experiments")
+
+        # Mark highlighted experiments
+        df_plot['_highlight'] = df_plot[expt_col].isin(highlight_set)
+
+        # Warn about missing highlights
+        found_highlights = df_all[expt_col].isin(highlight_set).sum()
+        if found_highlights < len(highlight_set):
+            missing = highlight_set - set(df_all[expt_col])
+            print(f"  ⚠ Warning: {len(missing)} highlighted experiments not found in CSV: {missing}")
+
+        # Export highlighted experiments separately
+        if not df_highlighted.empty:
+            highlighted_path = outdir / "highlighted_expts.csv"
+            df_highlighted.to_csv(highlighted_path, index=False, float_format='%.5f')
+            print(f"  ✓ Exported {len(df_highlighted)} highlighted experiments to highlighted_expts.csv")
+
+        df = df_plot
+        highlight_col_name = '_highlight'
+    else:
+        # No highlighting - use standard filtering
+        df = rank_by_score(df_all, score_col=score_col, descending=True)
+        highlight_col_name = None
 
     # Generate plots
     print("\nGenerating visualizations...")
@@ -444,6 +607,8 @@ def generate_ppe_validation_report(
         id_col=id_col,
         top_n=top_n,
         bins=bins,
+        highlight_col=highlight_col_name,
+        highlight_label=highlight_label,
     )
     print(f"  ✓ Score distribution plots")
 
@@ -453,12 +618,15 @@ def generate_ppe_validation_report(
         score_col=score_col,
         id_col=id_col,
         param_cols=param_cols,
-        top_k=top_k,
+        top_k=len(df),  # Use all experiments in df (includes highlighted)
+        highlight_col=highlight_col_name,
+        highlight_style=highlight_style,
+        highlight_label=highlight_label,
     )
-    print(f"  ✓ Validation heatmap (top {top_k})")
+    print(f"  ✓ Validation heatmap ({len(df)} experiments)")
 
     save_shift_plots_pdf(
-        df,
+        df_all,  # Use full dataset for shift analysis
         str(outdir / "parameter_shifts.pdf"),
         score_col=score_col,
         param_cols=param_cols,
@@ -476,7 +644,8 @@ def generate_ppe_validation_report(
     with open(summary_path, "w") as f:
         f.write(f"PPE Validation Report: {ensemble_name}\n")
         f.write("=" * 80 + "\n\n")
-        f.write(f"Total experiments: {len(df)}\n")
+        f.write(f"Total experiments in dataset: {len(df_all)}\n")
+        f.write(f"Experiments in visualizations: {len(df)}\n")
         f.write(f"Score column: {score_col}\n\n")
 
         f.write(f"Top {top_n} Experiments:\n")
@@ -486,14 +655,14 @@ def generate_ppe_validation_report(
             f.write(f"{idx:>3}. Score={row[score_col]:.6f}  ID={rid}\n")
 
         f.write("\n" + "=" * 80 + "\n")
-        f.write("Score Statistics:\n")
+        f.write("Score Statistics (Full Dataset):\n")
         f.write("-" * 80 + "\n")
-        scores = pd.to_numeric(df[score_col], errors="coerce").dropna()
-        f.write(f"Mean:   {scores.mean():.6f}\n")
-        f.write(f"Median: {scores.median():.6f}\n")
-        f.write(f"Std:    {scores.std():.6f}\n")
-        f.write(f"Min:    {scores.min():.6f}\n")
-        f.write(f"Max:    {scores.max():.6f}\n")
+        scores_all = pd.to_numeric(df_all[score_col], errors="coerce").dropna()
+        f.write(f"Mean:   {scores_all.mean():.6f}\n")
+        f.write(f"Median: {scores_all.median():.6f}\n")
+        f.write(f"Std:    {scores_all.std():.6f}\n")
+        f.write(f"Min:    {scores_all.min():.6f}\n")
+        f.write(f"Max:    {scores_all.max():.6f}\n")
 
         f.write("\n" + "=" * 80 + "\n")
         f.write("Files Generated:\n")

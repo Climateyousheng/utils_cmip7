@@ -128,6 +128,45 @@ Input CSV Format:
         help='Number of bins for histograms (default: 40)'
     )
 
+    # Experiment highlighting arguments
+    highlight_group = parser.add_argument_group('experiment highlighting')
+    highlight_group.add_argument(
+        '--highlight',
+        type=str,
+        action='append',
+        help='Experiment(s) to highlight (can be comma-separated or repeated). Example: --highlight xqhuc --highlight xqhua'
+    )
+    highlight_group.add_argument(
+        '--include-highlight',
+        action='store_true',
+        default=True,
+        help='Force-include highlighted experiments even if filtered out (default: True)'
+    )
+    highlight_group.add_argument(
+        '--no-include-highlight',
+        dest='include_highlight',
+        action='store_false',
+        help='Do not force-include highlighted experiments'
+    )
+    highlight_group.add_argument(
+        '--highlight-style',
+        choices=['outline', 'marker', 'rowcol', 'both'],
+        default='both',
+        help='Highlight style for heatmaps (default: both)'
+    )
+    highlight_group.add_argument(
+        '--highlight-label',
+        action='store_true',
+        default=True,
+        help='Add labels to highlighted experiments (default: True)'
+    )
+    highlight_group.add_argument(
+        '--no-highlight-label',
+        dest='highlight_label',
+        action='store_false',
+        help='Disable labels for highlighted experiments'
+    )
+
     args = parser.parse_args()
 
     # Validate inputs
@@ -143,6 +182,13 @@ Input CSV Format:
     # Parse parameter columns
     param_cols = [c.strip() for c in args.param_cols.split(',') if c.strip()]
 
+    # Parse highlight experiments
+    highlight_expts = []
+    if args.highlight:
+        for h in args.highlight:
+            # Support comma-separated lists
+            highlight_expts.extend([e.strip() for e in h.split(',') if e.strip()])
+
     # Generate report
     generate_ppe_validation_report(
         csv_path=str(csv_path),
@@ -155,6 +201,10 @@ Input CSV Format:
         id_col=args.id_col if args.id_col else None,
         param_cols=param_cols,
         bins=args.bins,
+        highlight_expts=highlight_expts if highlight_expts else None,
+        include_highlight=args.include_highlight,
+        highlight_style=args.highlight_style,
+        highlight_label=args.highlight_label,
     )
 
 
