@@ -69,7 +69,8 @@ Input CSV Format:
         '--csv',
         type=str,
         required=True,
-        help='Path to ensemble results CSV file'
+        help='Path to ensemble results CSV file',
+        default='validation_outputs/random_sampling_combined_overview_table.csv'
     )
     parser.add_argument(
         '--name',
