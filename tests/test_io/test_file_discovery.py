@@ -98,9 +98,9 @@ class TestFindMatchingFiles:
             "xqhuja#pi000001851ja+",  # January 1851 (alpha)
             "xqhuja#pi00000185111+",  # January 1851 (numeric)
             "xqhuja#pi00000185191+",  # September 1851 (numeric)
-            "xqhuja#pi00000185 1a1+",  # October 1851 (hex-like)
-            "xqhuja#pi00000185 1b1+",  # November 1851 (hex-like)
-            "xqhuja#pi00000185 1c1+",  # December 1851 (hex-like)
+            "xqhuja#pi000001851a1+",  # October 1851 (hex-like)
+            "xqhuja#pi000001851b1+",  # November 1851 (hex-like)
+            "xqhuja#pi000001851c1+",  # December 1851 (hex-like)
             "xqhuja#pi000001852ja+",  # January 1852 (alpha)
             "other_file.txt",          # Non-matching file
         ]
@@ -118,6 +118,7 @@ class TestFindMatchingFiles:
         )
 
         # Should find 10 matching files (excluding "other_file.txt")
+        # Note: Files with spaces in year (185 1) won't match the regex pattern
         assert len(files) == 10
 
         # Check structure: list of (year, month, path) tuples
