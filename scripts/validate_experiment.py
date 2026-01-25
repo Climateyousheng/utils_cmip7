@@ -692,18 +692,19 @@ def main():
         if metric in um_metrics and 'global' in um_metrics[metric]:
             scores[metric] = np.mean(um_metrics[metric]['global']['data'])
 
-    # Regional metrics (specific regions needed for overview table)
-    region_map = {
-        'Tr30SN': 'Temperate North',
-        'Tr30-90N': 'Boreal North',
-        'AMZTrees': 'South America Tropical'
-    }
-    for col_name, region_name in region_map.items():
-        # Try to get CVeg for these regions (or use a representative metric)
-        if 'CVeg' in um_metrics and region_name in um_metrics['CVeg']:
-            scores[col_name] = np.mean(um_metrics['CVeg'][region_name]['data'])
-        else:
-            scores[col_name] = np.nan
+    # Regional tree metrics (extracted from frac_data during extraction)
+    # These are stored in raw_data under 'frac' for the global region
+    if expt in raw_data and 'global' in raw_data[expt] and 'frac' in raw_data[expt]['global']:
+        frac_data = raw_data[expt]['global']['frac']
+        for metric_name in ['Tr30SN', 'Tr30-90N', 'AMZTrees']:
+            if metric_name in frac_data and 'data' in frac_data[metric_name]:
+                scores[metric_name] = np.mean(frac_data[metric_name]['data'])
+            else:
+                scores[metric_name] = np.nan
+    else:
+        # Fallback if regional tree metrics not available
+        for metric_name in ['Tr30SN', 'Tr30-90N', 'AMZTrees']:
+            scores[metric_name] = np.nan
 
     # Global mean vegetation fractions
     for pft_name in ['BL', 'NL', 'C3', 'C4', 'bare_soil']:

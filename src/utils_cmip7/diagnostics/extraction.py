@@ -25,12 +25,62 @@ from iris import Constraint
 
 from ..io import stash, try_extract
 from ..processing.regional import load_reccap_mask, compute_regional_annual_mean
+from iris.analysis.cartography import area_weights
 from ..config import (
     DEFAULT_VAR_LIST,
     resolve_variable_name,
     get_variable_config,
     get_conversion_key,
 )
+
+
+def compute_latlon_box_mean(cube, lon_bounds, lat_bounds):
+    """
+    Compute area-weighted mean for a lat/lon bounding box.
+
+    Parameters
+    ----------
+    cube : iris.cube.Cube
+        Input cube with lat/lon dimensions
+    lon_bounds : tuple of float
+        (lon_min, lon_max) in degrees East (0-360)
+    lat_bounds : tuple of float
+        (lat_min, lat_max) in degrees North (-90 to 90)
+
+    Returns
+    -------
+    iris.cube.Cube
+        Spatially collapsed cube (area-weighted mean over box)
+    """
+    # Extract lat/lon box
+    lon_constraint = Constraint(
+        longitude=lambda cell: lon_bounds[0] <= cell <= lon_bounds[1]
+    )
+    lat_constraint = Constraint(
+        latitude=lambda cell: lat_bounds[0] <= cell <= lat_bounds[1]
+    )
+
+    regional_cube = cube.extract(lon_constraint & lat_constraint)
+
+    if regional_cube is None:
+        raise ValueError(f"No data found in box lon={lon_bounds}, lat={lat_bounds}")
+
+    # Ensure bounds exist for area weighting
+    if not regional_cube.coord('latitude').has_bounds():
+        regional_cube.coord('latitude').guess_bounds()
+    if not regional_cube.coord('longitude').has_bounds():
+        regional_cube.coord('longitude').guess_bounds()
+
+    # Compute area weights
+    weights = area_weights(regional_cube)
+
+    # Collapse spatial dimensions
+    regional_cube.data = np.ma.masked_invalid(regional_cube.data)
+    mean_cube = regional_cube.collapsed(['latitude', 'longitude'],
+                                        iris.analysis.MEAN,
+                                        weights=weights)
+
+    return mean_cube
 
 
 def extract_annual_means(expts_list, var_list=None, var_mapping=None, regions=None, base_dir='~/annual_mean'):
@@ -307,6 +357,57 @@ def extract_annual_means(expts_list, var_list=None, var_mapping=None, regions=No
                         # Close IGBP dataset if opened
                         if igbp_ds is not None:
                             igbp_ds.close()
+
+                        # Compute custom regional tree metrics (global region only)
+                        if region == 'global' and 'PFT 1' in frac_data and 'PFT 2' in frac_data:
+                            try:
+                                # Amazon trees: 290-320°E, 15°S-5°N (BL + NL)
+                                bl_cube = cube.extract(Constraint(coord_values={'generic': 1}))  # BL
+                                nl_cube = cube.extract(Constraint(coord_values={'generic': 2}))  # NL
+
+                                if bl_cube and nl_cube:
+                                    # Amazon
+                                    bl_amz = compute_latlon_box_mean(bl_cube, (290, 320), (-15, 5))
+                                    nl_amz = compute_latlon_box_mean(nl_cube, (290, 320), (-15, 5))
+                                    amz_trees = bl_amz + nl_amz
+                                    amz_output = {
+                                        'years': frac_data['PFT 1']['years'],
+                                        'data': amz_trees.data,
+                                        'units': 'fraction',
+                                        'name': 'AMZTrees',
+                                        'region': 'Amazon (290-320E, 15S-5N)'
+                                    }
+                                    frac_data['AMZTrees'] = amz_output
+
+                                    # Subtropical trees: 0-360°E, 30°S-30°N (BL + NL)
+                                    bl_trop = compute_latlon_box_mean(bl_cube, (0, 360), (-30, 30))
+                                    nl_trop = compute_latlon_box_mean(nl_cube, (0, 360), (-30, 30))
+                                    trop_trees = bl_trop + nl_trop
+                                    trop_output = {
+                                        'years': frac_data['PFT 1']['years'],
+                                        'data': trop_trees.data,
+                                        'units': 'fraction',
+                                        'name': 'Tr30SN',
+                                        'region': 'Subtropical (30S-30N)'
+                                    }
+                                    frac_data['Tr30SN'] = trop_output
+
+                                    # NH trees: 0-360°E, 30°N-90°N (BL + NL)
+                                    # Note: Using 30-60N as per code snippet (adjust if needed)
+                                    bl_nh = compute_latlon_box_mean(bl_cube, (0, 360), (30, 60))
+                                    nl_nh = compute_latlon_box_mean(nl_cube, (0, 360), (30, 60))
+                                    nh_trees = bl_nh + nl_nh
+                                    nh_output = {
+                                        'years': frac_data['PFT 1']['years'],
+                                        'data': nh_trees.data,
+                                        'units': 'fraction',
+                                        'name': 'Tr30-90N',
+                                        'region': 'NH (30N-60N)'
+                                    }
+                                    frac_data['Tr30-90N'] = nh_output
+
+                            except Exception as e:
+                                print(f"  ⚠ Warning: Failed to compute regional tree metrics: {e}")
 
                         # Only add frac data if at least one PFT was successfully extracted
                         if frac_data:
