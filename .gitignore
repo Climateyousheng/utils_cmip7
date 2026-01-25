@@ -50,3 +50,4 @@ output/
 venv/
 env/
 ENV/
+.venv/
