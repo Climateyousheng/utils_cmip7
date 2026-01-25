@@ -60,6 +60,8 @@ Issues = "https://github.com/Climateyousheng/utils_cmip7/issues"
 [project.scripts]
 utils-cmip7-extract-raw = "utils_cmip7.cli:extract_raw_cli"
 utils-cmip7-extract-preprocessed = "utils_cmip7.cli:extract_preprocessed_cli"
+utils-cmip7-validate-experiment = "utils_cmip7.cli:validate_experiment_cli"
+utils-cmip7-validate-ppe = "utils_cmip7.cli:validate_ppe_cli"
 
 [tool.setuptools]
 package-dir = {"" = "src"}

@@ -1327,3 +1327,121 @@ params.to_file('soil_params.json')
   - Three-way comparison visualization (UM vs CMIP6 vs RECCAP2)
 - **v0.2.0**: Core extraction functionality, package structure established
 - **v0.1.0**: Initial scripts and functions
+
+---
+
+#### `utils-cmip7-validate-experiment`
+Validate a single UM experiment against CMIP6 and RECCAP2 observations.
+
+**Usage:**
+```bash
+utils-cmip7-validate-experiment xqhuc --use-default-soil-params
+utils-cmip7-validate-experiment xqhuc --soil-log-file rose.log
+utils-cmip7-validate-experiment xqhuc --soil-param-file params.json --base-dir ~/annual_mean
+```
+
+**Arguments:**
+- `expt` - Experiment name (required)
+- `--base-dir` - Base directory containing annual mean files (default: `~/annual_mean`)
+
+**Soil Parameters (REQUIRED - one of):**
+- `--soil-param-file FILE` - JSON/YAML parameter file
+- `--soil-log-file FILE` - UM/Rose log with &LAND_CC block
+- `--soil-params KEY=VAL,...` - Manual parameters
+- `--use-default-soil-params` - Use default LAND_CC values
+
+**Output:**
+Creates `validation_outputs/single_val_{expt}/` containing:
+- Metrics CSV files (UM results including vegetation fractions)
+- Bias statistics vs CMIP6/RECCAP2/IGBP
+- Comparison plots (three-way comparisons, heatmaps, time series)
+- Soil parameters JSON (full provenance)
+- Validation scores CSV
+- Summary text file
+
+**Variables Validated:**
+- Carbon cycle: GPP, NPP, CVeg, CSoil, Tau
+- Vegetation fractions: BL, NL, C3, C4, shrub, bare_soil
+
+**Observational Datasets:**
+- CMIP6 ensemble (mean + uncertainty)
+- RECCAP2 regional observations
+- IGBP vegetation fractions
+
+---
+
+#### `utils-cmip7-validate-ppe`
+Generate PPE (Perturbed Physics Ensemble) validation report with comprehensive visualizations.
+
+**Usage:**
+```bash
+utils-cmip7-validate-ppe xqhuc
+utils-cmip7-validate-ppe xqhuc --top-n 20 --top-k 40
+utils-cmip7-validate-ppe xqhuc --highlight xqhua,xqhub
+utils-cmip7-validate-ppe xqhuc --param-viz --param-viz-vars GPP NPP CVeg CSoil
+```
+
+**Arguments:**
+- `expt` - Experiment ID to validate (highlighted in all plots, required)
+- `--csv` - Path to ensemble results CSV (default: `validation_outputs/random_sampling_combined_overview_table.csv`)
+- `--output-dir` - Base output directory (default: `validation_outputs`)
+- `--top-n` - Number of top experiments to highlight in score plots (default: 15)
+- `--top-k` - Number of experiments to show in heatmap (default: 30)
+- `--q` - Quantile for parameter shift analysis (default: 0.10)
+- `--score-col` - Column name for ranking score (default: `overall_score`)
+- `--id-col` - Column name for experiment ID (default: `ID`)
+- `--param-cols` - Comma-separated parameter column names (default: soil params)
+- `--bins` - Number of bins for histograms (default: 40)
+
+**Experiment Highlighting:**
+- `--highlight` - Additional experiments to highlight (can be repeated)
+- `--include-highlight` / `--no-include-highlight` - Force-include highlighted experiments (default: True)
+- `--highlight-style` - Highlight style: outline, marker, rowcol, both (default: both)
+- `--highlight-label` / `--no-highlight-label` - Add labels to highlighted experiments (default: True)
+
+**Parameter Importance Analysis:**
+- `--param-viz` - Run parameter importance analysis (Spearman + RandomForest)
+- `--param-viz-vars` - Variables to analyze (e.g., GPP NPP CVeg). If not specified, analyzes all.
+
+**Output Structure:**
+```
+validation_outputs/ppe_{expt}/
+├── ensemble_table.csv          # Input data copy
+├── score_distribution.pdf      # Score histogram + ECDF with top-N labels
+├── validation_heatmap.pdf      # Normalized metrics for top-K experiments
+├── parameter_shifts.pdf        # Parameter distributions (top vs bottom quantile)
+└── top_experiments.txt         # Text summary with statistics
+```
+
+If `--param-viz` is enabled, also creates:
+```
+validation_outputs/param_viz_{expt}/
+├── expanded_parameters.csv     # Expanded parameter matrix
+├── importance_spearman_{var}.csv  # Spearman correlations per variable
+├── importance_rfperm_{var}.csv    # RF permutation importance per variable
+├── bar_spearman_{var}.png         # Importance bar charts
+├── bar_rfperm_{var}.png
+├── pca_{var}.png                  # PCA embeddings colored by variable
+└── summary.json                   # Analysis metadata
+```
+
+**Input CSV Format:**
+- Required column: `overall_score` (or specify with `--score-col`)
+- Optional column: `ID` (or specify with `--id-col`)
+- Parameter columns: ALPHA, G_AREA, LAI_MIN, NL0, R_GROW, TLOW, TUPP, V_CRIT, etc.
+- Metric columns: any numeric columns (e.g., rmse_GPP, rmse_NPP, GM_BL, etc.)
+- RMSE metrics (prefixed with `rmse_`) are automatically inverted in heatmap
+
+**Example Workflow:**
+```bash
+# 1. Validate individual experiments
+utils-cmip7-validate-experiment xqhuc --use-default-soil-params
+utils-cmip7-validate-experiment xqhua --soil-log-file logs/xqhua.log
+
+# 2. Generate PPE report comparing all experiments
+utils-cmip7-validate-ppe xqhuc --top-n 20 --top-k 50
+
+# 3. Run parameter importance analysis
+utils-cmip7-validate-ppe xqhuc --param-viz --param-viz-vars GPP NPP CVeg CSoil
+```
+

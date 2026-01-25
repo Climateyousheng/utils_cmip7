@@ -51,9 +51,17 @@ utils-cmip7-extract-preprocessed xqhuc
 # Extract from raw monthly files
 utils-cmip7-extract-raw xqhuj --start-year 2000 --end-year 2010
 
+# Validate single experiment (requires soil parameters)
+utils-cmip7-validate-experiment xqhuc --use-default-soil-params
+
+# Generate PPE validation report
+utils-cmip7-validate-ppe xqhuc --top-n 20
+
 # Get help
 utils-cmip7-extract-preprocessed --help
 utils-cmip7-extract-raw --help
+utils-cmip7-validate-experiment --help
+utils-cmip7-validate-ppe --help
 ```
 
 ### 3. Soil Parameters (v0.2.1.1+)
