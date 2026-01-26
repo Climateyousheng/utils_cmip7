@@ -305,6 +305,330 @@ LAI_MIN:  0.15   (moderate importance)
 
 ---
 
+## Method 3: PCA (Principal Component Analysis) Embedding
+
+**What it is:**
+- Dimensionality reduction technique
+- Projects high-dimensional parameter space onto 2D for visualization
+- Reveals **clusters**, **trade-offs**, and **parameter space geometry**
+
+**Location:** `ppe_param_viz.py:311-342`
+
+### The Problem: High-Dimensional Parameter Space
+
+**Example scenario:**
+```
+8 soil parameters (ALPHA, G_AREA, LAI_MIN, NL0, R_GROW, TLOW, TUPP, V_CRIT)
+→ 8-dimensional space (impossible to visualize!)
+
+How do we see:
+- Are there clusters of similar experiments?
+- Do high-skill and low-skill experiments group together?
+- What trade-offs exist in parameter space?
+```
+
+### How PCA Works (Conceptual)
+
+**Step 1: Standardize parameters** (mean=0, std=1)
+```
+ALPHA: [0.06, 0.08, 0.10] → [-1.0, 0.0, 1.0]
+G_AREA: [0.003, 0.004, 0.005] → [-1.0, 0.0, 1.0]
+... (all parameters)
+```
+*Why:* Parameters have different scales (ALPHA ~0.1, G_AREA ~0.004). Standardization ensures no parameter dominates just because of its scale.
+
+**Step 2: Find principal components (PCs)**
+
+PCs are **new axes** that capture maximum variance:
+
+```
+Original 8D space:
+  - Axis 1: ALPHA
+  - Axis 2: G_AREA
+  - Axis 3: LAI_MIN
+  - ...
+  - Axis 8: V_CRIT
+
+New 2D space:
+  - PC1: 0.45·ALPHA + 0.38·G_AREA + 0.30·LAI_MIN + ... (combination of all)
+  - PC2: -0.20·ALPHA + 0.52·G_AREA - 0.35·LAI_MIN + ... (different combination)
+```
+
+**Key insight:** PC1 is the direction with **most variation** in the data, PC2 is the next most important direction (perpendicular to PC1).
+
+**Step 3: Project experiments onto PC1-PC2 plane**
+
+Each experiment's 8D parameter vector gets compressed to 2D coordinates:
+```
+Experiment xqhuc: [ALPHA=0.08, G_AREA=0.004, ...] → (PC1=-1.2, PC2=0.5)
+Experiment xqhsh: [ALPHA=0.10, G_AREA=0.003, ...] → (PC1=0.8, PC2=-0.3)
+...
+```
+
+**Step 4: Color by skill score**
+
+Plot (PC1, PC2) coordinates, color each point by GPP skill:
+- Green = high skill
+- Yellow = medium skill
+- Red = low skill
+
+### What PCA Reveals
+
+#### 1. **Clusters of Similar Experiments**
+
+**Example visualization:**
+```
+      PC2
+       ↑
+   *   |   *
+ *  *  |  *  *    ← Cluster A: Low ALPHA, high G_AREA
+---*---+---*-------→ PC1
+     * | *
+      *|*           ← Cluster B: High ALPHA, low G_AREA
+```
+
+**Interpretation:**
+- Experiments cluster in parameter space
+- Clusters might represent different "strategies" or parameter regimes
+- Useful for sampling design: Are we covering the full parameter space?
+
+#### 2. **Skill Patterns in Parameter Space**
+
+**Example: All green dots on the right, red on the left:**
+```
+      PC2
+       ↑
+   🔴  |  🟢
+  🔴🔴 | 🟢🟢    ← High-skill experiments
+---🔴--+--🟢------→ PC1
+     🔴|🟢
+      🔴|🟢        ← Low-skill experiments
+```
+
+**Interpretation:**
+- High PC1 values → Good skill
+- PC1 likely represents a combination of parameters that drive performance
+- Can inspect PC1 loadings to see which parameters contribute most
+
+#### 3. **Trade-offs and Frontiers**
+
+**Example: Skill varies along a curve:**
+```
+      PC2
+       ↑
+   🟢  |  🔴
+  🟡🟢 | 🔴🔴    ← Trade-off frontier
+---🟡--+--🔴------→ PC1
+     🟡|🟢
+      🟢|🟡
+```
+
+**Interpretation:**
+- Curved pattern suggests **nonlinear relationships**
+- Sweet spot might be in the middle (🟢 green region)
+- Extreme parameter combinations (corners) perform poorly
+
+#### 4. **Outliers and Anomalies**
+
+**Example: One experiment far from others:**
+```
+      PC2
+       ↑
+   *   |   *
+  * *  |  * *
+--*-*--+--*-*-----→ PC1
+     * | *
+      *|*
+
+       ⭐ (far away)
+```
+
+**Interpretation:**
+- Outlier has unusual parameter combination
+- Could be:
+  - Data quality issue
+  - Interesting edge case
+  - Numerical instability region
+
+### PCA Plot Interpretation Guide
+
+#### **Variance Explained**
+
+PCA output includes variance explained by each PC:
+```
+PC1: 45% of variance
+PC2: 23% of variance
+→ Total: 68% captured in 2D plot
+```
+
+**What this means:**
+- 68% of parameter variation is visible in the plot
+- 32% is in remaining 6 dimensions (hidden)
+- Higher % = more reliable 2D representation
+
+**Guidelines:**
+- >70%: Excellent 2D representation
+- 50-70%: Good, captures main patterns
+- <50%: 2D plot misses important structure
+
+#### **PC Loadings (What each PC represents)**
+
+Example loadings for PC1:
+```
+PC1 = 0.45·ALPHA + 0.38·G_AREA + 0.30·LAI_MIN + 0.15·NL0 + ...
+```
+
+**Interpretation:**
+- Large positive values: ALPHA, G_AREA dominate PC1
+- If high-skill experiments have high PC1 → ALPHA and G_AREA are important
+- Connects PCA back to individual parameters
+
+### Complementary Insights: PCA vs Importance Methods
+
+| Aspect | Spearman/RF | PCA |
+|--------|-------------|-----|
+| **Question** | "Which parameters matter?" | "How is parameter space structured?" |
+| **Output** | Rankings/scores | Geometric visualization |
+| **Shows** | Individual parameter effects | Relationships between experiments |
+| **Clusters** | No | Yes ✓ |
+| **Trade-offs** | No | Yes ✓ |
+| **Outliers** | No | Yes ✓ |
+| **Direct importance** | Yes ✓ | No (indirect via loadings) |
+
+**Use together:**
+1. **Importance methods** → Identify critical parameters (ALPHA, G_AREA)
+2. **PCA embedding** → Visualize how varying ALPHA & G_AREA affects skill
+3. **Combined insight** → Optimal region in (ALPHA, G_AREA) space
+
+### Example Analysis Workflow
+
+**Step 1: Spearman screening**
+```
+ALPHA:   ρ = +0.78  (strong)
+G_AREA:  ρ = -0.12  (weak?)
+LAI_MIN: ρ = +0.45  (moderate)
+```
+→ ALPHA appears important
+
+**Step 2: RF permutation**
+```
+ALPHA:   0.42  (critical)
+G_AREA:  0.28  (important! Spearman missed it)
+LAI_MIN: 0.15  (moderate)
+```
+→ Both ALPHA and G_AREA matter
+
+**Step 3: PCA visualization**
+```
+      PC2
+       ↑
+   🔴  |  🟢
+  🔴🔴 | 🟢🟢
+---🔴--+--🟢------→ PC1
+     🔴|🟢
+      🔴|🟢
+
+PC1 loadings: 0.52·ALPHA + 0.48·G_AREA + ...
+```
+→ High PC1 (right side) = high skill
+→ PC1 represents optimal combination of ALPHA and G_AREA
+
+**Combined insight:**
+- ALPHA and G_AREA are the two most important parameters (RF confirmed)
+- They work together (high PC1 = good balance of both)
+- There's a specific region in (ALPHA, G_AREA) space with high skill (PCA shows it)
+- G_AREA's nonlinearity explains weak Spearman (PCA shows curved pattern)
+
+### PCA Implementation Details
+
+**Code snippet from `ppe_param_viz.py`:**
+```python
+def plot_embedding_pca(X, y, out_png, title):
+    # 1. Impute missing values with median
+    Xdf = pd.DataFrame(X).apply(lambda col: col.fillna(col.median()), axis=0)
+
+    # 2. Standardize (mean=0, std=1)
+    Xs = StandardScaler().fit_transform(Xdf.values)
+
+    # 3. Reduce to 2D
+    Z = PCA(n_components=2, random_state=0).fit_transform(Xs)
+
+    # 4. Plot with skill coloring
+    plt.scatter(Z[:, 0], Z[:, 1], c=y, cmap='RdYlGn', s=50)
+    plt.colorbar(label='Skill Score')
+    plt.xlabel('PC1')
+    plt.ylabel('PC2')
+```
+
+**Output files:**
+- `pca_GPP.png` - 2D embedding colored by GPP skill
+- `pca_NPP.png` - 2D embedding colored by NPP skill
+- `pca_CVeg.png` - 2D embedding colored by CVeg skill
+
+### Common PCA Patterns and Their Meanings
+
+#### Pattern 1: Clear Separation
+```
+🔴🔴🔴 | 🟢🟢🟢
+```
+**Meaning:** Simple linear relationship. One side of PC1 is good, other side is bad.
+
+#### Pattern 2: Gradient
+```
+🔴→🟡→🟢
+```
+**Meaning:** Continuous improvement along PC1. Optimize in that direction.
+
+#### Pattern 3: Sweet Spot
+```
+🔴 🟢 🔴
+   🟡
+```
+**Meaning:** Optimal region in the middle. Extremes are bad. Watch for U-shaped relationships.
+
+#### Pattern 4: Multiple Clusters
+```
+🟢🟢  🔴🔴
+🟢🟢  🔴🔴
+```
+**Meaning:** Multiple distinct regimes. Different parameter combinations with different outcomes.
+
+#### Pattern 5: No Pattern
+```
+🔴🟢🔴🟡
+🟡🔴🟢🟢
+```
+**Meaning:**
+- Either skill is random (parameter variations don't matter)
+- Or important structure is in hidden dimensions (PC3-PC8)
+- Check variance explained - if low (<50%), try 3D PCA or look at PC3
+
+---
+
+## Summary: Three Complementary Methods
+
+### Spearman Rank Correlation
+**Answers:** "Which parameters have monotonic effects?"
+**Strength:** Fast screening, simple interpretation
+**Limitation:** Misses nonlinear effects
+
+### RandomForest Permutation Importance
+**Answers:** "Which parameters are critical for predictions?"
+**Strength:** Captures nonlinear effects and interactions
+**Limitation:** Doesn't show spatial structure
+
+### PCA Embedding
+**Answers:** "What does parameter space look like?"
+**Strength:** Reveals clusters, trade-offs, optimal regions
+**Limitation:** Doesn't quantify individual parameter importance
+
+**Use all three together** for comprehensive understanding:
+1. **Spearman** → Quick screening (seconds)
+2. **RF** → Deep parameter sensitivity (minutes)
+3. **PCA** → Spatial structure and visualization (seconds)
+
+---
+
 ## Summary: Two Validation Systems
 
 ### Observation-Based Validation (`--validate`)
