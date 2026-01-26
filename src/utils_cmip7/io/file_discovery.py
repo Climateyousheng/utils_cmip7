@@ -8,6 +8,12 @@ import os
 import re
 import glob
 
+__all__ = [
+    'decode_month',
+    'find_matching_files',
+    'MONTH_MAP_ALPHA',
+]
+
 
 # UM-style two-letter month codes (alpha format)
 MONTH_MAP_ALPHA = {

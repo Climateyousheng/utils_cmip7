@@ -5,6 +5,11 @@ Maps short variable names to STASH codes in both MSI string format (e.g., 'm01s0
 and numeric format (e.g., 3261).
 """
 
+__all__ = [
+    'stash',
+    'stash_nc',
+]
+
 
 def stash(s):
     """

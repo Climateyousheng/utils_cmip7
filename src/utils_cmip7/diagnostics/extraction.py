@@ -33,6 +33,11 @@ from ..config import (
     get_conversion_key,
 )
 
+__all__ = [
+    'extract_annual_means',
+    'compute_latlon_box_mean',
+]
+
 
 def compute_latlon_box_mean(cube, lon_bounds, lat_bounds):
     """
@@ -168,7 +173,7 @@ def extract_annual_means(expts_list, var_list=None, var_mapping=None, regions=No
     # Handle deprecated var_mapping parameter
     if var_mapping is not None:
         warnings.warn(
-            "The 'var_mapping' parameter is deprecated and will be removed in v0.3.0. "
+            "The 'var_mapping' parameter is deprecated and will be removed in v0.4.0. "
             "Conversion keys are now automatically looked up from the canonical variable registry.",
             DeprecationWarning,
             stacklevel=2
@@ -187,7 +192,7 @@ def extract_annual_means(expts_list, var_list=None, var_mapping=None, regions=No
                 warnings.warn(
                     f"Variable name '{var}' is deprecated. "
                     f"Use canonical name '{canonical}' instead. "
-                    f"Aliases will be removed in v0.3.0.",
+                    f"Aliases will be removed in v0.4.0.",
                     DeprecationWarning,
                     stacklevel=2
                 )

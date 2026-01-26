@@ -12,6 +12,11 @@ from iris.analysis.cartography import area_weights
 
 from ..config import VAR_CONVERSIONS
 
+__all__ = [
+    'global_total_pgC',
+    'global_mean_pgC',
+]
+
 
 def compute_terrestrial_area(cube):
     """

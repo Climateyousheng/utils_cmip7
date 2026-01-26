@@ -29,7 +29,7 @@ warnings.filterwarnings('ignore', message='.*date precision.*', category=FutureW
 warnings.filterwarnings('ignore', message='.*DEFAULT_SPHERICAL_EARTH_RADIUS.*', category=UserWarning)
 warnings.filterwarnings('ignore', message='.*DEFAULT_SPHERICAL_EARTH_RADIUS.*')
 
-__version__ = "0.2.1"
+__version__ = "0.3.0.dev0"
 
 # Core extraction and processing functions
 from .io import stash, try_extract, find_matching_files

@@ -11,6 +11,12 @@ import cf_units
 
 from .spatial import global_total_pgC, global_mean_pgC
 
+__all__ = [
+    'merge_monthly_results',
+    'compute_monthly_mean',
+    'compute_annual_mean',
+]
+
 
 def merge_monthly_results(results, require_full_year=False):
     """
