@@ -56,18 +56,29 @@ def test_area_weights_no_warnings(capfd):
     import iris
     from iris.analysis.cartography import area_weights
 
-    # Create a simple test cube
+    # Create a simple test cube with bounds
     data = np.zeros((3, 4))
+
+    # Latitude with bounds
+    lat_points = np.array([-60, 0, 60], dtype=np.float32)
+    lat_bounds = np.array([[-90, -30], [-30, 30], [30, 90]], dtype=np.float32)
     lat = iris.coords.DimCoord(
-        np.linspace(-90, 90, 3),
+        lat_points,
         standard_name='latitude',
-        units='degrees'
+        units='degrees',
+        bounds=lat_bounds
     )
+
+    # Longitude with bounds
+    lon_points = np.array([0, 90, 180, 270], dtype=np.float32)
+    lon_bounds = np.array([[-45, 45], [45, 135], [135, 225], [225, 315]], dtype=np.float32)
     lon = iris.coords.DimCoord(
-        np.linspace(-180, 180, 4),
+        lon_points,
         standard_name='longitude',
-        units='degrees'
+        units='degrees',
+        bounds=lon_bounds
     )
+
     cube = iris.cube.Cube(data, dim_coords_and_dims=[(lat, 0), (lon, 1)])
 
     # Compute area weights (this normally triggers DEFAULT_SPHERICAL_EARTH_RADIUS warning)
