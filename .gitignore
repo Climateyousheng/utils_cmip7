@@ -11,6 +11,11 @@ build/
 .pytest_cache/
 .mypy_cache/
 
+# Coverage
+.coverage
+coverage.xml
+htmlcov/
+
 # Data files
 *.nc
 *.zarr
