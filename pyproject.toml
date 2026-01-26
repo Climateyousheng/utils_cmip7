@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "utils_cmip7"
-version = "0.3.0.dev0"
+version = "0.3.0"
 description = "Carbon cycle analysis toolkit for Unified Model outputs"
 readme = "README.md"
 license = {text = "MIT"}
