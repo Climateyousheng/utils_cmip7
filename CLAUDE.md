@@ -25,11 +25,12 @@ Target environments:
 
 ---
 
-## Current State (v0.2.x)
+## Current State (v0.3.0)
 
 - Core extraction, processing, and plotting logic exists and is scientifically correct.
-- Module structure is provisional and undergoing refactor.
-- Backward compatibility with existing analysis scripts must be preserved during v0.2.x.
+- Module structure is **stabilized** with clear public API guarantees.
+- 174 tests with 24% coverage, CI/CD across Python 3.8-3.11.
+- Backward compatibility with existing analysis scripts is preserved.
 
 Scientific behaviour must not change unless explicitly documented.
 
@@ -63,6 +64,9 @@ Violations constitute technical debt and must be recorded explicitly.
 
 Only *Stable* components may be relied upon in long-lived scripts.
 
+**As of v0.3.0 (2026-01-26)**, the API stability matrix is frozen for the v0.3.x series.
+No breaking changes will be introduced to "Stable" components until v0.4.0.
+
 ---
 
 ## Standards Alignment
@@ -76,12 +80,15 @@ Full CMIP compliance is aspirational prior to v1.0.
 
 ---
 
-## v0.2.x → v0.3.0 Intent
+## v0.3.0 Achievements (2026-01-26)
 
-- Stabilise package structure and imports
-- Introduce configuration-driven I/O
-- Add tests and continuous integration
-- Freeze public API at v0.3.0
+- ✅ Stabilized package structure and imports
+- ✅ Configuration-driven I/O with canonical variables
+- ✅ 174 tests with CI/CD (Python 3.8-3.11)
+- ✅ Public API frozen with stability guarantees
+- ✅ 24% test coverage, zero breaking changes from v0.2.x
+
+See [CHANGELOG.md](CHANGELOG.md) for full v0.3.0 release notes.
 
 ---
 

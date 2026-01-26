@@ -39,7 +39,7 @@ Default mask location: `~/scripts/hadcm3b-ensemble-validator/observations/RECCAP
 
 Dependencies are automatically installed with `pip install -e .`
 
-## Package Structure (v0.2.1)
+## Package Structure (v0.3.0)
 
 ```
 utils_cmip7/
@@ -102,20 +102,20 @@ utils_cmip7/
 └── pyproject.toml            # Package metadata and dependencies
 ```
 
-**Status (v0.2.1):**
-- ✅ `io/` - Complete (4 modules including obs_loader)
-- ✅ `processing/` - Complete (4 modules including metrics)
-- ✅ `diagnostics/` - Complete (3 modules including metrics)
-- ✅ `validation/` - Complete (2 modules: compare, visualize)
-- ✅ `tests/` - Basic smoke tests implemented
-- ✅ `data/obs/` - Observational data now packaged with importlib.resources
-- ✅ `scripts/` - High-level validation workflow (validate_experiment.py)
-- ⚠️ `plotting/` - Exists in root `plot.py`, needs migration
-- ⚠️ `soil_params/` - Exists in root, needs migration
-- ❌ `cli.py` - Not yet implemented
+**Status (v0.3.0):**
+- ✅ `io/` - **Stable** - 4 modules (stash, file_discovery, extract, obs_loader)
+- ✅ `processing/` - **Stable** - 4 modules (spatial, temporal, regional, metrics)
+- ✅ `diagnostics/` - **Stable** - 3 modules (extraction, raw, metrics)
+- ✅ `validation/` - **Unstable** - 2 modules (compare, visualize)
+- ✅ `tests/` - 174 tests, 24% coverage, CI/CD across Python 3.8-3.11
+- ✅ `data/obs/` - Observational data packaged
+- ✅ `scripts/` - High-level validation workflows
+- ✅ `cli.py` - **Experimental** - 4 CLI commands implemented
+- ⚠️ `plotting/` - **Unstable** - Exists in root `plot.py`, needs migration
+- ⚠️ `soil_params/` - **Experimental** - Exists in root, needs migration
 
 **Backward Compatibility:**
-Existing scripts using `from analysis import ...` will continue to work during the v0.2.x series. See [Migration Guide](docs/MIGRATION.md) for updating to the new import style.
+Existing scripts using `from analysis import ...` will continue to work during the v0.2.x series. See [Migration Guide](docs/MIGRATION_GUIDE.md) for updating to the new import style.
 
 ## Features
 
@@ -128,6 +128,31 @@ Existing scripts using `from analysis import ...` will continue to work during t
 - **Observational data loading** - Load CMIP6 and RECCAP2 metrics from CSV
 - **Bias and RMSE computation** - Statistical comparison against observations
 - **Visualization** - Publication-quality plots for carbon cycle variables and validation
+
+## API Stability (v0.3.0)
+
+The v0.3.0 release establishes clear stability guarantees for the public API:
+
+- **Stable** - No breaking changes in v0.3.x series:
+  - Core extraction (`extract_annual_means`, `extract_annual_mean_raw`)
+  - Processing functions (spatial, temporal aggregation)
+  - Configuration API (canonical variables, config helpers)
+  - STASH mapping (`stash`, `stash_nc`)
+  - File discovery (`find_matching_files`, `decode_month`)
+
+- **Provisional** - Minor additions only, no breaking changes:
+  - Regional aggregation (`compute_regional_annual_mean`)
+  - Raw extraction workflows
+
+- **Unstable** - Breaking changes possible:
+  - Validation module (compare, visualize)
+  - Plotting module
+
+- **Experimental** - No stability guarantees:
+  - CLI commands
+  - Soil parameter analysis
+
+See [docs/API.md](docs/API.md) for the complete API reference and stability matrix.
 
 ## Core Modules
 
@@ -203,9 +228,9 @@ python scripts/validate_experiment.py --expt xqhuc --base-dir ~/annual_mean
 
 See [scripts/README.md](scripts/README.md) for detailed documentation.
 
-## Command-Line Interface (Planned)
+## Command-Line Interface
 
-CLI entry points will be available in v0.2.2:
+CLI entry points are now available (implemented in v0.2.2, **Experimental** in v0.3.0):
 
 ```bash
 # Extract from raw monthly files
@@ -213,9 +238,17 @@ utils-cmip7-extract-raw xqhuj
 
 # Extract from pre-processed annual means
 utils-cmip7-extract-preprocessed xqhuc
+
+# Validate single experiment
+utils-cmip7-validate-experiment xqhuc
+
+# Validate perturbed parameter ensemble (PPE)
+utils-cmip7-validate-ppe
 ```
 
-Currently use the `scripts/` versions instead.
+See [docs/CLI_REFERENCE.md](docs/CLI_REFERENCE.md) for detailed documentation.
+
+**Note**: CLI commands are marked **Experimental** - interfaces may change in future versions. For stable interfaces, use the Python API directly.
 
 ## Quick Start
 
@@ -365,9 +398,12 @@ Raw monthly UM output files in `~/dump2hold/{expt}/datam/`:
 
 ## Documentation
 
-- **[API Reference](docs/API_REFERENCE.md)** - Comprehensive API documentation for all modules
-- **[Migration Guide](docs/MIGRATION.md)** - Guide for migrating from v0.1.x to v0.2.x
+- **[API Reference](docs/API.md)** - Public API reference with stability guarantees (v0.3.0)
+- **[CHANGELOG](CHANGELOG.md)** - Version history and release notes
+- **[Migration Guide](docs/MIGRATION_GUIDE.md)** - Guide for migrating from v0.1.x to v0.2.x
+- **[CLI Reference](docs/CLI_REFERENCE.md)** - Command-line interface documentation
 - **[STASH Codes](docs/STASH.md)** - UM STASH code reference
+- **[Troubleshooting](docs/TROUBLESHOOTING.md)** - Common issues and solutions
 - **[CLAUDE.md](CLAUDE.md)** - Architectural constraints and design rules (for developers/AI)
 
 ## License
