@@ -561,9 +561,87 @@ def plot_embedding_pca(X, y, out_png, title):
 ```
 
 **Output files:**
-- `pca_GPP.png` - 2D embedding colored by GPP skill
-- `pca_NPP.png` - 2D embedding colored by NPP skill
-- `pca_CVeg.png` - 2D embedding colored by CVeg skill
+- `pca_GPP.png` - 2D scatter plot colored by GPP skill
+- `pca_GPP_biplot.png` - **NEW!** Biplot showing experiments + parameter vectors
+- `pca_GPP_loadings_heatmap.png` - **NEW!** Heatmap of PC loadings
+- `pca_GPP_loadings.csv` - **NEW!** PC loadings as CSV for detailed analysis
+- (Same for NPP, CVeg, CSoil, etc.)
+
+### Enhanced PCA Outputs (NEW!)
+
+The PCA analysis now generates **four outputs** instead of just one scatter plot:
+
+#### 1. **Scatter Plot** (`pca_GPP.png`)
+- Standard PCA embedding colored by skill
+- Axes show variance explained: "PC1 (45.3% variance)"
+- Corner annotation shows total variance captured
+
+#### 2. **Biplot** (`pca_GPP_biplot.png`) - **KEY FOR INTERPRETATION!**
+- Shows both experiments (colored dots) AND parameter vectors (red arrows)
+- **Arrow direction** = parameter contribution to PC1 and PC2
+- **Arrow length** = strength of contribution
+- Only top 8 most influential parameters shown (for clarity)
+
+**How to read the biplot:**
+```
+Example: ALPHA arrow points right and up
+→ High ALPHA → High PC1 and High PC2
+→ Experiments on the right side have high ALPHA values
+
+Example: G_AREA arrow points left and up
+→ High G_AREA → Low PC1 and High PC2
+→ Experiments on the left/top have high G_AREA values
+```
+
+**Connecting parameters to skill:**
+```
+If green (high-skill) experiments cluster in the upper-right:
+→ Look at arrows pointing upper-right (e.g., ALPHA, LAI_MIN)
+→ Those parameters drive high skill!
+
+If red (low-skill) experiments cluster in the lower-left:
+→ Look at arrows pointing lower-left
+→ Those parameter combinations are poor
+```
+
+#### 3. **Loadings Heatmap** (`pca_GPP_loadings_heatmap.png`)
+- Shows exact loading values for all parameters
+- Sorted by total contribution (most important at top)
+- Red = positive loading, Blue = negative loading
+- Values shown in each cell
+
+**Reading the heatmap:**
+```
+PC1 Column:
+  ALPHA:   +0.52  (strong positive)
+  G_AREA:  +0.48  (strong positive)
+  LAI_MIN: +0.30  (moderate positive)
+  NL0:     -0.05  (negligible)
+
+PC2 Column:
+  ALPHA:   -0.20  (moderate negative)
+  G_AREA:  +0.52  (strong positive)
+  ...
+
+Interpretation:
+→ PC1 ≈ 0.52·ALPHA + 0.48·G_AREA + 0.30·LAI_MIN + ...
+→ PC2 ≈ -0.20·ALPHA + 0.52·G_AREA + ...
+```
+
+#### 4. **Loadings CSV** (`pca_GPP_loadings.csv`)
+- Machine-readable loadings for further analysis
+- Columns: PC1, PC2, PC1_abs, PC2_abs
+- Rows: All parameters
+- Use for quantitative analysis or custom plots
+
+**Example CSV content:**
+```csv
+parameter,PC1,PC2,PC1_abs,PC2_abs
+ALPHA,0.5234,-0.1985,0.5234,0.1985
+G_AREA,0.4821,0.5193,0.4821,0.5193
+LAI_MIN,0.3012,0.0845,0.3012,0.0845
+...
+```
 
 ### Common PCA Patterns and Their Meanings
 

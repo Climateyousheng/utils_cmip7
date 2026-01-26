@@ -183,17 +183,26 @@ utils-cmip7-validate-experiment xqhuc --use-default-soil-params
 
 ### PPE Analysis (`param_viz/`)
 ```
-├── expanded_parameters.csv          # Full parameter matrix
-├── summary.json                      # Analysis metadata
+├── expanded_parameters.csv              # Full parameter matrix
+├── summary.json                          # Analysis metadata
 │
-├── importance_spearman_GPP.csv      # ρ values for each parameter
-├── bar_spearman_GPP.png             # Horizontal bar chart
+├── importance_spearman_GPP.csv          # ρ values for each parameter
+├── bar_spearman_GPP.png                 # Horizontal bar chart
 │
-├── importance_rfperm_GPP.csv        # RF importance scores
-├── bar_rfperm_GPP.png               # Horizontal bar chart
+├── importance_rfperm_GPP.csv            # RF importance scores
+├── bar_rfperm_GPP.png                   # Horizontal bar chart
 │
-└── pca_GPP.png                      # 2D scatter colored by skill
+├── pca_GPP.png                          # 2D scatter colored by skill
+├── pca_GPP_biplot.png                   # NEW! Scatter + parameter arrows
+├── pca_GPP_loadings_heatmap.png         # NEW! Loading values heatmap
+└── pca_GPP_loadings.csv                 # NEW! Loadings for analysis
 ```
+
+**NEW PCA Enhancements:**
+- **Biplot**: Shows which parameters drive PC1/PC2 (arrows)
+- **Loadings heatmap**: Exact contribution values for all parameters
+- **Loadings CSV**: Machine-readable for custom analysis
+- **Variance explained**: Now shown on axis labels and in plot
 
 ### Observation Validation (`validation_outputs/single_val_{expt}/`)
 ```

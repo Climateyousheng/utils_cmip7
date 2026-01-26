@@ -312,12 +312,28 @@ def plot_embedding_pca(
     X: np.ndarray,
     y: np.ndarray,
     out_png: str,
-    title: str
+    title: str,
+    feature_names: Optional[list[str]] = None
 ):
     """
     Plot 2D PCA embedding of parameter space, colored by skill.
 
     Reveals clusters and trade-offs in parameter space.
+
+    Also saves PC loadings to CSV and creates loading visualizations.
+
+    Parameters
+    ----------
+    X : np.ndarray
+        Feature matrix (n_samples, n_features)
+    y : np.ndarray
+        Target values (skill scores)
+    out_png : str
+        Output path for scatter plot
+    title : str
+        Plot title
+    feature_names : list[str], optional
+        Feature names for loading interpretation
     """
     if not HAS_SKLEARN:
         raise ImportError(
@@ -326,17 +342,186 @@ def plot_embedding_pca(
         )
 
     # Median-impute for PCA
-    Xdf = pd.DataFrame(X).apply(lambda col: col.fillna(col.median()), axis=0)
+    Xdf = pd.DataFrame(X, columns=feature_names).apply(lambda col: col.fillna(col.median()), axis=0)
     Xs = StandardScaler().fit_transform(Xdf.values)
-    Z = PCA(n_components=2, random_state=0).fit_transform(Xs)
 
-    plt.figure(figsize=(7, 6))
-    sc = plt.scatter(Z[:, 0], Z[:, 1], c=y, cmap='RdYlGn', s=50, alpha=0.7)
-    plt.colorbar(sc, label='Skill Score')
-    plt.title(title)
-    plt.xlabel('PC1')
-    plt.ylabel('PC2')
-    plt.grid(True, alpha=0.3)
+    # Fit PCA
+    pca = PCA(n_components=2, random_state=0)
+    Z = pca.fit_transform(Xs)
+
+    # Extract loadings and variance explained
+    loadings = pca.components_.T  # Shape: (n_features, 2)
+    var_explained = pca.explained_variance_ratio_
+
+    # Save loadings to CSV
+    if feature_names is not None:
+        out_dir = os.path.dirname(out_png)
+        base_name = os.path.basename(out_png).replace('.png', '')
+
+        loadings_df = pd.DataFrame(
+            loadings,
+            index=feature_names,
+            columns=['PC1', 'PC2']
+        )
+        loadings_df['PC1_abs'] = loadings_df['PC1'].abs()
+        loadings_df['PC2_abs'] = loadings_df['PC2'].abs()
+        loadings_csv = os.path.join(out_dir, f'{base_name}_loadings.csv')
+        loadings_df.to_csv(loadings_csv, float_format='%.4f')
+
+    # Main scatter plot with variance explained in labels
+    fig, ax = plt.subplots(figsize=(7, 6))
+    sc = ax.scatter(Z[:, 0], Z[:, 1], c=y, cmap='RdYlGn', s=50, alpha=0.7, edgecolors='k', linewidth=0.5)
+    plt.colorbar(sc, label='Skill Score', ax=ax)
+    ax.set_title(title)
+    ax.set_xlabel(f'PC1 ({var_explained[0]*100:.1f}% variance)')
+    ax.set_ylabel(f'PC2 ({var_explained[1]*100:.1f}% variance)')
+    ax.grid(True, alpha=0.3)
+
+    # Add text showing total variance explained
+    total_var = var_explained.sum() * 100
+    ax.text(0.02, 0.98, f'Total: {total_var:.1f}% variance',
+            transform=ax.transAxes, fontsize=9, va='top',
+            bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.5))
+
+    plt.tight_layout()
+    plt.savefig(out_png, dpi=200)
+    plt.close()
+
+    # Create biplot (scatter + parameter vectors)
+    if feature_names is not None:
+        biplot_png = out_png.replace('.png', '_biplot.png')
+        _create_biplot(Z, y, loadings, feature_names, var_explained, title, biplot_png)
+
+        # Create loading heatmap
+        heatmap_png = out_png.replace('.png', '_loadings_heatmap.png')
+        _create_loading_heatmap(loadings, feature_names, var_explained, title, heatmap_png)
+
+
+def _create_biplot(
+    Z: np.ndarray,
+    y: np.ndarray,
+    loadings: np.ndarray,
+    feature_names: list[str],
+    var_explained: np.ndarray,
+    title: str,
+    out_png: str,
+    n_top: int = 8
+):
+    """
+    Create PCA biplot showing both experiments and parameter vectors.
+
+    Parameters
+    ----------
+    Z : np.ndarray
+        PCA-transformed coordinates (n_samples, 2)
+    y : np.ndarray
+        Skill scores
+    loadings : np.ndarray
+        PC loadings (n_features, 2)
+    feature_names : list[str]
+        Parameter names
+    var_explained : np.ndarray
+        Variance explained by each PC
+    title : str
+        Plot title
+    out_png : str
+        Output path
+    n_top : int
+        Number of top features to show as vectors
+    """
+    fig, ax = plt.subplots(figsize=(10, 8))
+
+    # Scale factor for arrows (to make them visible)
+    scale = 3.0
+
+    # Plot experiments
+    sc = ax.scatter(Z[:, 0], Z[:, 1], c=y, cmap='RdYlGn', s=40, alpha=0.6,
+                    edgecolors='k', linewidth=0.5, label='Experiments')
+
+    # Plot parameter vectors (top contributors only)
+    loading_magnitude = np.sqrt((loadings**2).sum(axis=1))
+    top_idx = np.argsort(loading_magnitude)[-n_top:]
+
+    for idx in top_idx:
+        ax.arrow(0, 0, loadings[idx, 0] * scale, loadings[idx, 1] * scale,
+                 head_width=0.15, head_length=0.15, fc='red', ec='darkred',
+                 alpha=0.7, linewidth=1.5)
+        ax.text(loadings[idx, 0] * scale * 1.15, loadings[idx, 1] * scale * 1.15,
+                feature_names[idx], fontsize=9, ha='center', va='center',
+                bbox=dict(boxstyle='round,pad=0.3', facecolor='yellow', alpha=0.7))
+
+    plt.colorbar(sc, label='Skill Score', ax=ax)
+    ax.set_title(f'{title} - Biplot')
+    ax.set_xlabel(f'PC1 ({var_explained[0]*100:.1f}% variance)')
+    ax.set_ylabel(f'PC2 ({var_explained[1]*100:.1f}% variance)')
+    ax.grid(True, alpha=0.3)
+    ax.axhline(y=0, color='k', linewidth=0.5, alpha=0.3)
+    ax.axvline(x=0, color='k', linewidth=0.5, alpha=0.3)
+
+    # Add legend
+    ax.text(0.02, 0.98, f'Top {n_top} parameters shown\nArrow = parameter influence',
+            transform=ax.transAxes, fontsize=9, va='top',
+            bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.7))
+
+    plt.tight_layout()
+    plt.savefig(out_png, dpi=200)
+    plt.close()
+
+
+def _create_loading_heatmap(
+    loadings: np.ndarray,
+    feature_names: list[str],
+    var_explained: np.ndarray,
+    title: str,
+    out_png: str
+):
+    """
+    Create heatmap of PC loadings.
+
+    Shows which parameters contribute most to each PC.
+
+    Parameters
+    ----------
+    loadings : np.ndarray
+        PC loadings (n_features, 2)
+    feature_names : list[str]
+        Parameter names
+    var_explained : np.ndarray
+        Variance explained by each PC
+    title : str
+        Plot title
+    out_png : str
+        Output path
+    """
+    # Sort features by total contribution (PC1^2 + PC2^2)
+    loading_magnitude = np.sqrt((loadings**2).sum(axis=1))
+    sorted_idx = np.argsort(loading_magnitude)[::-1]
+
+    sorted_loadings = loadings[sorted_idx, :]
+    sorted_names = [feature_names[i] for i in sorted_idx]
+
+    fig, ax = plt.subplots(figsize=(6, max(4, len(feature_names) * 0.3)))
+
+    im = ax.imshow(sorted_loadings, cmap='RdBu_r', aspect='auto', vmin=-1, vmax=1)
+
+    # Set ticks
+    ax.set_xticks([0, 1])
+    ax.set_xticklabels([f'PC1\n({var_explained[0]*100:.1f}%)',
+                        f'PC2\n({var_explained[1]*100:.1f}%)'])
+    ax.set_yticks(range(len(sorted_names)))
+    ax.set_yticklabels(sorted_names, fontsize=9)
+
+    # Add colorbar
+    cbar = plt.colorbar(im, ax=ax)
+    cbar.set_label('Loading', rotation=270, labelpad=15)
+
+    # Add values in cells
+    for i in range(len(sorted_names)):
+        for j in range(2):
+            text = ax.text(j, i, f'{sorted_loadings[i, j]:.2f}',
+                          ha="center", va="center", color="black", fontsize=8)
+
+    ax.set_title(f'{title} - PC Loadings')
     plt.tight_layout()
     plt.savefig(out_png, dpi=200)
     plt.close()
@@ -473,8 +658,10 @@ def run_suite(
         plot_embedding_pca(
             X, y,
             os.path.join(outdir, f"pca_{sc}.png"),
-            title=f"PCA of Parameter Space | Colored by {sc}"
+            title=f"PCA of Parameter Space | Colored by {sc}",
+            feature_names=feature_names
         )
+        print(f"    ✓ Created PCA scatter, biplot, and loadings heatmap")
 
     # Save summary
     summary_path = os.path.join(outdir, "summary.json")
