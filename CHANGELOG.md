@@ -5,6 +5,36 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+#### Raw Extraction Validation
+- `--validate` flag for `scripts/extract_raw.py` - Validate extracted annual means against observations
+- `--validate` flag for `utils-cmip7-extract-raw` CLI command
+- `--validation-outdir` option to customize validation output directory
+- Automatic transformation of raw extraction data to canonical schema for validation
+- Global-only validation against CMIP6 and RECCAP2 observations
+- CSV outputs with bias statistics (`{expt}_bias_vs_cmip6.csv`, `{expt}_bias_vs_reccap2.csv`)
+- Three-way comparison plots for validated metrics (GPP, NPP, CVeg, CSoil, Tau)
+- Validation summary statistics printed to console
+
+**Usage:**
+```bash
+# Script
+python scripts/extract_raw.py xqhuj --validate
+
+# CLI
+utils-cmip7-extract-raw xqhuj --validate
+```
+
+**Outputs** (in `validation_outputs/single_val_{expt}/`):
+- Bias statistics CSVs
+- Three-way comparison plots (UM vs CMIP6 vs RECCAP2)
+- Console summary with fraction within uncertainty, mean bias, and RMSE
+
+---
+
 ## [0.3.0] - 2026-01-26
 
 ### Added

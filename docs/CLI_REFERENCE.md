@@ -81,14 +81,40 @@ utils-cmip7-extract-raw xqhuj --output timeseries.csv
 
 # Verbose output
 utils-cmip7-extract-raw xqhuj --verbose
+
+# Validate against observations (NEW in v0.3.1)
+utils-cmip7-extract-raw xqhuj --validate
+
+# Validate with custom output directory
+utils-cmip7-extract-raw xqhuj --validate --validation-outdir ./my_validation
 ```
 
 **Output:**
 - By default: Prints time series summary to stdout
 - With `--output`: Saves full time series to CSV
+- With `--validate`: Saves validation results to `validation_outputs/single_val_{expt}/`
 
 **Variables Extracted:**
 GPP, NPP, soilResp, VegCarb, soilCarbon, NEP
+
+**Validation Output (with --validate):**
+```
+validation_outputs/single_val_{expt}/
+├── {expt}_bias_vs_cmip6.csv        # Bias statistics vs CMIP6
+├── {expt}_bias_vs_reccap2.csv      # Bias statistics vs RECCAP2
+└── plots/                          # Three-way comparison plots
+    ├── GPP_three_way_comparison.png
+    ├── NPP_three_way_comparison.png
+    ├── CVeg_three_way_comparison.png
+    ├── CSoil_three_way_comparison.png
+    └── Tau_three_way_comparison.png
+```
+
+**Validation Notes:**
+- Raw extraction only produces **global totals** (no regional breakdown)
+- Validation compares against CMIP6 and RECCAP2 global observations
+- Metrics validated: GPP, NPP, CVeg, CSoil, Tau
+- Validation summary printed to console
 
 ---
 

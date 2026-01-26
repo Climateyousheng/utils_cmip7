@@ -299,6 +299,20 @@ plt.show()
 python scripts/extract_raw.py xqhuj --outdir ./plots
 ```
 
+**With Validation (NEW in v0.3.1):**
+```bash
+# Script
+python scripts/extract_raw.py xqhuj --validate
+
+# CLI
+utils-cmip7-extract-raw xqhuj --validate
+
+# With custom validation output directory
+utils-cmip7-extract-raw xqhuj --validate --validation-outdir ./my_validation
+```
+
+This validates the extracted annual means against CMIP6 and RECCAP2 observations (global only). Outputs include bias statistics CSVs and three-way comparison plots.
+
 ### Working with Regional Data
 
 ```python
