@@ -24,7 +24,7 @@ warnings.filterwarnings('ignore', message='.*DEFAULT_SPHERICAL_EARTH_RADIUS.*')
 from iris import Constraint
 
 from ..io import stash, try_extract
-from ..processing.regional import load_reccap_mask, compute_regional_annual_mean
+from ..processing.regional import load_reccap_mask, compute_regional_annual_mean, _get_land_mask
 from iris.analysis.cartography import area_weights
 from ..config import (
     DEFAULT_VAR_LIST,
@@ -39,7 +39,7 @@ __all__ = [
 ]
 
 
-def compute_latlon_box_mean(cube, lon_bounds, lat_bounds):
+def compute_latlon_box_mean(cube, lon_bounds, lat_bounds, land_only=False):
     """
     Compute area-weighted mean for a lat/lon bounding box.
 
@@ -51,6 +51,9 @@ def compute_latlon_box_mean(cube, lon_bounds, lat_bounds):
         (lon_min, lon_max) in degrees East (0-360)
     lat_bounds : tuple of float
         (lat_min, lat_max) in degrees North (-90 to 90)
+    land_only : bool, optional
+        If True, restrict the spatial average to land grid cells
+        (derived from RECCAP2 mask). Default: False
 
     Returns
     -------
@@ -78,6 +81,26 @@ def compute_latlon_box_mean(cube, lon_bounds, lat_bounds):
 
     # Compute area weights
     weights = area_weights(regional_cube)
+
+    # Apply land mask to weights if requested
+    if land_only:
+        full_land_mask = _get_land_mask()
+        # Extract the same lat/lon sub-region from the land mask
+        lat_idx = np.where(
+            (cube.coord('latitude').points >= lat_bounds[0]) &
+            (cube.coord('latitude').points <= lat_bounds[1])
+        )[0]
+        lon_idx = np.where(
+            (cube.coord('longitude').points >= lon_bounds[0]) &
+            (cube.coord('longitude').points <= lon_bounds[1])
+        )[0]
+        land_sub = full_land_mask[np.ix_(lat_idx, lon_idx)]
+        # Broadcast to match weights shape (handles time dimension)
+        if weights.ndim == 3:
+            land_sub = land_sub[None, :, :]
+        elif weights.ndim == 4:
+            land_sub = land_sub[None, None, :, :]
+        weights = weights * land_sub
 
     # Collapse spatial dimensions
     regional_cube.data = np.ma.masked_invalid(regional_cube.data)
@@ -339,7 +362,7 @@ def extract_annual_means(expts_list, var_list=None, var_mapping=None, regions=No
                             try:
                                 frac_pft = cube.extract(Constraint(coord_values={'generic': j}))
                                 if frac_pft:
-                                    output = compute_regional_annual_mean(frac_pft, conversion_key, region)
+                                    output = compute_regional_annual_mean(frac_pft, conversion_key, region, land_only=True)
 
                                     # Compute spatial RMSE against IGBP obs (global only)
                                     if region == 'global' and igbp_ds is not None:
@@ -372,8 +395,8 @@ def extract_annual_means(expts_list, var_list=None, var_mapping=None, regions=No
 
                                 if bl_cube and nl_cube:
                                     # Amazon
-                                    bl_amz = compute_latlon_box_mean(bl_cube, (290, 320), (-15, 5))
-                                    nl_amz = compute_latlon_box_mean(nl_cube, (290, 320), (-15, 5))
+                                    bl_amz = compute_latlon_box_mean(bl_cube, (290, 320), (-15, 5), land_only=True)
+                                    nl_amz = compute_latlon_box_mean(nl_cube, (290, 320), (-15, 5), land_only=True)
                                     amz_trees = bl_amz + nl_amz
                                     amz_output = {
                                         'years': frac_data['PFT 1']['years'],
@@ -385,8 +408,8 @@ def extract_annual_means(expts_list, var_list=None, var_mapping=None, regions=No
                                     frac_data['AMZTrees'] = amz_output
 
                                     # Subtropical trees: 0-360°E, 30°S-30°N (BL + NL)
-                                    bl_trop = compute_latlon_box_mean(bl_cube, (0, 360), (-30, 30))
-                                    nl_trop = compute_latlon_box_mean(nl_cube, (0, 360), (-30, 30))
+                                    bl_trop = compute_latlon_box_mean(bl_cube, (0, 360), (-30, 30), land_only=True)
+                                    nl_trop = compute_latlon_box_mean(nl_cube, (0, 360), (-30, 30), land_only=True)
                                     trop_trees = bl_trop + nl_trop
                                     trop_output = {
                                         'years': frac_data['PFT 1']['years'],
@@ -399,8 +422,8 @@ def extract_annual_means(expts_list, var_list=None, var_mapping=None, regions=No
 
                                     # NH trees: 0-360°E, 30°N-90°N (BL + NL)
                                     # Note: Using 30-60N as per code snippet (adjust if needed)
-                                    bl_nh = compute_latlon_box_mean(bl_cube, (0, 360), (30, 60))
-                                    nl_nh = compute_latlon_box_mean(nl_cube, (0, 360), (30, 60))
+                                    bl_nh = compute_latlon_box_mean(bl_cube, (0, 360), (30, 60), land_only=True)
+                                    nl_nh = compute_latlon_box_mean(nl_cube, (0, 360), (30, 60), land_only=True)
                                     nh_trees = bl_nh + nl_nh
                                     nh_output = {
                                         'years': frac_data['PFT 1']['years'],

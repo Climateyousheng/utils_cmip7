@@ -119,7 +119,22 @@ def region_mask(region):
     return mask
 
 
-def compute_regional_annual_mean(cube, var, region):
+def _get_land_mask():
+    """
+    Get binary land mask from RECCAP2 regions.
+
+    Any grid cell belonging to a RECCAP2 region (value > 0) is land.
+
+    Returns
+    -------
+    numpy.ndarray
+        2D binary array (1 = land, 0 = ocean)
+    """
+    reccap_mask, _ = load_reccap_mask()
+    return (np.squeeze(np.asarray(reccap_mask.data)) > 0).astype(int)
+
+
+def compute_regional_annual_mean(cube, var, region, land_only=False):
     """
     Compute area-weighted regional annual means.
 
@@ -135,6 +150,11 @@ def compute_regional_annual_mean(cube, var, region):
         Variable name for unit conversion and aggregation type selection
     region : str
         Region name ('global' or RECCAP2 region name)
+    land_only : bool, optional
+        If True and region is 'global', restrict the spatial average to
+        land grid cells (derived from RECCAP2 mask). Has no effect for
+        named regions, which are already land-only by construction.
+        Default: False
 
     Returns
     -------
@@ -160,6 +180,11 @@ def compute_regional_annual_mean(cube, var, region):
     >>> global_gpp = compute_regional_annual_mean(gpp_cube, 'GPP', 'global')
     >>> global_gpp['data']  # Global annual GPP in PgC/year
 
+    >>> # Land-only global mean (excludes ocean cells)
+    >>> frac_pft = iris.load_cube('frac.nc')
+    >>> global_frac = compute_regional_annual_mean(frac_pft, 'Others', 'global',
+    ...                                           land_only=True)
+
     Notes
     -----
     Aggregation method selection:
@@ -169,7 +194,7 @@ def compute_regional_annual_mean(cube, var, region):
     Regional masking:
     - Applies mask to area weights (not to data directly)
     - Handles 4D cubes with pfts dimension
-    - 'global' region uses no masking
+    - 'global' region uses no masking (unless land_only=True)
 
     Time handling:
     - Handles 360-day calendars
@@ -201,6 +226,15 @@ def compute_regional_annual_mean(cube, var, region):
         if m2d.shape != weights.shape[-2:]:
             raise ValueError(f"Mask shape {m2d.shape} != weights lat/lon shape {weights.shape[-2:]}")
         # Handle pfts broadcasting
+        if cube.ndim == 4:
+            m = m2d[None, None, :, :]
+        else:
+            m = m2d[None, :, :]
+        w = weights * m
+    elif land_only:
+        m2d = _get_land_mask()
+        if m2d.shape != weights.shape[-2:]:
+            raise ValueError(f"Land mask shape {m2d.shape} != weights lat/lon shape {weights.shape[-2:]}")
         if cube.ndim == 4:
             m = m2d[None, None, :, :]
         else:
