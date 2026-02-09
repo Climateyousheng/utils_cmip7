@@ -267,6 +267,52 @@ class TestExtractMapField:
         with pytest.raises(ValueError, match="extra dimension"):
             extract_map_field(cube)
 
+    def test_masked_values_become_nan(self):
+        """Masked cells (missing_value) should be NaN, not fill values."""
+        lat = iris.coords.DimCoord(
+            np.linspace(-90, 90, 5), standard_name="latitude", units="degrees",
+        )
+        lon = iris.coords.DimCoord(
+            np.linspace(-180, 180, 10), standard_name="longitude", units="degrees",
+        )
+        raw = np.random.default_rng(42).random((5, 10))
+        mask = np.zeros_like(raw, dtype=bool)
+        mask[0, :3] = True  # mask some ocean cells
+        data = np.ma.MaskedArray(raw, mask=mask, fill_value=1e20)
+        cube = iris.cube.Cube(
+            data,
+            dim_coords_and_dims=[(lat, 0), (lon, 1)],
+            standard_name="air_temperature",
+            units="K",
+        )
+        result = extract_map_field(cube)
+        assert not isinstance(result["data"], np.ma.MaskedArray)
+        assert np.isnan(result["data"][0, 0])
+        assert np.isnan(result["data"][0, 2])
+        assert not np.isnan(result["data"][1, 0])
+
+    def test_unmasked_values_preserved(self):
+        """Unmasked cells should keep their original values."""
+        lat = iris.coords.DimCoord(
+            np.linspace(-90, 90, 5), standard_name="latitude", units="degrees",
+        )
+        lon = iris.coords.DimCoord(
+            np.linspace(-180, 180, 10), standard_name="longitude", units="degrees",
+        )
+        raw = np.ones((5, 10)) * 300.0
+        mask = np.zeros_like(raw, dtype=bool)
+        mask[0, 0] = True
+        data = np.ma.MaskedArray(raw, mask=mask, fill_value=1e20)
+        cube = iris.cube.Cube(
+            data,
+            dim_coords_and_dims=[(lat, 0), (lon, 1)],
+            standard_name="air_temperature",
+            units="K",
+        )
+        result = extract_map_field(cube)
+        assert result["data"][1, 0] == 300.0
+        assert np.isnan(result["data"][0, 0])
+
 
 # ===================================================================
 # TestExtractAnomalyField
@@ -313,6 +359,31 @@ class TestExtractAnomalyField:
     def test_invalid_input_raises_typeerror(self):
         with pytest.raises(TypeError, match="iris.cube.Cube"):
             extract_anomaly_field(np.zeros((5, 5)))
+
+    def test_masked_anomaly_becomes_nan(self):
+        """Masked cells in anomaly should be NaN, not fill values."""
+        years = [1900, 1901]
+        time_coord = _make_time_coord(years)
+        lat = iris.coords.DimCoord(
+            np.linspace(-90, 90, 5), standard_name="latitude", units="degrees",
+        )
+        lon = iris.coords.DimCoord(
+            np.linspace(-180, 180, 10), standard_name="longitude", units="degrees",
+        )
+        raw = np.random.default_rng(42).random((2, 5, 10))
+        mask = np.zeros_like(raw, dtype=bool)
+        mask[:, 0, :3] = True  # ocean cells masked across all timesteps
+        data = np.ma.MaskedArray(raw, mask=mask, fill_value=1e20)
+        cube = iris.cube.Cube(
+            data,
+            dim_coords_and_dims=[(time_coord, 0), (lat, 1), (lon, 2)],
+            standard_name="air_temperature",
+            units="K",
+        )
+        result = extract_anomaly_field(cube)
+        assert not isinstance(result["data"], np.ma.MaskedArray)
+        assert np.isnan(result["data"][0, 0])
+        assert not np.isnan(result["data"][1, 0])
 
 
 # ===================================================================

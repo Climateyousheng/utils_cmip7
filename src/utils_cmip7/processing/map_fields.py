@@ -147,6 +147,18 @@ def _squeeze_to_2d(data, cube, label="data"):
     return data
 
 
+def _masked_to_nan(data):
+    """Convert a masked array to a float array with NaN for masked cells.
+
+    If *data* is already an unmasked ndarray it is returned as float with
+    no copy unless a dtype change is needed.
+    """
+    if isinstance(data, np.ma.MaskedArray):
+        out = np.where(data.mask, np.nan, data.data).astype(float)
+        return out
+    return np.asarray(data, dtype=float)
+
+
 def extract_map_field(cube, time=None, time_index=None):
     """Extract a 2D spatial field from an iris Cube.
 
@@ -186,6 +198,7 @@ def extract_map_field(cube, time=None, time_index=None):
 
     data_2d, year = _select_time_slice(cube, time=time, time_index=time_index)
     data_2d = _squeeze_to_2d(data_2d, cube)
+    data_2d = _masked_to_nan(data_2d)
 
     lons = cube.coord("longitude").points
     lats = cube.coord("latitude").points
@@ -282,7 +295,9 @@ def extract_anomaly_field(
         cube, time=time_b, time_index=time_index_b,
     )
 
-    anomaly = np.asarray(data_a, dtype=float) - np.asarray(data_b, dtype=float)
+    data_a = _masked_to_nan(data_a)
+    data_b = _masked_to_nan(data_b)
+    anomaly = data_a - data_b
     anomaly = _squeeze_to_2d(anomaly, cube, label="anomaly")
 
     vmin = None
