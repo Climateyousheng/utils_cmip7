@@ -7,31 +7,41 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+---
+
+## [0.3.1] - 2026-02-09
+
 ### Added
+
+#### Canonical Name Resolution in `try_extract()`
+- `try_extract()` now accepts canonical variable names (`'CVeg'`, `'GPP'`) and aliases (`'VegCarb'`, `'soilResp'`) directly, resolving them to STASH codes via `CANONICAL_VARIABLES`
+- Users no longer need to know stash short names or MSI codes for extraction
+- 15 new tests in `tests/test_io/test_extract.py`
+
+#### Optional Unit Conversion in Map Field Extraction
+- `extract_map_field()` and `extract_anomaly_field()` accept an optional `variable` parameter
+- When provided, applies `conversion_factor` and overrides `units`/`name` from `CANONICAL_VARIABLES`
+- No conversion by default (fully backward compatible)
+- 7 new tests in `tests/test_plotting/test_maps.py`
 
 #### Raw Extraction Validation
 - `--validate` flag for `scripts/extract_raw.py` - Validate extracted annual means against observations
 - `--validate` flag for `utils-cmip7-extract-raw` CLI command
 - `--validation-outdir` option to customize validation output directory
-- Automatic transformation of raw extraction data to canonical schema for validation
 - Global-only validation against CMIP6 and RECCAP2 observations
-- CSV outputs with bias statistics (`{expt}_bias_vs_cmip6.csv`, `{expt}_bias_vs_reccap2.csv`)
-- Three-way comparison plots for validated metrics (GPP, NPP, CVeg, CSoil, Tau)
-- Validation summary statistics printed to console
+- CSV outputs with bias statistics, three-way comparison plots, console summary
 
-**Usage:**
-```bash
-# Script
-python scripts/extract_raw.py xqhuj --validate
+### Fixed
+- Colorbar overlapping x-axis labels in multi-panel subplot layouts (2x3 grids) — increased pad from 0.05 to 0.12
 
-# CLI
-utils-cmip7-extract-raw xqhuj --validate
-```
+### Documentation
+- Updated `docs/API.md` with `try_extract()`, `extract_map_field()`, `extract_anomaly_field()`, `combine_fields()`, `plot_spatial_map()`, `plot_spatial_anomaly()`
+- Fixed inaccurate raises/return docs for `get_variable_config()` and `get_conversion_key()`
+- Fixed `CANONICAL_VARIABLES` structure example
 
-**Outputs** (in `validation_outputs/single_val_{expt}/`):
-- Bias statistics CSVs
-- Three-way comparison plots (UM vs CMIP6 vs RECCAP2)
-- Console summary with fraction within uncertainty, mean bias, and RMSE
+### Statistics
+- **Tests**: 275 (was 174 in v0.3.0)
+- **Coverage**: 29% (was 24% in v0.3.0)
 
 ---
 
@@ -233,6 +243,7 @@ Special thanks to:
 
 ## Release Tags
 
+- `v0.3.1` - Canonical name resolution, unit conversion, plotting fixes (2026-02-09)
 - `v0.3.0` - API stabilization and testing foundation (2026-01-26)
 - `v0.2.1` - Canonical variables and validation
 - `v0.2.0` - Initial stable release
