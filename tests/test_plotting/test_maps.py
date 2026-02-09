@@ -801,3 +801,64 @@ class TestCombineFields:
         result = combine_fields([field_a, field_b, field_c])
         expected = field_a["data"] + field_b["data"] + field_c["data"]
         np.testing.assert_allclose(result["data"], expected)
+
+
+# ===================================================================
+# TestUnitConversion
+# ===================================================================
+
+class TestUnitConversion:
+    """Tests for optional unit conversion via the `variable` parameter."""
+
+    def test_variable_converts_units(self, mock_2d_cube):
+        """Pass variable='GPP'; data should be multiplied by conversion_factor."""
+        from utils_cmip7.config import CANONICAL_VARIABLES
+        factor = CANONICAL_VARIABLES["GPP"]["conversion_factor"]
+        raw = extract_map_field(mock_2d_cube)
+        converted = extract_map_field(mock_2d_cube, variable="GPP")
+        np.testing.assert_allclose(converted["data"], raw["data"] * factor)
+        assert converted["units"] == "PgC/yr"
+        assert converted["name"] == "GPP"
+
+    def test_no_variable_no_conversion(self, mock_2d_cube):
+        """Default behaviour: no conversion applied."""
+        result = extract_map_field(mock_2d_cube)
+        assert result["units"] == "K"
+        assert result["name"] == "air_temperature"
+
+    def test_variable_alias_works(self, mock_2d_cube):
+        """Pass variable='VegCarb' (alias for CVeg); should resolve correctly."""
+        from utils_cmip7.config import CANONICAL_VARIABLES
+        factor = CANONICAL_VARIABLES["CVeg"]["conversion_factor"]
+        raw = extract_map_field(mock_2d_cube)
+        converted = extract_map_field(mock_2d_cube, variable="VegCarb")
+        np.testing.assert_allclose(converted["data"], raw["data"] * factor)
+        assert converted["units"] == "PgC"
+        assert converted["name"] == "CVeg"
+
+    def test_variable_unknown_raises(self, mock_2d_cube):
+        """Unknown variable name should raise ValueError."""
+        with pytest.raises(ValueError, match="Unknown variable"):
+            extract_map_field(mock_2d_cube, variable="NotAVariable")
+
+    def test_anomaly_variable_converts(self, mock_3d_cube):
+        """Anomaly with variable param should convert both slices."""
+        from utils_cmip7.config import CANONICAL_VARIABLES
+        factor = CANONICAL_VARIABLES["GPP"]["conversion_factor"]
+        raw = extract_anomaly_field(mock_3d_cube)
+        converted = extract_anomaly_field(mock_3d_cube, variable="GPP")
+        np.testing.assert_allclose(converted["data"], raw["data"] * factor)
+        assert converted["units"] == "PgC/yr"
+        assert converted["name"] == "GPP"
+
+    def test_anomaly_no_variable_no_conversion(self, mock_3d_cube):
+        """Default anomaly behaviour unchanged."""
+        result = extract_anomaly_field(mock_3d_cube)
+        assert result["units"] == "K"
+        assert result["name"] == "air_temperature"
+
+    def test_anomaly_variable_title(self, mock_3d_cube):
+        """Anomaly title should use canonical name when variable is set."""
+        result = extract_anomaly_field(mock_3d_cube, variable="GPP")
+        assert "GPP" in result["title"]
+        assert "anomaly" in result["title"]

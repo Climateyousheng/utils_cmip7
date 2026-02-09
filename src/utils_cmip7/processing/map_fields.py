@@ -159,7 +159,7 @@ def _masked_to_nan(data):
     return np.asarray(data, dtype=float)
 
 
-def extract_map_field(cube, time=None, time_index=None):
+def extract_map_field(cube, time=None, time_index=None, variable=None):
     """Extract a 2D spatial field from an iris Cube.
 
     Parameters
@@ -172,6 +172,11 @@ def extract_map_field(cube, time=None, time_index=None):
     time_index : int, optional
         Positional index along the time dimension.
         Mutually exclusive with *time*.
+    variable : str, optional
+        Canonical variable name or alias (e.g. ``'GPP'``, ``'VegCarb'``).
+        When provided, applies the ``conversion_factor`` and overrides
+        ``units`` and ``name`` from :data:`~utils_cmip7.config.CANONICAL_VARIABLES`.
+        No conversion is applied by default.
 
     Returns
     -------
@@ -187,8 +192,8 @@ def extract_map_field(cube, time=None, time_index=None):
     TypeError
         If *cube* is not an iris Cube.
     ValueError
-        If mutually exclusive arguments are both supplied, or if the
-        requested year is not found.
+        If mutually exclusive arguments are both supplied, if the
+        requested year is not found, or if *variable* is not recognised.
     """
     _require_iris("extract_map_field")
     if not isinstance(cube, iris.cube.Cube):
@@ -202,8 +207,16 @@ def extract_map_field(cube, time=None, time_index=None):
 
     lons = cube.coord("longitude").points
     lats = cube.coord("latitude").points
-    name = cube.name() or "field"
-    units = str(cube.units)
+
+    if variable is not None:
+        from ..config import get_variable_config
+        var_config = get_variable_config(variable)
+        data_2d = data_2d * var_config["conversion_factor"]
+        units = var_config["units"]
+        name = var_config["canonical_name"]
+    else:
+        name = cube.name() or "field"
+        units = str(cube.units)
 
     year_str = f" ({year})" if year is not None else ""
     title = f"{name}{year_str}"
@@ -226,6 +239,7 @@ def extract_anomaly_field(
     time_b=None,
     time_index_b=None,
     symmetric=True,
+    variable=None,
 ):
     """Extract anomaly (data_a - data_b) between two time slices.
 
@@ -245,6 +259,12 @@ def extract_anomaly_field(
         Mutually exclusive with *time_b*.
     symmetric : bool, default True
         When *True*, auto-compute symmetric vmin/vmax centred at zero.
+    variable : str, optional
+        Canonical variable name or alias (e.g. ``'GPP'``, ``'VegCarb'``).
+        When provided, applies the ``conversion_factor`` to each slice
+        before computing the anomaly, and overrides ``units`` and ``name``
+        from :data:`~utils_cmip7.config.CANONICAL_VARIABLES`.
+        No conversion is applied by default.
 
     Returns
     -------
@@ -262,8 +282,8 @@ def extract_anomaly_field(
     TypeError
         If *cube* is not an iris Cube.
     ValueError
-        If the cube has no time dimension, or if mutually exclusive
-        arguments are both supplied.
+        If the cube has no time dimension, if mutually exclusive
+        arguments are both supplied, or if *variable* is not recognised.
     """
     _require_iris("extract_anomaly_field")
     if not isinstance(cube, iris.cube.Cube):
@@ -297,6 +317,15 @@ def extract_anomaly_field(
 
     data_a = _masked_to_nan(data_a)
     data_b = _masked_to_nan(data_b)
+
+    # Apply unit conversion to each slice before subtraction
+    if variable is not None:
+        from ..config import get_variable_config
+        var_config = get_variable_config(variable)
+        factor = var_config["conversion_factor"]
+        data_a = data_a * factor
+        data_b = data_b * factor
+
     anomaly = data_a - data_b
     anomaly = _squeeze_to_2d(anomaly, cube, label="anomaly")
 
@@ -310,8 +339,13 @@ def extract_anomaly_field(
 
     lons = cube.coord("longitude").points
     lats = cube.coord("latitude").points
-    name = cube.name() or "field"
-    units = str(cube.units)
+
+    if variable is not None:
+        units = var_config["units"]
+        name = var_config["canonical_name"]
+    else:
+        name = cube.name() or "field"
+        units = str(cube.units)
 
     if year_a is not None and year_b is not None:
         title = f"{name} anomaly ({year_a} \u2212 {year_b})"

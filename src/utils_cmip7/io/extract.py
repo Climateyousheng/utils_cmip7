@@ -123,6 +123,8 @@ def try_extract(cubes, code, stash_lookup_func=None, debug=False):
         Collection of cubes to search
     code : str, int, or numeric
         Can be:
+        - Canonical variable name: 'CVeg', 'GPP' (from CANONICAL_VARIABLES)
+        - Alias: 'VegCarb', 'soilResp' (resolved via CANONICAL_VARIABLES)
         - MSI string: 'm01s03i261'
         - Short name: 'gpp' (requires stash_lookup_func)
         - Numeric stash_code: 3261
@@ -151,6 +153,21 @@ def try_extract(cubes, code, stash_lookup_func=None, debug=False):
     regardless of whether the data files use PP or NetCDF conventions.
     """
     candidates = [code]
+
+    # Resolve canonical variable names and aliases to stash_code (MSI)
+    if isinstance(code, str):
+        from ..config import CANONICAL_VARIABLES
+        _resolved_config = None
+        if code in CANONICAL_VARIABLES:
+            _resolved_config = CANONICAL_VARIABLES[code]
+        else:
+            for var_config in CANONICAL_VARIABLES.values():
+                if code in var_config.get("aliases", []):
+                    _resolved_config = var_config
+                    break
+        if _resolved_config is not None:
+            candidates.append(_resolved_config["stash_name"])
+            candidates.append(_resolved_config["stash_code"])
 
     # Expand short-name -> MSI using your mapping
     if stash_lookup_func is not None and isinstance(code, str):
