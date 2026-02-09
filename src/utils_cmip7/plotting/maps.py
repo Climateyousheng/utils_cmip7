@@ -369,7 +369,7 @@ def _render_map(
     if colorbar:
         cbar_label = units if units is not None else ""
         cbar = fig.colorbar(mesh, ax=ax, orientation="horizontal",
-                            pad=0.05, shrink=0.7)
+                            pad=0.12, shrink=0.7, aspect=30)
         cbar.set_label(cbar_label)
 
     # ---- title -----------------------------------------------------------

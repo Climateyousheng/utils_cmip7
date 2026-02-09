@@ -520,6 +520,32 @@ class TestPlotSpatialMap:
         )
         assert len(fig.axes) == 1
 
+    def test_colorbar_no_overlap_in_subplots(self, mock_2d_cube):
+        """Colorbar should not overlap x-axis labels in a 2x3 subplot grid."""
+        f = self._field(mock_2d_cube)
+        proj = ccrs.PlateCarree()
+        fig, axes = plt.subplots(
+            2, 3, figsize=(18, 10),
+            subplot_kw={"projection": proj},
+        )
+        for ax in axes.flat:
+            plot_spatial_map(
+                f["data"], f["lons"], f["lats"],
+                ax=ax, units="K",
+            )
+        fig.canvas.draw()
+        # Check that each colorbar's top edge is below the parent axes bottom
+        geo_axes = [a for a in fig.axes if hasattr(a, "projection")]
+        cbar_axes = [a for a in fig.axes if not hasattr(a, "projection")]
+        assert len(cbar_axes) == 6, "Expected 6 colorbars for 2x3 grid"
+        for geo_ax, cbar_ax in zip(geo_axes, cbar_axes):
+            geo_bottom = geo_ax.get_position().y0
+            cbar_top = cbar_ax.get_position().y1
+            assert cbar_top <= geo_bottom + 0.005, (
+                f"Colorbar top ({cbar_top:.4f}) overlaps axes bottom "
+                f"({geo_bottom:.4f})"
+            )
+
     def test_invalid_data_raises_valueerror(self):
         with pytest.raises(ValueError, match="2D"):
             plot_spatial_map(np.zeros((5,)), np.zeros(5), np.zeros(5))
