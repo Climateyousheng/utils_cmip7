@@ -18,7 +18,7 @@ from .metrics import (
 
 # Map field extraction (requires iris)
 try:
-    from .map_fields import extract_map_field, extract_anomaly_field
+    from .map_fields import extract_map_field, extract_anomaly_field, combine_fields
 except ImportError:
     pass
 
@@ -45,4 +45,5 @@ __all__ = [
     # Map field extraction
     'extract_map_field',
     'extract_anomaly_field',
+    'combine_fields',
 ]

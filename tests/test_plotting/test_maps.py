@@ -25,6 +25,7 @@ from utils_cmip7.config import RECCAP_REGION_BOUNDS, get_region_bounds  # noqa: 
 from utils_cmip7.processing.map_fields import (  # noqa: E402
     extract_map_field,
     extract_anomaly_field,
+    combine_fields,
     _select_time_slice,
 )
 from utils_cmip7.plotting.maps import (  # noqa: E402
@@ -633,3 +634,99 @@ class TestPlotSpatialAnomaly:
             a["data"], a["lons"], a["lats"], region="Europe",
         )
         assert isinstance(ax.projection, ccrs.PlateCarree)
+
+
+# ===================================================================
+# TestCombineFields
+# ===================================================================
+
+class TestCombineFields:
+    """Tests for combine_fields()."""
+
+    @pytest.fixture
+    def field_a(self, mock_3d_cube):
+        return extract_map_field(mock_3d_cube, time=1900)
+
+    @pytest.fixture
+    def field_b(self, mock_3d_cube):
+        return extract_map_field(mock_3d_cube, time=1901)
+
+    def test_sum(self, field_a, field_b):
+        result = combine_fields([field_a, field_b])
+        expected = field_a["data"] + field_b["data"]
+        np.testing.assert_allclose(result["data"], expected)
+        assert "+" in result["name"]
+
+    def test_mean(self, field_a, field_b):
+        result = combine_fields([field_a, field_b], operation="mean")
+        expected = (field_a["data"] + field_b["data"]) / 2
+        np.testing.assert_allclose(result["data"], expected)
+
+    def test_subtract(self, field_a, field_b):
+        result = combine_fields([field_a, field_b], operation="subtract")
+        expected = field_a["data"] - field_b["data"]
+        np.testing.assert_allclose(result["data"], expected)
+        assert "\u2212" in result["name"]
+
+    def test_multiply(self, field_a, field_b):
+        result = combine_fields([field_a, field_b], operation="multiply")
+        expected = field_a["data"] * field_b["data"]
+        np.testing.assert_allclose(result["data"], expected)
+
+    def test_divide(self, field_a, field_b):
+        result = combine_fields([field_a, field_b], operation="divide")
+        expected = field_a["data"] / field_b["data"]
+        np.testing.assert_allclose(result["data"], expected)
+
+    def test_custom_name_and_units(self, field_a, field_b):
+        result = combine_fields(
+            [field_a, field_b],
+            operation="divide",
+            name="ratio",
+            units="1",
+        )
+        assert result["name"] == "ratio"
+        assert result["units"] == "1"
+
+    def test_inherits_units_from_first(self, field_a, field_b):
+        result = combine_fields([field_a, field_b])
+        assert result["units"] == field_a["units"]
+
+    def test_inherits_year_from_first(self, field_a, field_b):
+        result = combine_fields([field_a, field_b])
+        assert result["year"] == field_a["year"]
+
+    def test_returns_correct_keys(self, field_a, field_b):
+        result = combine_fields([field_a, field_b])
+        expected_keys = {"data", "lons", "lats", "name", "units", "year"}
+        assert set(result.keys()) == expected_keys
+
+    def test_empty_list_raises(self):
+        with pytest.raises(ValueError, match="non-empty"):
+            combine_fields([])
+
+    def test_unknown_operation_raises(self, field_a):
+        with pytest.raises(ValueError, match="Unknown operation"):
+            combine_fields([field_a], operation="power")
+
+    def test_binary_op_with_wrong_count_raises(self, field_a):
+        with pytest.raises(ValueError, match="exactly 2 fields"):
+            combine_fields([field_a], operation="subtract")
+
+    def test_grid_mismatch_raises(self, field_a):
+        mismatched = {
+            "data": np.zeros((5, 5)),
+            "lons": np.arange(5, dtype=float),
+            "lats": np.arange(5, dtype=float),
+            "name": "other",
+            "units": "K",
+            "year": 1900,
+        }
+        with pytest.raises(ValueError, match="Grid mismatch"):
+            combine_fields([field_a, mismatched])
+
+    def test_sum_three_fields(self, field_a, field_b, mock_3d_cube):
+        field_c = extract_map_field(mock_3d_cube, time=1902)
+        result = combine_fields([field_a, field_b, field_c])
+        expected = field_a["data"] + field_b["data"] + field_c["data"]
+        np.testing.assert_allclose(result["data"], expected)

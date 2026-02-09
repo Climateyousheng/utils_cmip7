@@ -317,7 +317,110 @@ def extract_anomaly_field(
     }
 
 
+_OP_SYMBOLS = {
+    "sum": "+",
+    "mean": "+",
+    "subtract": "\u2212",
+    "multiply": "\u00d7",
+    "divide": "/",
+}
+
+_NARY_OPS = {"sum", "mean"}
+_BINARY_OPS = {"subtract", "multiply", "divide"}
+
+
+def combine_fields(fields, operation="sum", name=None, units=None):
+    """Combine multiple extracted fields element-wise.
+
+    Parameters
+    ----------
+    fields : list of dict
+        Each dict from :func:`extract_map_field` with ``'data'``,
+        ``'lons'``, ``'lats'``, ``'name'``, ``'units'``, ``'year'``.
+    operation : str, default ``'sum'``
+        N-ary operations: ``'sum'``, ``'mean'``.
+        Binary operations (exactly 2 fields): ``'subtract'``,
+        ``'multiply'``, ``'divide'``.
+    name : str, optional
+        Override name for the combined field.
+        Auto-generated if *None* (e.g. ``"GPP + NPP"``).
+    units : str, optional
+        Override units for the combined field.
+        Inherited from first field if *None*.
+
+    Returns
+    -------
+    dict
+        Keys: ``'data'``, ``'lons'``, ``'lats'``, ``'name'``,
+        ``'units'``, ``'year'``.
+
+    Raises
+    ------
+    ValueError
+        If *fields* is empty, grids don't match, *operation* is unknown,
+        or a binary operation is given with != 2 fields.
+    """
+    if not fields:
+        raise ValueError("'fields' must be a non-empty list of field dicts.")
+
+    all_ops = _NARY_OPS | _BINARY_OPS
+    if operation not in all_ops:
+        raise ValueError(
+            f"Unknown operation '{operation}'. "
+            f"Supported: {sorted(all_ops)}"
+        )
+
+    if operation in _BINARY_OPS and len(fields) != 2:
+        raise ValueError(
+            f"Binary operation '{operation}' requires exactly 2 fields, "
+            f"got {len(fields)}."
+        )
+
+    ref_lons = np.asarray(fields[0]["lons"])
+    ref_lats = np.asarray(fields[0]["lats"])
+    for i, f in enumerate(fields[1:], 1):
+        if not (np.array_equal(np.asarray(f["lons"]), ref_lons)
+                and np.array_equal(np.asarray(f["lats"]), ref_lats)):
+            raise ValueError(
+                f"Grid mismatch: field 0 and field {i} have different "
+                f"lon/lat coordinates."
+            )
+
+    arrays = [np.asarray(f["data"], dtype=float) for f in fields]
+    symbol = _OP_SYMBOLS[operation]
+
+    if operation == "sum":
+        result = sum(arrays)
+    elif operation == "mean":
+        result = sum(arrays) / len(arrays)
+    elif operation == "subtract":
+        result = arrays[0] - arrays[1]
+    elif operation == "multiply":
+        result = arrays[0] * arrays[1]
+    elif operation == "divide":
+        result = arrays[0] / arrays[1]
+
+    if name is None:
+        field_names = [f.get("name", "field") for f in fields]
+        name = f" {symbol} ".join(field_names)
+
+    if units is None:
+        units = fields[0].get("units", "")
+
+    year = fields[0].get("year")
+
+    return {
+        "data": result,
+        "lons": ref_lons,
+        "lats": ref_lats,
+        "name": name,
+        "units": units,
+        "year": year,
+    }
+
+
 __all__ = [
     "extract_map_field",
     "extract_anomaly_field",
+    "combine_fields",
 ]
