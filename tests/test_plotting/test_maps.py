@@ -305,6 +305,44 @@ class TestPlotSpatialMap:
         fig, ax = plot_spatial_map(mock_3d_cube, time_index=2)
         assert "1902" in ax.get_title()
 
+    def test_squeeze_single_extra_dim(self):
+        """Cube with a length-1 pseudo-level should be auto-squeezed."""
+        lat = iris.coords.DimCoord(
+            np.linspace(-90, 90, 5), standard_name="latitude", units="degrees",
+        )
+        lon = iris.coords.DimCoord(
+            np.linspace(-180, 180, 10), standard_name="longitude", units="degrees",
+        )
+        level = iris.coords.DimCoord([1], long_name="pseudo_level", units="1")
+        data = np.random.default_rng(8).random((1, 5, 10))
+        cube = iris.cube.Cube(
+            data,
+            dim_coords_and_dims=[(level, 0), (lat, 1), (lon, 2)],
+            standard_name="air_temperature",
+            units="K",
+        )
+        fig, ax = plot_spatial_map(cube)
+        assert isinstance(fig, plt.Figure)
+
+    def test_multi_level_raises(self):
+        """Cube with a multi-valued extra dim should raise ValueError."""
+        lat = iris.coords.DimCoord(
+            np.linspace(-90, 90, 5), standard_name="latitude", units="degrees",
+        )
+        lon = iris.coords.DimCoord(
+            np.linspace(-180, 180, 10), standard_name="longitude", units="degrees",
+        )
+        level = iris.coords.DimCoord([1, 2, 3], long_name="pseudo_level", units="1")
+        data = np.random.default_rng(9).random((3, 5, 10))
+        cube = iris.cube.Cube(
+            data,
+            dim_coords_and_dims=[(level, 0), (lat, 1), (lon, 2)],
+            standard_name="air_temperature",
+            units="K",
+        )
+        with pytest.raises(ValueError, match="extra dimension"):
+            plot_spatial_map(cube)
+
 
 # ===================================================================
 # TestRegionBoundsConfig

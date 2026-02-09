@@ -250,6 +250,23 @@ def plot_spatial_map(
     # ---- time selection --------------------------------------------------
     data_2d, selected_year = _select_time_slice(cube, time=time, time_index=time_index)
 
+    # Squeeze out any length-1 extra dimensions (e.g. single pseudo-level)
+    data_2d = np.squeeze(data_2d)
+    if data_2d.ndim != 2:
+        extra = [
+            c.name() for c in cube.coords(dim_coords=True)
+            if c.name() not in ("time", "latitude", "longitude")
+        ]
+        raise ValueError(
+            f"After time selection the data has {data_2d.ndim} dimensions "
+            f"but 2 (lat, lon) are required.  The cube has extra "
+            f"dimension(s): {extra}.  Slice or collapse them first, "
+            f"e.g. cube[0, :, :] or cube.collapsed('{extra[0]}', "
+            f"iris.analysis.MEAN)." if extra else
+            f"After time selection the data has {data_2d.ndim} dimensions "
+            f"but 2 (lat, lon) are required."
+        )
+
     # ---- coordinate extraction -------------------------------------------
     lon_coord = cube.coord("longitude")
     lat_coord = cube.coord("latitude")
