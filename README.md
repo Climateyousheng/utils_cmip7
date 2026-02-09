@@ -66,7 +66,7 @@ utils_cmip7/
 │   │   ├── stores_vs_fluxes_cmip6_err.csv
 │   │   ├── stores_vs_fluxes_reccap.csv
 │   │   └── stores_vs_fluxes_reccap_err.csv
-│   ├── plotting/             # Visualization (placeholder)
+│   ├── plotting/             # Visualization (maps, time series, PPE)
 │   ├── soil_params/          # Soil parameter analysis (placeholder)
 │   ├── config.py             # Configuration and constants
 │   └── __init__.py           # Package API
@@ -329,6 +329,50 @@ print(f"Europe GPP: {europe_gpp['data']} {europe_gpp['units']}")
 # Available regions: North_America, South_America, Europe, Africa,
 # North_Asia, Central_Asia, East_Asia, South_Asia, South_East_Asia, Oceania
 ```
+
+### Plotting Spatial Maps (New in v0.3.1)
+
+Plot 2D fields on geographic map projections — ideal for Jupyter notebooks:
+
+```python
+import iris
+from utils_cmip7.plotting import plot_spatial_map
+
+# Load a cube with lat/lon (and optionally time) dimensions
+cube = iris.load_cube("path/to/annual_mean.nc", "gpp")
+
+# Global map, first year (default Robinson projection)
+fig, ax = plot_spatial_map(cube)
+
+# Specific year
+fig, ax = plot_spatial_map(cube, time=1900)
+
+# Named RECCAP2 region (auto-switches to PlateCarree)
+fig, ax = plot_spatial_map(cube, region="Europe", cmap="RdYlGn")
+
+# Custom bounding box
+fig, ax = plot_spatial_map(
+    cube,
+    lon_bounds=(-90, -30),
+    lat_bounds=(-60, 15),
+    title="South America GPP",
+)
+
+# Compose with other subplots
+import matplotlib.pyplot as plt
+import cartopy.crs as ccrs
+
+fig, axes = plt.subplots(
+    1, 2, figsize=(16, 5),
+    subplot_kw={"projection": ccrs.Robinson()},
+)
+plot_spatial_map(cube, time=1900, ax=axes[0], title="1900")
+plot_spatial_map(cube, time=2000, ax=axes[1], title="2000")
+plt.tight_layout()
+```
+
+Available RECCAP2 regions: `North_America`, `South_America`, `Europe`, `Africa`,
+`North_Asia`, `Central_Asia`, `East_Asia`, `South_Asia`, `South_East_Asia`, `Oceania`.
 
 ### Model Validation (New in v0.2.1)
 

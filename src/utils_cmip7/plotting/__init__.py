@@ -47,6 +47,12 @@ from .spatial import (
     plot_pft_grouped_bars,
 )
 
+# Geographic map plotting (requires cartopy + iris)
+try:
+    from .maps import plot_spatial_map
+except ImportError:
+    pass
+
 # Styling utilities
 from .styles import (
     DEFAULT_LEGEND_LABELS,
@@ -89,3 +95,7 @@ __all__ = [
     'DEFAULT_COLOR_MAP',
     'group_vars_by_prefix',
 ]
+
+# Conditionally add map plotting to __all__ when cartopy is available
+if 'plot_spatial_map' in dir():
+    __all__.append('plot_spatial_map')

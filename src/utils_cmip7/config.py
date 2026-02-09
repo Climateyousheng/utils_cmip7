@@ -66,6 +66,50 @@ RECCAP_REGIONS = {
     11: "Oceania",
 }
 
+# RECCAP2 approximate geographic bounding boxes (lon_min, lon_max, lat_min, lat_max)
+# Used by plot_spatial_map() for regional subsetting
+RECCAP_REGION_BOUNDS = {
+    "North_America":   (-170, -50,   10,  80),
+    "South_America":   ( -90, -30,  -60,  15),
+    "Europe":          ( -15,  45,   35,  75),
+    "Africa":          ( -20,  55,  -40,  40),
+    "North_Asia":      (  40, 180,   50,  80),
+    "Central_Asia":    (  45, 100,   25,  55),
+    "East_Asia":       (  95, 150,   15,  55),
+    "South_Asia":      (  60, 100,    5,  40),
+    "South_East_Asia": (  90, 160,  -15,  25),
+    "Oceania":         ( 110, 180,  -50,  -5),
+}
+
+
+def get_region_bounds(region_name):
+    """
+    Look up geographic bounding box for a RECCAP2 region.
+
+    Parameters
+    ----------
+    region_name : str
+        Region name, must match a key in RECCAP_REGION_BOUNDS
+        (e.g. 'Europe', 'North_America').
+
+    Returns
+    -------
+    tuple of (float, float, float, float)
+        (lon_min, lon_max, lat_min, lat_max)
+
+    Raises
+    ------
+    ValueError
+        If region_name is not recognized.
+    """
+    if region_name not in RECCAP_REGION_BOUNDS:
+        raise ValueError(
+            f"Unknown region: '{region_name}'. "
+            f"Available regions: {sorted(RECCAP_REGION_BOUNDS.keys())}"
+        )
+    return RECCAP_REGION_BOUNDS[region_name]
+
+
 # Backward compatibility: alias for old name
 var_dict = VAR_CONVERSIONS
 
