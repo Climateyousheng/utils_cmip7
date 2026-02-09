@@ -1,8 +1,8 @@
 # utils_cmip7 Public API Reference
 
-**Version:** v0.3.0
+**Version:** v0.3.1-dev
 **Status:** Stable
-**Last Updated:** 2026-01-26
+**Last Updated:** 2026-02-09
 
 ---
 
@@ -20,6 +20,8 @@ For information on API stability guarantees, see the [API Stability Matrix](#api
 - [Quick Start](#quick-start)
 - [I/O Functions](#io-functions)
 - [Processing Functions](#processing-functions)
+- [Map Field Extraction](#map-field-extraction)
+- [Plotting Functions](#plotting-functions)
 - [Diagnostics Functions](#diagnostics-functions)
 - [Configuration](#configuration)
 - [API Stability Matrix](#api-stability-matrix)
@@ -155,6 +157,54 @@ month = decode_month('dc')  # Returns 12 (December)
 
 ---
 
+### Cube Extraction
+
+#### `try_extract(cubes, code, stash_lookup_func=None, debug=False)`
+
+Extract cubes matching a variable identifier from a CubeList. Accepts multiple code formats and resolves them all to MSI strings for matching.
+
+**Parameters:**
+- `cubes` (iris.cube.CubeList): Collection of cubes to search
+- `code` (str, int): Variable identifier. Accepted formats:
+  - Canonical variable name: `'CVeg'`, `'GPP'` (from `CANONICAL_VARIABLES`)
+  - Alias: `'VegCarb'`, `'soilResp'` (resolved via `CANONICAL_VARIABLES`)
+  - MSI string: `'m01s03i261'`
+  - Short name: `'gpp'` (requires `stash_lookup_func`)
+  - Numeric stash_code: `3261`
+- `stash_lookup_func` (callable, optional): Function to map short names to MSI strings (e.g., `stash()`)
+- `debug` (bool): Print debug information during extraction
+
+**Returns:**
+- iris.cube.CubeList or None: Matching cubes, or empty CubeList / None if not found
+
+**Example:**
+```python
+from utils_cmip7.io.extract import try_extract
+import iris
+
+cubes = iris.load('data.nc')
+
+# Using canonical variable name (recommended)
+gpp = try_extract(cubes, 'GPP')
+
+# Using alias
+cv = try_extract(cubes, 'VegCarb')  # resolves to CVeg
+
+# Using MSI string
+gpp = try_extract(cubes, 'm01s03i261')
+
+# Using numeric stash code
+gpp = try_extract(cubes, 3261)
+
+# Using short name with lookup function
+from utils_cmip7.io.stash import stash
+gpp = try_extract(cubes, 'gpp', stash_lookup_func=stash)
+```
+
+**Stability:** ⚠️ **Provisional**
+
+---
+
 ## Processing Functions
 
 ### Spatial Aggregation
@@ -273,6 +323,179 @@ Compute regional annual mean using RECCAP2 mask.
 
 ---
 
+## Map Field Extraction
+
+Functions for extracting 2D spatial fields from iris Cubes, ready for plotting. Located in `utils_cmip7.processing.map_fields`.
+
+### `extract_map_field(cube, time=None, time_index=None, variable=None)`
+
+Extract a 2D spatial field from an iris Cube. Returns a dict ready for `plot_spatial_map()`.
+
+**Parameters:**
+- `cube` (iris.cube.Cube): Input cube with latitude and longitude (and optional time)
+- `time` (int, optional): Year to select. Mutually exclusive with `time_index`
+- `time_index` (int, optional): Positional index along the time dimension
+- `variable` (str, optional): Canonical variable name or alias (e.g., `'GPP'`, `'VegCarb'`).
+  When provided, applies `conversion_factor` and overrides `units` and `name` from `CANONICAL_VARIABLES`. No conversion by default.
+
+**Returns:**
+- dict with keys: `'data'` (2D ndarray), `'lons'` (1D ndarray), `'lats'` (1D ndarray), `'name'` (str), `'units'` (str), `'year'` (int or None), `'title'` (str)
+
+**Example:**
+```python
+from utils_cmip7.processing.map_fields import extract_map_field
+import iris
+
+cube = iris.load_cube('gpp.nc')
+
+# Basic extraction (raw units)
+field = extract_map_field(cube, time=2000)
+
+# With unit conversion (kgC/m2/s -> PgC/yr)
+field = extract_map_field(cube, time=2000, variable='GPP')
+print(field['units'])  # 'PgC/yr'
+print(field['name'])   # 'GPP'
+```
+
+**Stability:** ⚠️ **Unstable** (Plotting API)
+
+---
+
+### `extract_anomaly_field(cube, time_a=None, time_index_a=None, time_b=None, time_index_b=None, symmetric=True, variable=None)`
+
+Extract anomaly (data_a - data_b) between two time slices. Returns a dict ready for `plot_spatial_anomaly()`.
+
+**Parameters:**
+- `cube` (iris.cube.Cube): Input cube with time, latitude, and longitude
+- `time_a` (int, optional): Year for the "after" field. Default: last timestep
+- `time_index_a` (int, optional): Positional index for the "after" field
+- `time_b` (int, optional): Year for the "before" / baseline field. Default: first timestep
+- `time_index_b` (int, optional): Positional index for the "before" field
+- `symmetric` (bool, default True): Auto-compute symmetric vmin/vmax centred at zero
+- `variable` (str, optional): Canonical variable name or alias. When provided, applies `conversion_factor` to each slice before subtraction.
+
+**Returns:**
+- dict with keys: `'data'`, `'lons'`, `'lats'`, `'name'`, `'units'`, `'year_a'`, `'year_b'`, `'vmin'`, `'vmax'`, `'title'`
+
+**Example:**
+```python
+from utils_cmip7.processing.map_fields import extract_anomaly_field
+
+anomaly = extract_anomaly_field(cube, time_a=2000, time_b=1850, variable='CVeg')
+print(anomaly['title'])  # 'CVeg anomaly (2000 - 1850)'
+print(anomaly['units'])  # 'PgC'
+```
+
+**Stability:** ⚠️ **Unstable** (Plotting API)
+
+---
+
+### `combine_fields(fields, operation='sum', name=None, units=None)`
+
+Combine multiple extracted fields element-wise.
+
+**Parameters:**
+- `fields` (list of dict): Each dict from `extract_map_field()` with `'data'`, `'lons'`, `'lats'`
+- `operation` (str): N-ary: `'sum'`, `'mean'`. Binary (exactly 2 fields): `'subtract'`, `'multiply'`, `'divide'`
+- `name` (str, optional): Override name. Auto-generated if None (e.g., `'GPP + NPP'`)
+- `units` (str, optional): Override units. Inherited from first field if None
+
+**Returns:**
+- dict with keys: `'data'`, `'lons'`, `'lats'`, `'name'`, `'units'`, `'year'`
+
+**Example:**
+```python
+from utils_cmip7.processing.map_fields import extract_map_field, combine_fields
+
+gpp = extract_map_field(gpp_cube, time=2000, variable='GPP')
+npp = extract_map_field(npp_cube, time=2000, variable='NPP')
+
+total = combine_fields([gpp, npp], operation='sum')
+ratio = combine_fields([npp, gpp], operation='divide', name='CUE', units='1')
+```
+
+**Stability:** ⚠️ **Unstable** (Plotting API)
+
+---
+
+## Plotting Functions
+
+Geographic map plotting for 2D spatial fields. Requires `cartopy`. Located in `utils_cmip7.plotting.maps`.
+
+### `plot_spatial_map(data, lons, lats, *, region=None, lon_bounds=None, lat_bounds=None, projection=None, cmap='viridis', vmin=None, vmax=None, title=None, units=None, add_coastlines=True, add_gridlines=True, colorbar=True, ax=None)`
+
+Plot a 2D field on a cartopy map projection. Accepts pre-extracted numpy arrays (not iris Cubes).
+
+**Parameters:**
+- `data` (array, shape (n_lat, n_lon)): 2D field to plot
+- `lons` (array, shape (n_lon,)): Longitude values in degrees
+- `lats` (array, shape (n_lat,)): Latitude values in degrees
+- `region` (str, optional): RECCAP2 region name (e.g., `'Europe'`). Mutually exclusive with bounds
+- `lon_bounds` / `lat_bounds` (tuple, optional): Explicit (min, max) for map extent. Must be provided together
+- `projection` (cartopy.crs.Projection, optional): Default: Robinson (global), PlateCarree (regional)
+- `cmap` (str): Colormap. Default: `'viridis'`
+- `vmin`, `vmax` (float, optional): Colour scale bounds
+- `title` (str, optional): Plot title
+- `units` (str, optional): Colorbar label
+- `add_coastlines`, `add_gridlines`, `colorbar` (bool): Toggle decorations
+- `ax` (GeoAxes, optional): Pre-existing axes to plot on
+
+**Returns:**
+- `(fig, ax)`: matplotlib Figure and cartopy GeoAxes
+
+**Example:**
+```python
+from utils_cmip7.processing.map_fields import extract_map_field
+from utils_cmip7.plotting.maps import plot_spatial_map
+
+field = extract_map_field(cube, time=2000, variable='GPP')
+fig, ax = plot_spatial_map(
+    field['data'], field['lons'], field['lats'],
+    title=field['title'], units=field['units'],
+)
+
+# Regional view
+fig, ax = plot_spatial_map(
+    field['data'], field['lons'], field['lats'],
+    region='Europe', title='GPP — Europe',
+)
+
+# Multi-panel layout (2x3 subplots)
+import matplotlib.pyplot as plt
+import cartopy.crs as ccrs
+
+fig, axes = plt.subplots(2, 3, figsize=(18, 10),
+                         subplot_kw={'projection': ccrs.PlateCarree()})
+for ax, var_field in zip(axes.flat, fields):
+    plot_spatial_map(var_field['data'], var_field['lons'], var_field['lats'],
+                     ax=ax, title=var_field['name'], units=var_field['units'])
+```
+
+**Stability:** ⚠️ **Unstable** (Plotting API)
+
+---
+
+### `plot_spatial_anomaly(data, lons, lats, *, region=None, lon_bounds=None, lat_bounds=None, projection=None, cmap='RdBu_r', vmin=None, vmax=None, title=None, units=None, add_coastlines=True, add_gridlines=True, colorbar=True, ax=None)`
+
+Plot an anomaly field on a cartopy map projection. Same parameters as `plot_spatial_map()` with a diverging colormap default.
+
+**Example:**
+```python
+from utils_cmip7.processing.map_fields import extract_anomaly_field
+from utils_cmip7.plotting.maps import plot_spatial_anomaly
+
+a = extract_anomaly_field(cube, time_a=2000, time_b=1850, variable='GPP')
+fig, ax = plot_spatial_anomaly(
+    a['data'], a['lons'], a['lats'],
+    vmin=a['vmin'], vmax=a['vmax'],
+    title=a['title'], units=a['units'],
+)
+```
+
+**Stability:** ⚠️ **Unstable** (Plotting API)
+
+---
+
 ## Diagnostics Functions
 
 ### High-Level Extraction
@@ -359,11 +582,14 @@ Dictionary mapping canonical variable names to their configuration.
 ```python
 {
     'GPP': {
+        'description': 'Gross Primary Production',
         'stash_name': 'gpp',
         'stash_code': 'm01s03i261',
+        'aggregation': 'SUM',
+        'conversion_factor': 3600*24*360*1e-12,  # kgC/m2/s -> PgC/yr
         'units': 'PgC/yr',
-        'long_name': 'Gross Primary Productivity',
-        ...
+        'category': 'flux',
+        'aliases': [],
     },
     ...
 }
@@ -413,7 +639,7 @@ Resolve variable name to canonical name.
 ```python
 from utils_cmip7 import resolve_variable_name
 
-canonical = resolve_variable_name('VegCarb')  # Returns 'CVeg' (with deprecation warning)
+canonical = resolve_variable_name('VegCarb')  # Returns 'CVeg'
 canonical = resolve_variable_name('GPP')      # Returns 'GPP'
 ```
 
@@ -423,16 +649,16 @@ canonical = resolve_variable_name('GPP')      # Returns 'GPP'
 
 #### `get_variable_config(var_name)`
 
-Get configuration dictionary for a variable.
+Get configuration dictionary for a variable. Resolves aliases automatically.
 
 **Parameters:**
-- `var_name` (str): Canonical variable name
+- `var_name` (str): Variable name (canonical or alias)
 
 **Returns:**
-- dict: Variable configuration
+- dict: Variable configuration with keys: `description`, `stash_name`, `stash_code`, `aggregation`, `conversion_factor`, `units`, `category`, `aliases`, `canonical_name`
 
 **Raises:**
-- KeyError: If variable not in registry
+- ValueError: If variable name not recognized
 
 **Stability:** ✅ **Stable**
 
@@ -440,13 +666,13 @@ Get configuration dictionary for a variable.
 
 #### `get_conversion_key(var_name)`
 
-Get unit conversion key for a variable.
+Get unit conversion key for `compute_regional_annual_mean()`.
 
 **Parameters:**
-- `var_name` (str): Canonical variable name
+- `var_name` (str): Variable name (canonical or alias)
 
 **Returns:**
-- str: Conversion key (e.g., 'gC/m2/s->PgC/yr')
+- str: Conversion key for use with `compute_regional_annual_mean()` (e.g., `'GPP'`, `'Others'`, `'precip'`, `'Total co2'`)
 
 **Stability:** ✅ **Stable**
 
@@ -523,5 +749,5 @@ See `docs/MIGRATION_v0.3.md` for detailed migration instructions.
 
 ---
 
-**Last updated:** 2026-01-26
+**Last updated:** 2026-02-09
 **Maintainer:** Yousheng Li
