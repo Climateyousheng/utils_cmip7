@@ -328,6 +328,28 @@ class TestPlotSpatialMap:
         fig, ax = plot_spatial_map(cube)
         assert isinstance(fig, plt.Figure)
 
+    def test_cyclic_point_closes_gap(self):
+        """Near-global lon grid (0..356.25) should get a cyclic wrap point."""
+        n_lon = 288  # UM N96: 360 / 1.25 = 288 points
+        lons = np.linspace(0, 356.25, n_lon)
+        lats = np.linspace(-90, 90, 10)
+        lat_coord = iris.coords.DimCoord(
+            lats, standard_name="latitude", units="degrees",
+        )
+        lon_coord = iris.coords.DimCoord(
+            lons, standard_name="longitude", units="degrees",
+        )
+        data = np.random.default_rng(42).random((10, n_lon))
+        cube = iris.cube.Cube(
+            data,
+            dim_coords_and_dims=[(lat_coord, 0), (lon_coord, 1)],
+            standard_name="air_temperature",
+            units="K",
+        )
+        # Use PlateCarree to avoid the cartopy 0.25 + shapely 2.x bug
+        fig, ax = plot_spatial_map(cube, projection=ccrs.PlateCarree())
+        assert isinstance(fig, plt.Figure)
+
     def test_multi_level_raises(self):
         """Cube with a multi-valued extra dim should raise ValueError."""
         lat = iris.coords.DimCoord(

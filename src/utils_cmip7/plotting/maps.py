@@ -14,6 +14,7 @@ import matplotlib.pyplot as plt
 try:
     import cartopy.crs as ccrs
     import cartopy.feature as cfeature
+    from cartopy.util import add_cyclic_point
     HAS_CARTOPY = True
 except ImportError:
     HAS_CARTOPY = False
@@ -370,6 +371,12 @@ def _render_map(
     # ---- plot data -------------------------------------------------------
     # Use contourf rather than pcolormesh to avoid a known cartopy 0.25 /
     # shapely 2.x bug with non-PlateCarree projections.
+
+    # Close the longitude gap at 0°/360° for near-global grids.
+    lon_range = float(lons[-1] - lons[0])
+    if lon_range > 350:
+        data_2d, lons = add_cyclic_point(data_2d, coord=lons)
+
     lon2d, lat2d = np.meshgrid(lons, lats)
     contourf_kwargs = {
         "transform": ccrs.PlateCarree(),
