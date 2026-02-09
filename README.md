@@ -53,7 +53,8 @@ utils_cmip7/
 │   │   ├── spatial.py        # Global aggregation (SUM/MEAN)
 │   │   ├── temporal.py       # Monthly → annual aggregation
 │   │   ├── regional.py       # RECCAP2 regional masking
-│   │   └── metrics.py        # Metric definitions and validation
+│   │   ├── metrics.py        # Metric definitions and validation
+│   │   └── map_fields.py     # Extract/combine 2D fields for map plotting
 │   ├── diagnostics/          # High-level extraction workflows
 │   │   ├── extraction.py     # Pre-processed NetCDF extraction
 │   │   ├── raw.py            # Raw monthly file extraction
@@ -330,44 +331,106 @@ print(f"Europe GPP: {europe_gpp['data']} {europe_gpp['units']}")
 # North_Asia, Central_Asia, East_Asia, South_Asia, South_East_Asia, Oceania
 ```
 
-### Plotting Spatial Maps (New in v0.3.1)
+### Plotting Spatial Maps (Notebook Workflow)
 
-Plot 2D fields on geographic map projections — ideal for Jupyter notebooks:
+Plot 2D fields on geographic map projections.  The workflow separates
+**extraction** (iris cube to arrays) from **plotting** (arrays to map),
+so plotting functions never touch cubes or NetCDF files directly.
+
+#### Basic usage
 
 ```python
 import iris
+from utils_cmip7.processing import extract_map_field
 from utils_cmip7.plotting import plot_spatial_map
 
-# Load a cube with lat/lon (and optionally time) dimensions
+# 1. Load a cube with lat/lon (and optionally time) dimensions
 cube = iris.load_cube("path/to/annual_mean.nc", "gpp")
 
-# Global map, first year (default Robinson projection)
-fig, ax = plot_spatial_map(cube)
+# 2. Extract a 2D field (returns a dict with data, lons, lats, title, units, ...)
+field = extract_map_field(cube, time=1900)
 
-# Specific year
-fig, ax = plot_spatial_map(cube, time=1900)
+# 3. Plot — global map with Robinson projection (default)
+fig, ax = plot_spatial_map(
+    field["data"], field["lons"], field["lats"],
+    title=field["title"], units=field["units"],
+)
+```
 
+#### Regional views
+
+```python
 # Named RECCAP2 region (auto-switches to PlateCarree)
-fig, ax = plot_spatial_map(cube, region="Europe", cmap="RdYlGn")
+field = extract_map_field(cube, time=1900)
+fig, ax = plot_spatial_map(
+    field["data"], field["lons"], field["lats"],
+    region="Europe", cmap="RdYlGn",
+    title=field["title"], units=field["units"],
+)
 
 # Custom bounding box
 fig, ax = plot_spatial_map(
-    cube,
-    lon_bounds=(-90, -30),
-    lat_bounds=(-60, 15),
+    field["data"], field["lons"], field["lats"],
+    lon_bounds=(-90, -30), lat_bounds=(-60, 15),
     title="South America GPP",
 )
+```
 
-# Compose with other subplots
+#### Anomaly (difference) maps
+
+```python
+from utils_cmip7.processing import extract_anomaly_field
+from utils_cmip7.plotting import plot_spatial_anomaly
+
+anomaly = extract_anomaly_field(cube, time_a=2000, time_b=1900)
+fig, ax = plot_spatial_anomaly(
+    anomaly["data"], anomaly["lons"], anomaly["lats"],
+    vmin=anomaly["vmin"], vmax=anomaly["vmax"],
+    title=anomaly["title"], units=anomaly["units"],
+)
+```
+
+#### Combining multiple variables
+
+```python
+from utils_cmip7.processing import extract_map_field, combine_fields
+from utils_cmip7.plotting import plot_spatial_map
+
+cube_gpp = iris.load_cube("gpp.nc", "gpp")
+cube_npp = iris.load_cube("npp.nc", "npp")
+
+field_gpp = extract_map_field(cube_gpp, time=1900)
+field_npp = extract_map_field(cube_npp, time=1900)
+
+# Sum (default), mean, subtract, multiply, divide
+total = combine_fields([field_gpp, field_npp])
+fig, ax = plot_spatial_map(
+    total["data"], total["lons"], total["lats"],
+    title=total["name"], units=total["units"],
+)
+```
+
+#### Multi-panel figures
+
+```python
 import matplotlib.pyplot as plt
 import cartopy.crs as ccrs
 
+field_1900 = extract_map_field(cube, time=1900)
+field_2000 = extract_map_field(cube, time=2000)
+
 fig, axes = plt.subplots(
     1, 2, figsize=(16, 5),
-    subplot_kw={"projection": ccrs.Robinson()},
+    subplot_kw={"projection": ccrs.PlateCarree()},
 )
-plot_spatial_map(cube, time=1900, ax=axes[0], title="1900")
-plot_spatial_map(cube, time=2000, ax=axes[1], title="2000")
+plot_spatial_map(
+    field_1900["data"], field_1900["lons"], field_1900["lats"],
+    ax=axes[0], title="1900",
+)
+plot_spatial_map(
+    field_2000["data"], field_2000["lons"], field_2000["lats"],
+    ax=axes[1], title="2000",
+)
 plt.tight_layout()
 ```
 
