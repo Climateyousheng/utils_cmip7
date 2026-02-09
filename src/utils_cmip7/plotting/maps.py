@@ -32,6 +32,9 @@ def _get_cell_years(time_coord):
 
     Works for both datetime-decoded and raw-numeric time coordinates.
     For numeric coordinates, converts via ``time_coord.units.num2date``.
+
+    Returns *None* if year extraction is not possible (e.g. the time
+    coordinate has no calendar metadata).
     """
     cells = list(time_coord.cells())
     # Fast path: datetime-like points
@@ -44,12 +47,7 @@ def _get_cell_years(time_coord):
         dates = time_coord.units.num2date(time_coord.points)
         return np.array([d.year for d in dates])
     except Exception:
-        raise ValueError(
-            "Cannot extract years from time coordinate: points are "
-            f"numeric ({type(first_pt).__name__}) and unit-based "
-            "date conversion failed.  Provide 'time_index' instead "
-            "of 'time'."
-        )
+        return None
 
 
 def _select_time_slice(cube, time=None, time_index=None):
@@ -100,9 +98,15 @@ def _select_time_slice(cube, time=None, time_index=None):
     time_coord = time_coords[0]
     time_dim = cube.coord_dims(time_coord)[0]
 
+    cell_years = _get_cell_years(time_coord)
+
     if time is not None:
         # Select by year — may need to average across months
-        cell_years = _get_cell_years(time_coord)
+        if cell_years is None:
+            raise ValueError(
+                "Cannot select by year: the time coordinate has no "
+                "calendar metadata.  Use 'time_index' instead."
+            )
         mask = cell_years == time
         if not np.any(mask):
             available = sorted(set(cell_years.tolist()))
@@ -126,8 +130,7 @@ def _select_time_slice(cube, time=None, time_index=None):
     slices = [slice(None)] * cube.ndim
     slices[time_dim] = idx
     data_2d = cube[tuple(slices)].data
-    cell_years = _get_cell_years(time_coord)
-    year = int(cell_years[idx])
+    year = int(cell_years[idx]) if cell_years is not None else None
     return data_2d, year
 
 

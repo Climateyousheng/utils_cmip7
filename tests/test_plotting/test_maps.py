@@ -155,6 +155,38 @@ class TestSelectTimeSlice:
         with pytest.raises(ValueError, match="Year 2050 not found"):
             _select_time_slice(mock_3d_cube, time=2050)
 
+    def test_numeric_time_no_calendar(self):
+        """Cube whose time coord has no calendar (raw float points)."""
+        time_coord = iris.coords.DimCoord(
+            np.array([0.0, 1.0, 2.0]),
+            long_name="time",
+            units="1",
+        )
+        lat = iris.coords.DimCoord(
+            np.linspace(-90, 90, 5), standard_name="latitude", units="degrees",
+        )
+        lon = iris.coords.DimCoord(
+            np.linspace(-180, 180, 10), standard_name="longitude", units="degrees",
+        )
+        data = np.random.default_rng(11).random((3, 5, 10))
+        cube = iris.cube.Cube(
+            data,
+            dim_coords_and_dims=[(time_coord, 0), (lat, 1), (lon, 2)],
+        )
+        # Default (first timestep) should work, year returned as None
+        data_2d, year = _select_time_slice(cube)
+        assert data_2d.shape == (5, 10)
+        assert year is None
+
+        # time_index should also work
+        data_2d, year = _select_time_slice(cube, time_index=1)
+        assert year is None
+        np.testing.assert_array_equal(data_2d, data[1])
+
+        # Selecting by year should raise a clear error
+        with pytest.raises(ValueError, match="no calendar metadata"):
+            _select_time_slice(cube, time=1900)
+
 
 # ===================================================================
 # TestPlotSpatialMap
