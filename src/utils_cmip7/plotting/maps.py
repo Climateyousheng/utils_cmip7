@@ -27,6 +27,31 @@ except ImportError:
 from ..config import get_region_bounds
 
 
+def _get_cell_years(time_coord):
+    """Return an array of integer years for every cell in *time_coord*.
+
+    Works for both datetime-decoded and raw-numeric time coordinates.
+    For numeric coordinates, converts via ``time_coord.units.num2date``.
+    """
+    cells = list(time_coord.cells())
+    # Fast path: datetime-like points
+    first_pt = cells[0].point
+    if hasattr(first_pt, "year"):
+        return np.array([c.point.year for c in cells])
+
+    # Slow path: numeric points — convert via the coordinate's units
+    try:
+        dates = time_coord.units.num2date(time_coord.points)
+        return np.array([d.year for d in dates])
+    except Exception:
+        raise ValueError(
+            "Cannot extract years from time coordinate: points are "
+            f"numeric ({type(first_pt).__name__}) and unit-based "
+            "date conversion failed.  Provide 'time_index' instead "
+            "of 'time'."
+        )
+
+
 def _select_time_slice(cube, time=None, time_index=None):
     """
     Extract a 2D (lat, lon) slice from a cube, optionally selecting by time.
@@ -77,9 +102,7 @@ def _select_time_slice(cube, time=None, time_index=None):
 
     if time is not None:
         # Select by year — may need to average across months
-        cell_years = np.array([
-            cell.point.year for cell in time_coord.cells()
-        ])
+        cell_years = _get_cell_years(time_coord)
         mask = cell_years == time
         if not np.any(mask):
             available = sorted(set(cell_years.tolist()))
@@ -103,7 +126,8 @@ def _select_time_slice(cube, time=None, time_index=None):
     slices = [slice(None)] * cube.ndim
     slices[time_dim] = idx
     data_2d = cube[tuple(slices)].data
-    year = time_coord.cell(idx).point.year
+    cell_years = _get_cell_years(time_coord)
+    year = int(cell_years[idx])
     return data_2d, year
 
 
