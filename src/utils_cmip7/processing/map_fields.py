@@ -1,0 +1,323 @@
+"""
+Extract 2D spatial fields from iris Cubes for map plotting.
+
+Handles time selection, squeezing extra dimensions, coordinate
+extraction, and auto-title generation.  The returned dicts are
+ready to pass straight to :func:`~utils_cmip7.plotting.maps.plot_spatial_map`
+or :func:`~utils_cmip7.plotting.maps.plot_spatial_anomaly`.
+"""
+
+import numpy as np
+
+try:
+    import iris
+    import iris.cube
+    HAS_IRIS = True
+except ImportError:
+    HAS_IRIS = False
+
+
+def _require_iris(func_name):
+    """Raise ImportError if iris is not available."""
+    if not HAS_IRIS:
+        raise ImportError(
+            f"iris is required for {func_name}(). "
+            "Install it with: pip install scitools-iris"
+        )
+
+
+def _get_cell_years(time_coord):
+    """Return an array of integer years for every cell in *time_coord*.
+
+    Works for both datetime-decoded and raw-numeric time coordinates.
+    For numeric coordinates, converts via ``time_coord.units.num2date``.
+
+    Returns *None* if year extraction is not possible (e.g. the time
+    coordinate has no calendar metadata).
+    """
+    cells = list(time_coord.cells())
+    first_pt = cells[0].point
+    if hasattr(first_pt, "year"):
+        return np.array([c.point.year for c in cells])
+
+    try:
+        dates = time_coord.units.num2date(time_coord.points)
+        return np.array([d.year for d in dates])
+    except Exception:
+        return None
+
+
+def _select_time_slice(cube, time=None, time_index=None):
+    """
+    Extract a 2D (lat, lon) slice from a cube, optionally selecting by time.
+
+    Parameters
+    ----------
+    cube : iris.cube.Cube
+        Input cube with at least latitude and longitude dimensions.
+        May optionally have a time dimension.
+    time : int, optional
+        Year to select.  If the cube has multiple timesteps in that year
+        (e.g. monthly data), the mean over the year is returned.
+        Mutually exclusive with *time_index*.
+    time_index : int, optional
+        Positional index along the time dimension.
+        Mutually exclusive with *time*.
+
+    Returns
+    -------
+    data : numpy.ndarray
+        2D array of shape (lat, lon).
+    year : int or None
+        The year associated with the selected slice, or None if the
+        cube has no time dimension.
+
+    Raises
+    ------
+    ValueError
+        If both *time* and *time_index* are specified, or if the
+        requested year is not present in the cube's time coordinate.
+    """
+    if time is not None and time_index is not None:
+        raise ValueError(
+            "Cannot specify both 'time' and 'time_index'; they are "
+            "mutually exclusive."
+        )
+
+    time_coords = cube.coords("time", dim_coords=True)
+    has_time = len(time_coords) > 0
+
+    if not has_time:
+        return cube.data, None
+
+    time_coord = time_coords[0]
+    time_dim = cube.coord_dims(time_coord)[0]
+    cell_years = _get_cell_years(time_coord)
+
+    if time is not None:
+        if cell_years is None:
+            raise ValueError(
+                "Cannot select by year: the time coordinate has no "
+                "calendar metadata.  Use 'time_index' instead."
+            )
+        mask = cell_years == time
+        if not np.any(mask):
+            available = sorted(set(cell_years.tolist()))
+            raise ValueError(
+                f"Year {time} not found in cube time coordinate. "
+                f"Available years: {available}"
+            )
+        indices = np.where(mask)[0]
+        slices = [slice(None)] * cube.ndim
+        slices[time_dim] = indices
+        subset = cube[tuple(slices)]
+        data_2d = np.mean(subset.data, axis=time_dim)
+        return data_2d, time
+
+    if time_index is not None:
+        idx = time_index
+    else:
+        idx = 0
+
+    slices = [slice(None)] * cube.ndim
+    slices[time_dim] = idx
+    data_2d = cube[tuple(slices)].data
+    year = int(cell_years[idx]) if cell_years is not None else None
+    return data_2d, year
+
+
+def _squeeze_to_2d(data, cube, label="data"):
+    """Squeeze length-1 extra dims and raise if result is not 2D."""
+    data = np.squeeze(data)
+    if data.ndim != 2:
+        extra = [
+            c.name() for c in cube.coords(dim_coords=True)
+            if c.name() not in ("time", "latitude", "longitude")
+        ]
+        msg = (
+            f"After time selection the {label} has {data.ndim} dimensions "
+            f"but 2 (lat, lon) are required."
+        )
+        if extra:
+            msg += (
+                f"  The cube has extra dimension(s): {extra}.  "
+                f"Slice or collapse them first."
+            )
+        raise ValueError(msg)
+    return data
+
+
+def extract_map_field(cube, time=None, time_index=None):
+    """Extract a 2D spatial field from an iris Cube.
+
+    Parameters
+    ----------
+    cube : iris.cube.Cube
+        Input cube with latitude and longitude dimensions (and optional
+        time dimension).
+    time : int, optional
+        Year to select.  Mutually exclusive with *time_index*.
+    time_index : int, optional
+        Positional index along the time dimension.
+        Mutually exclusive with *time*.
+
+    Returns
+    -------
+    dict
+        Keys: ``'data'`` (2D ndarray), ``'lons'`` (1D ndarray),
+        ``'lats'`` (1D ndarray), ``'name'`` (str), ``'units'`` (str),
+        ``'year'`` (int or None), ``'title'`` (str).
+
+    Raises
+    ------
+    ImportError
+        If iris is not installed.
+    TypeError
+        If *cube* is not an iris Cube.
+    ValueError
+        If mutually exclusive arguments are both supplied, or if the
+        requested year is not found.
+    """
+    _require_iris("extract_map_field")
+    if not isinstance(cube, iris.cube.Cube):
+        raise TypeError(
+            f"Expected an iris.cube.Cube, got {type(cube).__name__}"
+        )
+
+    data_2d, year = _select_time_slice(cube, time=time, time_index=time_index)
+    data_2d = _squeeze_to_2d(data_2d, cube)
+
+    lons = cube.coord("longitude").points
+    lats = cube.coord("latitude").points
+    name = cube.name() or "field"
+    units = str(cube.units)
+
+    year_str = f" ({year})" if year is not None else ""
+    title = f"{name}{year_str}"
+
+    return {
+        "data": data_2d,
+        "lons": lons,
+        "lats": lats,
+        "name": name,
+        "units": units,
+        "year": year,
+        "title": title,
+    }
+
+
+def extract_anomaly_field(
+    cube,
+    time_a=None,
+    time_index_a=None,
+    time_b=None,
+    time_index_b=None,
+    symmetric=True,
+):
+    """Extract anomaly (data_a - data_b) between two time slices.
+
+    Parameters
+    ----------
+    cube : iris.cube.Cube
+        Input cube with time, latitude, and longitude dimensions.
+    time_a : int, optional
+        Year for the "after" field.  Default: last timestep.
+    time_index_a : int, optional
+        Positional index for the "after" field.
+        Mutually exclusive with *time_a*.
+    time_b : int, optional
+        Year for the "before" / baseline field.  Default: first timestep.
+    time_index_b : int, optional
+        Positional index for the "before" field.
+        Mutually exclusive with *time_b*.
+    symmetric : bool, default True
+        When *True*, auto-compute symmetric vmin/vmax centred at zero.
+
+    Returns
+    -------
+    dict
+        Keys: ``'data'`` (2D ndarray), ``'lons'`` (1D ndarray),
+        ``'lats'`` (1D ndarray), ``'name'`` (str), ``'units'`` (str),
+        ``'year_a'`` (int or None), ``'year_b'`` (int or None),
+        ``'vmin'`` (float or None), ``'vmax'`` (float or None),
+        ``'title'`` (str).
+
+    Raises
+    ------
+    ImportError
+        If iris is not installed.
+    TypeError
+        If *cube* is not an iris Cube.
+    ValueError
+        If the cube has no time dimension, or if mutually exclusive
+        arguments are both supplied.
+    """
+    _require_iris("extract_anomaly_field")
+    if not isinstance(cube, iris.cube.Cube):
+        raise TypeError(
+            f"Expected an iris.cube.Cube, got {type(cube).__name__}"
+        )
+
+    time_coords = cube.coords("time", dim_coords=True)
+    if len(time_coords) == 0:
+        raise ValueError(
+            "extract_anomaly_field() requires a cube with a time dimension, "
+            "but the supplied cube has no time coordinate."
+        )
+
+    time_coord = time_coords[0]
+    n_times = time_coord.shape[0]
+
+    # "after" field — default to last timestep
+    if time_a is None and time_index_a is None:
+        time_index_a = n_times - 1
+    data_a, year_a = _select_time_slice(
+        cube, time=time_a, time_index=time_index_a,
+    )
+
+    # "before" / baseline field — default to first timestep
+    if time_b is None and time_index_b is None:
+        time_index_b = 0
+    data_b, year_b = _select_time_slice(
+        cube, time=time_b, time_index=time_index_b,
+    )
+
+    anomaly = np.asarray(data_a, dtype=float) - np.asarray(data_b, dtype=float)
+    anomaly = _squeeze_to_2d(anomaly, cube, label="anomaly")
+
+    vmin = None
+    vmax = None
+    if symmetric:
+        abs_max = float(np.nanmax(np.abs(anomaly)))
+        if np.isfinite(abs_max) and abs_max > 0:
+            vmin = -abs_max
+            vmax = abs_max
+
+    lons = cube.coord("longitude").points
+    lats = cube.coord("latitude").points
+    name = cube.name() or "field"
+    units = str(cube.units)
+
+    if year_a is not None and year_b is not None:
+        title = f"{name} anomaly ({year_a} \u2212 {year_b})"
+    else:
+        title = f"{name} anomaly"
+
+    return {
+        "data": anomaly,
+        "lons": lons,
+        "lats": lats,
+        "name": name,
+        "units": units,
+        "year_a": year_a,
+        "year_b": year_b,
+        "vmin": vmin,
+        "vmax": vmax,
+        "title": title,
+    }
+
+
+__all__ = [
+    "extract_map_field",
+    "extract_anomaly_field",
+]

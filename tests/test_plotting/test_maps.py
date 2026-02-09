@@ -2,6 +2,8 @@
 Tests for utils_cmip7.plotting.maps — geographic map plotting.
 
 Uses Agg backend throughout to avoid GUI windows.
+The plotting functions now accept arrays (not cubes), so tests
+use extract_map_field / extract_anomaly_field for the cube → array step.
 """
 
 import numpy as np
@@ -20,8 +22,12 @@ import iris.cube  # noqa: E402
 import iris.coords  # noqa: E402
 
 from utils_cmip7.config import RECCAP_REGION_BOUNDS, get_region_bounds  # noqa: E402
-from utils_cmip7.plotting.maps import (  # noqa: E402
+from utils_cmip7.processing.map_fields import (  # noqa: E402
+    extract_map_field,
+    extract_anomaly_field,
     _select_time_slice,
+)
+from utils_cmip7.plotting.maps import (  # noqa: E402
     plot_spatial_map,
     plot_spatial_anomaly,
 )
@@ -193,121 +199,34 @@ class TestSelectTimeSlice:
 
 
 # ===================================================================
-# TestPlotSpatialMap
+# TestExtractMapField
 # ===================================================================
 
-class TestPlotSpatialMap:
-    """Tests for plot_spatial_map()."""
+class TestExtractMapField:
+    """Tests for extract_map_field()."""
 
-    def test_returns_fig_and_ax(self, mock_2d_cube):
-        fig, ax = plot_spatial_map(mock_2d_cube)
-        assert isinstance(fig, plt.Figure)
-        assert hasattr(ax, "projection")
+    def test_returns_dict_keys(self, mock_2d_cube):
+        result = extract_map_field(mock_2d_cube)
+        expected_keys = {"data", "lons", "lats", "name", "units", "year", "title"}
+        assert set(result.keys()) == expected_keys
 
-    def test_works_with_2d_cube(self, mock_2d_cube):
-        fig, ax = plot_spatial_map(mock_2d_cube)
-        assert ax.get_title() == "air_temperature"
+    def test_2d_cube(self, mock_2d_cube):
+        result = extract_map_field(mock_2d_cube)
+        assert result["data"].shape == (10, 20)
+        assert result["year"] is None
+        assert result["name"] == "air_temperature"
+        assert result["units"] == "K"
+        assert result["title"] == "air_temperature"
 
-    def test_works_with_3d_cube(self, mock_3d_cube):
-        fig, ax = plot_spatial_map(mock_3d_cube, time=1902)
-        assert "1902" in ax.get_title()
-
-    def test_ax_parameter_reused(self, mock_2d_cube):
-        proj = ccrs.PlateCarree()
-        fig_ext, ax_ext = plt.subplots(
-            subplot_kw={"projection": proj}
-        )
-        fig_ret, ax_ret = plot_spatial_map(mock_2d_cube, ax=ax_ext)
-        assert ax_ret is ax_ext
-        assert fig_ret is fig_ext
-
-    def test_named_region_sets_extent(self, mock_2d_cube):
-        fig, ax = plot_spatial_map(mock_2d_cube, region="Europe")
-        # PlateCarree should be used for regional views by default
-        assert isinstance(ax.projection, ccrs.PlateCarree)
-
-    def test_explicit_bounds(self, mock_2d_cube):
-        fig, ax = plot_spatial_map(
-            mock_2d_cube,
-            lon_bounds=(-20, 40),
-            lat_bounds=(30, 70),
-        )
-        assert isinstance(ax.projection, ccrs.PlateCarree)
-
-    def test_region_and_bounds_raises(self, mock_2d_cube):
-        with pytest.raises(ValueError, match="mutually exclusive"):
-            plot_spatial_map(
-                mock_2d_cube,
-                region="Europe",
-                lon_bounds=(-20, 40),
-            )
-
-    def test_lon_bounds_without_lat_bounds_raises(self, mock_2d_cube):
-        with pytest.raises(ValueError, match="together"):
-            plot_spatial_map(mock_2d_cube, lon_bounds=(-20, 40))
-
-    def test_lat_bounds_without_lon_bounds_raises(self, mock_2d_cube):
-        with pytest.raises(ValueError, match="together"):
-            plot_spatial_map(mock_2d_cube, lat_bounds=(30, 70))
-
-    @pytest.mark.xfail(
-        reason="cartopy 0.25 + shapely 2.x bug with Mollweide projection",
-        raises=TypeError,
-        strict=False,
-    )
-    def test_custom_projection(self, mock_2d_cube):
-        proj = ccrs.Mollweide()
-        fig, ax = plot_spatial_map(mock_2d_cube, projection=proj)
-        assert isinstance(ax.projection, ccrs.Mollweide)
-
-    def test_colorbar_units(self, mock_2d_cube):
-        fig, ax = plot_spatial_map(mock_2d_cube, units="custom units")
-        # The colorbar should exist (we just verify no error)
-        assert len(fig.axes) > 1  # colorbar creates extra axes
-
-    def test_auto_title(self, mock_3d_cube):
-        fig, ax = plot_spatial_map(mock_3d_cube)
-        assert "air_temperature" in ax.get_title()
-        assert "1900" in ax.get_title()
-
-    def test_custom_title(self, mock_2d_cube):
-        fig, ax = plot_spatial_map(mock_2d_cube, title="My Title")
-        assert ax.get_title() == "My Title"
-
-    def test_no_coastlines(self, mock_2d_cube):
-        fig, ax = plot_spatial_map(mock_2d_cube, add_coastlines=False)
-        # Verify it completes without error (coastlines are optional)
-        assert isinstance(fig, plt.Figure)
-
-    def test_no_gridlines(self, mock_2d_cube):
-        fig, ax = plot_spatial_map(mock_2d_cube, add_gridlines=False)
-        assert isinstance(fig, plt.Figure)
-
-    def test_no_colorbar(self, mock_2d_cube):
-        fig, ax = plot_spatial_map(mock_2d_cube, colorbar=False)
-        # Only the main axes should be present (no colorbar axes)
-        assert len(fig.axes) == 1
+    def test_3d_cube_with_time(self, mock_3d_cube):
+        result = extract_map_field(mock_3d_cube, time=1902)
+        assert result["data"].shape == (10, 20)
+        assert result["year"] == 1902
+        assert "1902" in result["title"]
 
     def test_invalid_input_raises_typeerror(self):
         with pytest.raises(TypeError, match="iris.cube.Cube"):
-            plot_spatial_map(np.zeros((5, 5)))
-
-    def test_invalid_ax_raises_typeerror(self, mock_2d_cube):
-        fig, ax = plt.subplots()  # plain Axes, not GeoAxes
-        with pytest.raises(TypeError, match="GeoAxes"):
-            plot_spatial_map(mock_2d_cube, ax=ax)
-
-    def test_vmin_vmax(self, mock_2d_cube):
-        fig, ax = plot_spatial_map(mock_2d_cube, vmin=0.0, vmax=1.0)
-        assert isinstance(fig, plt.Figure)
-
-    def test_custom_cmap(self, mock_2d_cube):
-        fig, ax = plot_spatial_map(mock_2d_cube, cmap="plasma")
-        assert isinstance(fig, plt.Figure)
-
-    def test_time_index_on_3d(self, mock_3d_cube):
-        fig, ax = plot_spatial_map(mock_3d_cube, time_index=2)
-        assert "1902" in ax.get_title()
+            extract_map_field(np.zeros((5, 5)))
 
     def test_squeeze_single_extra_dim(self):
         """Cube with a length-1 pseudo-level should be auto-squeezed."""
@@ -325,30 +244,8 @@ class TestPlotSpatialMap:
             standard_name="air_temperature",
             units="K",
         )
-        fig, ax = plot_spatial_map(cube)
-        assert isinstance(fig, plt.Figure)
-
-    def test_cyclic_point_closes_gap(self):
-        """Near-global lon grid (0..356.25) should get a cyclic wrap point."""
-        n_lon = 288  # UM N96: 360 / 1.25 = 288 points
-        lons = np.linspace(0, 356.25, n_lon)
-        lats = np.linspace(-90, 90, 10)
-        lat_coord = iris.coords.DimCoord(
-            lats, standard_name="latitude", units="degrees",
-        )
-        lon_coord = iris.coords.DimCoord(
-            lons, standard_name="longitude", units="degrees",
-        )
-        data = np.random.default_rng(42).random((10, n_lon))
-        cube = iris.cube.Cube(
-            data,
-            dim_coords_and_dims=[(lat_coord, 0), (lon_coord, 1)],
-            standard_name="air_temperature",
-            units="K",
-        )
-        # Use PlateCarree to avoid the cartopy 0.25 + shapely 2.x bug
-        fig, ax = plot_spatial_map(cube, projection=ccrs.PlateCarree())
-        assert isinstance(fig, plt.Figure)
+        result = extract_map_field(cube)
+        assert result["data"].shape == (5, 10)
 
     def test_multi_level_raises(self):
         """Cube with a multi-valued extra dim should raise ValueError."""
@@ -367,7 +264,240 @@ class TestPlotSpatialMap:
             units="K",
         )
         with pytest.raises(ValueError, match="extra dimension"):
-            plot_spatial_map(cube)
+            extract_map_field(cube)
+
+
+# ===================================================================
+# TestExtractAnomalyField
+# ===================================================================
+
+class TestExtractAnomalyField:
+    """Tests for extract_anomaly_field()."""
+
+    def test_returns_dict_keys(self, mock_3d_cube):
+        result = extract_anomaly_field(mock_3d_cube)
+        expected_keys = {
+            "data", "lons", "lats", "name", "units",
+            "year_a", "year_b", "vmin", "vmax", "title",
+        }
+        assert set(result.keys()) == expected_keys
+
+    def test_default_last_minus_first(self, mock_3d_cube):
+        result = extract_anomaly_field(mock_3d_cube)
+        expected = mock_3d_cube[-1].data - mock_3d_cube[0].data
+        np.testing.assert_allclose(result["data"], expected)
+        assert result["year_a"] == 1904
+        assert result["year_b"] == 1900
+        assert "1904" in result["title"]
+        assert "1900" in result["title"]
+
+    def test_symmetric_vmin_vmax(self, mock_3d_cube):
+        result = extract_anomaly_field(mock_3d_cube)
+        assert result["vmin"] == pytest.approx(-result["vmax"])
+
+    def test_no_symmetric(self, mock_3d_cube):
+        result = extract_anomaly_field(mock_3d_cube, symmetric=False)
+        assert result["vmin"] is None
+        assert result["vmax"] is None
+
+    def test_by_year(self, mock_3d_cube):
+        result = extract_anomaly_field(mock_3d_cube, time_a=1904, time_b=1900)
+        assert result["year_a"] == 1904
+        assert result["year_b"] == 1900
+
+    def test_2d_cube_raises(self, mock_2d_cube):
+        with pytest.raises(ValueError, match="time dimension"):
+            extract_anomaly_field(mock_2d_cube)
+
+    def test_invalid_input_raises_typeerror(self):
+        with pytest.raises(TypeError, match="iris.cube.Cube"):
+            extract_anomaly_field(np.zeros((5, 5)))
+
+
+# ===================================================================
+# TestPlotSpatialMap
+# ===================================================================
+
+class TestPlotSpatialMap:
+    """Tests for plot_spatial_map() — array-based API."""
+
+    def _field(self, cube, **kwargs):
+        """Helper: extract field dict from cube."""
+        return extract_map_field(cube, **kwargs)
+
+    def test_returns_fig_and_ax(self, mock_2d_cube):
+        f = self._field(mock_2d_cube)
+        fig, ax = plot_spatial_map(f["data"], f["lons"], f["lats"])
+        assert isinstance(fig, plt.Figure)
+        assert hasattr(ax, "projection")
+
+    def test_works_with_2d_cube(self, mock_2d_cube):
+        f = self._field(mock_2d_cube)
+        fig, ax = plot_spatial_map(
+            f["data"], f["lons"], f["lats"], title=f["title"],
+        )
+        assert ax.get_title() == "air_temperature"
+
+    def test_works_with_3d_cube(self, mock_3d_cube):
+        f = self._field(mock_3d_cube, time=1902)
+        fig, ax = plot_spatial_map(
+            f["data"], f["lons"], f["lats"], title=f["title"],
+        )
+        assert "1902" in ax.get_title()
+
+    def test_ax_parameter_reused(self, mock_2d_cube):
+        f = self._field(mock_2d_cube)
+        proj = ccrs.PlateCarree()
+        fig_ext, ax_ext = plt.subplots(
+            subplot_kw={"projection": proj}
+        )
+        fig_ret, ax_ret = plot_spatial_map(
+            f["data"], f["lons"], f["lats"], ax=ax_ext,
+        )
+        assert ax_ret is ax_ext
+        assert fig_ret is fig_ext
+
+    def test_named_region_sets_extent(self, mock_2d_cube):
+        f = self._field(mock_2d_cube)
+        fig, ax = plot_spatial_map(
+            f["data"], f["lons"], f["lats"], region="Europe",
+        )
+        assert isinstance(ax.projection, ccrs.PlateCarree)
+
+    def test_explicit_bounds(self, mock_2d_cube):
+        f = self._field(mock_2d_cube)
+        fig, ax = plot_spatial_map(
+            f["data"], f["lons"], f["lats"],
+            lon_bounds=(-20, 40),
+            lat_bounds=(30, 70),
+        )
+        assert isinstance(ax.projection, ccrs.PlateCarree)
+
+    def test_region_and_bounds_raises(self, mock_2d_cube):
+        f = self._field(mock_2d_cube)
+        with pytest.raises(ValueError, match="mutually exclusive"):
+            plot_spatial_map(
+                f["data"], f["lons"], f["lats"],
+                region="Europe",
+                lon_bounds=(-20, 40),
+            )
+
+    def test_lon_bounds_without_lat_bounds_raises(self, mock_2d_cube):
+        f = self._field(mock_2d_cube)
+        with pytest.raises(ValueError, match="together"):
+            plot_spatial_map(f["data"], f["lons"], f["lats"], lon_bounds=(-20, 40))
+
+    def test_lat_bounds_without_lon_bounds_raises(self, mock_2d_cube):
+        f = self._field(mock_2d_cube)
+        with pytest.raises(ValueError, match="together"):
+            plot_spatial_map(f["data"], f["lons"], f["lats"], lat_bounds=(30, 70))
+
+    @pytest.mark.xfail(
+        reason="cartopy 0.25 + shapely 2.x bug with Mollweide projection",
+        raises=TypeError,
+        strict=False,
+    )
+    def test_custom_projection(self, mock_2d_cube):
+        f = self._field(mock_2d_cube)
+        proj = ccrs.Mollweide()
+        fig, ax = plot_spatial_map(
+            f["data"], f["lons"], f["lats"], projection=proj,
+        )
+        assert isinstance(ax.projection, ccrs.Mollweide)
+
+    def test_colorbar_units(self, mock_2d_cube):
+        f = self._field(mock_2d_cube)
+        fig, ax = plot_spatial_map(
+            f["data"], f["lons"], f["lats"], units="custom units",
+        )
+        assert len(fig.axes) > 1  # colorbar creates extra axes
+
+    def test_auto_title(self, mock_3d_cube):
+        f = self._field(mock_3d_cube)
+        fig, ax = plot_spatial_map(
+            f["data"], f["lons"], f["lats"], title=f["title"],
+        )
+        assert "air_temperature" in ax.get_title()
+        assert "1900" in ax.get_title()
+
+    def test_custom_title(self, mock_2d_cube):
+        f = self._field(mock_2d_cube)
+        fig, ax = plot_spatial_map(
+            f["data"], f["lons"], f["lats"], title="My Title",
+        )
+        assert ax.get_title() == "My Title"
+
+    def test_no_coastlines(self, mock_2d_cube):
+        f = self._field(mock_2d_cube)
+        fig, ax = plot_spatial_map(
+            f["data"], f["lons"], f["lats"], add_coastlines=False,
+        )
+        assert isinstance(fig, plt.Figure)
+
+    def test_no_gridlines(self, mock_2d_cube):
+        f = self._field(mock_2d_cube)
+        fig, ax = plot_spatial_map(
+            f["data"], f["lons"], f["lats"], add_gridlines=False,
+        )
+        assert isinstance(fig, plt.Figure)
+
+    def test_no_colorbar(self, mock_2d_cube):
+        f = self._field(mock_2d_cube)
+        fig, ax = plot_spatial_map(
+            f["data"], f["lons"], f["lats"], colorbar=False,
+        )
+        assert len(fig.axes) == 1
+
+    def test_invalid_data_raises_valueerror(self):
+        with pytest.raises(ValueError, match="2D"):
+            plot_spatial_map(np.zeros((5,)), np.zeros(5), np.zeros(5))
+
+    def test_invalid_ax_raises_typeerror(self, mock_2d_cube):
+        f = self._field(mock_2d_cube)
+        fig, ax = plt.subplots()  # plain Axes, not GeoAxes
+        with pytest.raises(TypeError, match="GeoAxes"):
+            plot_spatial_map(f["data"], f["lons"], f["lats"], ax=ax)
+
+    def test_vmin_vmax(self, mock_2d_cube):
+        f = self._field(mock_2d_cube)
+        fig, ax = plot_spatial_map(
+            f["data"], f["lons"], f["lats"], vmin=0.0, vmax=1.0,
+        )
+        assert isinstance(fig, plt.Figure)
+
+    def test_custom_cmap(self, mock_2d_cube):
+        f = self._field(mock_2d_cube)
+        fig, ax = plot_spatial_map(
+            f["data"], f["lons"], f["lats"], cmap="plasma",
+        )
+        assert isinstance(fig, plt.Figure)
+
+    def test_time_index_on_3d(self, mock_3d_cube):
+        f = self._field(mock_3d_cube, time_index=2)
+        fig, ax = plot_spatial_map(
+            f["data"], f["lons"], f["lats"], title=f["title"],
+        )
+        assert "1902" in ax.get_title()
+
+    def test_cyclic_point_closes_gap(self):
+        """Near-global lon grid (0..356.25) should get a cyclic wrap point."""
+        n_lon = 288
+        lons = np.linspace(0, 356.25, n_lon)
+        lats = np.linspace(-90, 90, 10)
+        data = np.random.default_rng(42).random((10, n_lon))
+        # Use PlateCarree to avoid the cartopy 0.25 + shapely 2.x bug
+        fig, ax = plot_spatial_map(
+            data, lons, lats, projection=ccrs.PlateCarree(),
+        )
+        assert isinstance(fig, plt.Figure)
+
+    def test_shape_mismatch_raises(self):
+        with pytest.raises(ValueError, match="does not match"):
+            plot_spatial_map(
+                np.zeros((5, 10)),
+                np.zeros(5),  # wrong: should be 10
+                np.zeros(5),
+            )
 
 
 # ===================================================================
@@ -421,45 +551,53 @@ class TestRegionBoundsConfig:
 # ===================================================================
 
 class TestPlotSpatialAnomaly:
-    """Tests for plot_spatial_anomaly()."""
+    """Tests for plot_spatial_anomaly() — array-based API."""
+
+    def _anomaly(self, cube, **kwargs):
+        """Helper: extract anomaly dict from cube."""
+        return extract_anomaly_field(cube, **kwargs)
 
     def test_returns_fig_and_ax(self, mock_3d_cube):
-        fig, ax = plot_spatial_anomaly(mock_3d_cube)
+        a = self._anomaly(mock_3d_cube)
+        fig, ax = plot_spatial_anomaly(a["data"], a["lons"], a["lats"])
         assert isinstance(fig, plt.Figure)
         assert hasattr(ax, "projection")
 
     def test_default_last_minus_first(self, mock_3d_cube):
-        """With no time args, uses last timestep minus first."""
-        fig, ax = plot_spatial_anomaly(mock_3d_cube)
-        expected = mock_3d_cube[-1].data - mock_3d_cube[0].data
-        # Title should reference both years
+        a = self._anomaly(mock_3d_cube)
+        fig, ax = plot_spatial_anomaly(
+            a["data"], a["lons"], a["lats"],
+            vmin=a["vmin"], vmax=a["vmax"], title=a["title"],
+        )
         assert "1904" in ax.get_title()
         assert "1900" in ax.get_title()
-        # Verify symmetric limits match expected anomaly
-        abs_max = float(np.nanmax(np.abs(expected)))
+        # Verify symmetric limits
         cs = ax.collections[0]
         clim = cs.get_clim()
-        assert clim[0] == pytest.approx(-abs_max)
-        assert clim[1] == pytest.approx(abs_max)
+        assert clim[0] == pytest.approx(-clim[1])
 
     def test_by_year(self, mock_3d_cube):
+        a = self._anomaly(mock_3d_cube, time_a=1904, time_b=1900)
         fig, ax = plot_spatial_anomaly(
-            mock_3d_cube, time_a=1904, time_b=1900,
+            a["data"], a["lons"], a["lats"], title=a["title"],
         )
         assert "1904" in ax.get_title()
         assert "1900" in ax.get_title()
 
     def test_by_index(self, mock_3d_cube):
+        a = self._anomaly(mock_3d_cube, time_index_a=4, time_index_b=0)
         fig, ax = plot_spatial_anomaly(
-            mock_3d_cube, time_index_a=4, time_index_b=0,
+            a["data"], a["lons"], a["lats"], title=a["title"],
         )
         assert "1904" in ax.get_title()
         assert "1900" in ax.get_title()
 
     def test_symmetric_colorbar(self, mock_3d_cube):
-        """Default symmetric=True should centre the colour scale at zero."""
-        fig, ax = plot_spatial_anomaly(mock_3d_cube)
-        # The filled contour set is the first collection-like artist
+        a = self._anomaly(mock_3d_cube)
+        fig, ax = plot_spatial_anomaly(
+            a["data"], a["lons"], a["lats"],
+            vmin=a["vmin"], vmax=a["vmax"],
+        )
         cs = ax.collections[0] if ax.collections else None
         if cs is not None:
             clim = cs.get_clim()
@@ -468,18 +606,21 @@ class TestPlotSpatialAnomaly:
             )
 
     def test_symmetric_false(self, mock_3d_cube):
-        """symmetric=False should use the data range, not force symmetry."""
-        fig, ax = plot_spatial_anomaly(mock_3d_cube, symmetric=False)
-        # Just verify it runs without error; limits are data-driven
+        a = self._anomaly(mock_3d_cube, symmetric=False)
+        fig, ax = plot_spatial_anomaly(a["data"], a["lons"], a["lats"])
         assert isinstance(fig, plt.Figure)
 
     def test_custom_title(self, mock_3d_cube):
-        fig, ax = plot_spatial_anomaly(mock_3d_cube, title="My Anomaly")
+        a = self._anomaly(mock_3d_cube)
+        fig, ax = plot_spatial_anomaly(
+            a["data"], a["lons"], a["lats"], title="My Anomaly",
+        )
         assert ax.get_title() == "My Anomaly"
 
     def test_auto_title_contains_years(self, mock_3d_cube):
+        a = self._anomaly(mock_3d_cube, time_a=1903, time_b=1901)
         fig, ax = plot_spatial_anomaly(
-            mock_3d_cube, time_a=1903, time_b=1901,
+            a["data"], a["lons"], a["lats"], title=a["title"],
         )
         title = ax.get_title()
         assert "anomaly" in title
@@ -487,10 +628,8 @@ class TestPlotSpatialAnomaly:
         assert "1901" in title
 
     def test_region_works(self, mock_3d_cube):
-        fig, ax = plot_spatial_anomaly(mock_3d_cube, region="Europe")
+        a = self._anomaly(mock_3d_cube)
+        fig, ax = plot_spatial_anomaly(
+            a["data"], a["lons"], a["lats"], region="Europe",
+        )
         assert isinstance(ax.projection, ccrs.PlateCarree)
-
-    def test_2d_cube_raises(self, mock_2d_cube):
-        """A cube without a time dimension should raise ValueError."""
-        with pytest.raises(ValueError, match="time dimension"):
-            plot_spatial_anomaly(mock_2d_cube)

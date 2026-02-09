@@ -47,7 +47,7 @@ from .spatial import (
     plot_pft_grouped_bars,
 )
 
-# Geographic map plotting (requires cartopy + iris)
+# Geographic map plotting (requires cartopy)
 try:
     from .maps import plot_spatial_map, plot_spatial_anomaly
 except ImportError:

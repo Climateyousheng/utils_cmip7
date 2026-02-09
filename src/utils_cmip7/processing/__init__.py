@@ -16,6 +16,12 @@ from .metrics import (
     compute_derived_metric,
 )
 
+# Map field extraction (requires iris)
+try:
+    from .map_fields import extract_map_field, extract_anomaly_field
+except ImportError:
+    pass
+
 __all__ = [
     # Spatial aggregation
     'compute_terrestrial_area',
@@ -36,4 +42,7 @@ __all__ = [
     'validate_metric_output',
     'validate_canonical_structure',
     'compute_derived_metric',
+    # Map field extraction
+    'extract_map_field',
+    'extract_anomaly_field',
 ]
