@@ -20,7 +20,11 @@ import iris.cube  # noqa: E402
 import iris.coords  # noqa: E402
 
 from utils_cmip7.config import RECCAP_REGION_BOUNDS, get_region_bounds  # noqa: E402
-from utils_cmip7.plotting.maps import _select_time_slice, plot_spatial_map  # noqa: E402
+from utils_cmip7.plotting.maps import (  # noqa: E402
+    _select_time_slice,
+    plot_spatial_map,
+    plot_spatial_anomaly,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -388,3 +392,83 @@ class TestRegionBoundsConfig:
             assert -180 <= lon_max <= 180, f"{name}: lon_max out of range"
             assert -90 <= lat_min <= 90, f"{name}: lat_min out of range"
             assert -90 <= lat_max <= 90, f"{name}: lat_max out of range"
+
+
+# ===================================================================
+# TestPlotSpatialAnomaly
+# ===================================================================
+
+class TestPlotSpatialAnomaly:
+    """Tests for plot_spatial_anomaly()."""
+
+    def test_returns_fig_and_ax(self, mock_3d_cube):
+        fig, ax = plot_spatial_anomaly(mock_3d_cube)
+        assert isinstance(fig, plt.Figure)
+        assert hasattr(ax, "projection")
+
+    def test_default_last_minus_first(self, mock_3d_cube):
+        """With no time args, uses last timestep minus first."""
+        fig, ax = plot_spatial_anomaly(mock_3d_cube)
+        expected = mock_3d_cube[-1].data - mock_3d_cube[0].data
+        # Title should reference both years
+        assert "1904" in ax.get_title()
+        assert "1900" in ax.get_title()
+        # Verify symmetric limits match expected anomaly
+        abs_max = float(np.nanmax(np.abs(expected)))
+        cs = ax.collections[0]
+        clim = cs.get_clim()
+        assert clim[0] == pytest.approx(-abs_max)
+        assert clim[1] == pytest.approx(abs_max)
+
+    def test_by_year(self, mock_3d_cube):
+        fig, ax = plot_spatial_anomaly(
+            mock_3d_cube, time_a=1904, time_b=1900,
+        )
+        assert "1904" in ax.get_title()
+        assert "1900" in ax.get_title()
+
+    def test_by_index(self, mock_3d_cube):
+        fig, ax = plot_spatial_anomaly(
+            mock_3d_cube, time_index_a=4, time_index_b=0,
+        )
+        assert "1904" in ax.get_title()
+        assert "1900" in ax.get_title()
+
+    def test_symmetric_colorbar(self, mock_3d_cube):
+        """Default symmetric=True should centre the colour scale at zero."""
+        fig, ax = plot_spatial_anomaly(mock_3d_cube)
+        # The filled contour set is the first collection-like artist
+        cs = ax.collections[0] if ax.collections else None
+        if cs is not None:
+            clim = cs.get_clim()
+            assert clim[0] == pytest.approx(-clim[1]), (
+                f"Expected symmetric limits, got {clim}"
+            )
+
+    def test_symmetric_false(self, mock_3d_cube):
+        """symmetric=False should use the data range, not force symmetry."""
+        fig, ax = plot_spatial_anomaly(mock_3d_cube, symmetric=False)
+        # Just verify it runs without error; limits are data-driven
+        assert isinstance(fig, plt.Figure)
+
+    def test_custom_title(self, mock_3d_cube):
+        fig, ax = plot_spatial_anomaly(mock_3d_cube, title="My Anomaly")
+        assert ax.get_title() == "My Anomaly"
+
+    def test_auto_title_contains_years(self, mock_3d_cube):
+        fig, ax = plot_spatial_anomaly(
+            mock_3d_cube, time_a=1903, time_b=1901,
+        )
+        title = ax.get_title()
+        assert "anomaly" in title
+        assert "1903" in title
+        assert "1901" in title
+
+    def test_region_works(self, mock_3d_cube):
+        fig, ax = plot_spatial_anomaly(mock_3d_cube, region="Europe")
+        assert isinstance(ax.projection, ccrs.PlateCarree)
+
+    def test_2d_cube_raises(self, mock_2d_cube):
+        """A cube without a time dimension should raise ValueError."""
+        with pytest.raises(ValueError, match="time dimension"):
+            plot_spatial_anomaly(mock_2d_cube)

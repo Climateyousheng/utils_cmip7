@@ -49,7 +49,7 @@ from .spatial import (
 
 # Geographic map plotting (requires cartopy + iris)
 try:
-    from .maps import plot_spatial_map
+    from .maps import plot_spatial_map, plot_spatial_anomaly
 except ImportError:
     pass
 
@@ -99,3 +99,5 @@ __all__ = [
 # Conditionally add map plotting to __all__ when cartopy is available
 if 'plot_spatial_map' in dir():
     __all__.append('plot_spatial_map')
+if 'plot_spatial_anomaly' in dir():
+    __all__.append('plot_spatial_anomaly')
