@@ -126,7 +126,7 @@ def extract_annual_means(expts_list, var_list=None, var_mapping=None, regions=No
         Variable names to extract (CMIP-style canonical names preferred).
         Default: ['Rh', 'CSoil', 'CVeg', 'frac', 'GPP', 'NPP', 'fgco2', 'tas', 'pr', 'co2']
 
-        Aliases supported but deprecated (will be removed in v0.3.0):
+        Aliases supported but deprecated (will be removed in v0.4.0):
         - Use 'Rh' not 'soilResp'
         - Use 'CVeg' not 'VegCarb'
         - Use 'CSoil' not 'soilCarbon'
@@ -136,7 +136,7 @@ def extract_annual_means(expts_list, var_list=None, var_mapping=None, regions=No
     var_mapping : list of str, optional
         **DEPRECATED**. This parameter is no longer needed.
         Conversion keys are now looked up automatically from the canonical
-        variable registry in config.py. Will be removed in v0.3.0.
+        variable registry in config.py. Will be removed in v0.4.0.
     regions : list of str, optional
         Region names to process. Default: all RECCAP2 regions + 'Africa' + 'global'
     base_dir : str, optional
