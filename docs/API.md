@@ -1,6 +1,6 @@
 # utils_cmip7 Public API Reference
 
-**Version:** v0.3.1-dev
+**Version:** v0.4.0
 **Status:** Stable
 **Last Updated:** 2026-02-09
 
@@ -8,7 +8,7 @@
 
 ## Introduction
 
-This document defines the **public, stable API** for `utils_cmip7` v0.3.0. All functions and classes listed here are considered stable and will not have breaking changes in the v0.3.x series.
+This document defines the **public, stable API** for `utils_cmip7` v0.4.0. All functions and classes listed here are considered stable and will not have breaking changes in the v0.4.x series.
 
 For information on API stability guarantees, see the [API Stability Matrix](#api-stability-matrix) below.
 
@@ -167,7 +167,6 @@ Extract cubes matching a variable identifier from a CubeList. Accepts multiple c
 - `cubes` (iris.cube.CubeList): Collection of cubes to search
 - `code` (str, int): Variable identifier. Accepted formats:
   - Canonical variable name: `'CVeg'`, `'GPP'` (from `CANONICAL_VARIABLES`)
-  - Alias: `'VegCarb'`, `'soilResp'` (resolved via `CANONICAL_VARIABLES`)
   - MSI string: `'m01s03i261'`
   - Short name: `'gpp'` (requires `stash_lookup_func`)
   - Numeric stash_code: `3261`
@@ -186,9 +185,6 @@ cubes = iris.load('data.nc')
 
 # Using canonical variable name (recommended)
 gpp = try_extract(cubes, 'GPP')
-
-# Using alias
-cv = try_extract(cubes, 'VegCarb')  # resolves to CVeg
 
 # Using MSI string
 gpp = try_extract(cubes, 'm01s03i261')
@@ -327,7 +323,7 @@ Compute regional annual mean using RECCAP2 mask.
 
 Functions for extracting 2D spatial fields from iris Cubes, ready for plotting. Located in `utils_cmip7.processing.map_fields`.
 
-### `extract_map_field(cube, time=None, time_index=None, variable=None)`
+### `extract_map_field(cube, time=None, time_index=None, variable=None, level=None)`
 
 Extract a 2D spatial field from an iris Cube. Returns a dict ready for `plot_spatial_map()`.
 
@@ -335,8 +331,9 @@ Extract a 2D spatial field from an iris Cube. Returns a dict ready for `plot_spa
 - `cube` (iris.cube.Cube): Input cube with latitude and longitude (and optional time)
 - `time` (int, optional): Year to select. Mutually exclusive with `time_index`
 - `time_index` (int, optional): Positional index along the time dimension
-- `variable` (str, optional): Canonical variable name or alias (e.g., `'GPP'`, `'VegCarb'`).
+- `variable` (str, optional): Canonical variable name (e.g., `'GPP'`, `'CVeg'`).
   When provided, applies `conversion_factor` and overrides `units` and `name` from `CANONICAL_VARIABLES`. No conversion by default.
+- `level` (int, optional): Index along extra (non-time, non-lat, non-lon) dimension. Use for cubes with PFT or pseudo-level dimensions (e.g., `frac` with 9 PFT types).
 
 **Returns:**
 - dict with keys: `'data'` (2D ndarray), `'lons'` (1D ndarray), `'lats'` (1D ndarray), `'name'` (str), `'units'` (str), `'year'` (int or None), `'title'` (str)
@@ -500,7 +497,7 @@ fig, ax = plot_spatial_anomaly(
 
 ### High-Level Extraction
 
-#### `extract_annual_means(expts_list, var_list=None, var_mapping=None, regions=None, base_dir='~/annual_mean')`
+#### `extract_annual_means(expts_list, var_list=None, regions=None, base_dir='~/annual_mean')`
 
 Extract annual means from pre-processed NetCDF files.
 
@@ -508,9 +505,8 @@ Extract annual means from pre-processed NetCDF files.
 
 **Parameters:**
 - `expts_list` (list of str): Experiment names (e.g., ['xqhuc', 'xqhsh'])
-- `var_list` (list of str, optional): Variable names (canonical preferred)
+- `var_list` (list of str, optional): Variable names (canonical names only).
   Default: ['Rh', 'CSoil', 'CVeg', 'frac', 'GPP', 'NPP', 'fgco2', 'tas', 'pr', 'co2']
-- `var_mapping` (list of str, optional): **DEPRECATED** - Removed in v0.4.0
 - `regions` (list of str, optional): Region names. Default: all RECCAP2 regions + 'Africa' + 'global'
 - `base_dir` (str): Base directory containing experiment subdirectories
 
@@ -539,10 +535,6 @@ data = extract_annual_means(
 ```
 
 **Stability:** ✅ **Stable**
-
-**Deprecations:**
-- `var_mapping` parameter deprecated, removed in v0.4.0
-- Legacy variable names ('VegCarb', 'soilResp', etc.) deprecated, removed in v0.4.0
 
 ---
 
@@ -627,20 +619,23 @@ Default list of variables for extraction.
 Resolve variable name to canonical name.
 
 **Parameters:**
-- `var_name` (str): Variable name (canonical or legacy alias)
+- `var_name` (str): Canonical variable name (e.g., 'CVeg', 'Rh', 'tas')
 
 **Returns:**
 - str: Canonical variable name
 
 **Raises:**
-- ValueError: If variable name not recognized
+- ValueError: If variable name not recognized or a removed legacy alias is used
 
 **Example:**
 ```python
 from utils_cmip7 import resolve_variable_name
 
-canonical = resolve_variable_name('VegCarb')  # Returns 'CVeg'
 canonical = resolve_variable_name('GPP')      # Returns 'GPP'
+canonical = resolve_variable_name('CVeg')     # Returns 'CVeg'
+
+# Legacy aliases raise ValueError:
+resolve_variable_name('VegCarb')  # ValueError: removed in v0.4.0
 ```
 
 **Stability:** ✅ **Stable**
@@ -649,10 +644,10 @@ canonical = resolve_variable_name('GPP')      # Returns 'GPP'
 
 #### `get_variable_config(var_name)`
 
-Get configuration dictionary for a variable. Resolves aliases automatically.
+Get configuration dictionary for a variable.
 
 **Parameters:**
-- `var_name` (str): Variable name (canonical or alias)
+- `var_name` (str): Canonical variable name
 
 **Returns:**
 - dict: Variable configuration with keys: `description`, `stash_name`, `stash_code`, `aggregation`, `conversion_factor`, `units`, `category`, `aliases`, `canonical_name`
@@ -669,7 +664,7 @@ Get configuration dictionary for a variable. Resolves aliases automatically.
 Get unit conversion key for `compute_regional_annual_mean()`.
 
 **Parameters:**
-- `var_name` (str): Variable name (canonical or alias)
+- `var_name` (str): Canonical variable name
 
 **Returns:**
 - str: Conversion key for use with `compute_regional_annual_mean()` (e.g., `'GPP'`, `'Others'`, `'precip'`, `'Total co2'`)
@@ -695,47 +690,55 @@ Get unit conversion key for `compute_regional_annual_mean()`.
 
 ### Stability Definitions
 
-- **Stable**: No breaking changes in v0.3.x series. Safe to use in production.
+- **Stable**: No breaking changes in v0.4.x series. Safe to use in production.
 - **Provisional**: Minor additions allowed, but no breaking changes to existing functionality.
-- **Unstable**: Breaking changes possible in minor versions (v0.3.x → v0.3.y).
+- **Unstable**: Breaking changes possible in minor versions (v0.4.x → v0.4.y).
 - **Experimental**: No stability guarantees. May change significantly or be removed.
 
 ---
 
-## Migration from v0.2.x
+## Migration from v0.3.x to v0.4.0
 
 ### Breaking Changes
 
-**None** - All v0.2.x code should work in v0.3.0 (with deprecation warnings).
-
-### Deprecated (Removed in v0.4.0)
-
-1. **`var_mapping` parameter** in `extract_annual_means()`:
+1. **`var_mapping` parameter removed** from `extract_annual_means()`:
    ```python
-   # OLD (deprecated):
+   # v0.3.x (deprecated, raised warning):
    extract_annual_means(expts, var_mapping=['gpp', 'npp'])
 
-   # NEW:
+   # v0.4.0 (raises TypeError):
    extract_annual_means(expts, var_list=['GPP', 'NPP'])
    ```
 
-2. **Legacy variable names**:
+2. **Legacy variable names raise ValueError**:
    ```python
-   # OLD (deprecated):
-   var_list=['VegCarb', 'soilResp', 'soilCarbon']
+   # v0.3.x (deprecated, resolved with warning):
+   resolve_variable_name('VegCarb')  # returned 'CVeg'
 
-   # NEW:
-   var_list=['CVeg', 'Rh', 'CSoil']
+   # v0.4.0 (raises ValueError):
+   resolve_variable_name('VegCarb')  # ValueError: removed in v0.4.0. Use 'CVeg' instead.
    ```
+
+3. **`var_dict` and `DEFAULT_VAR_MAPPING` removed** from config module
+
+4. **Python 3.8 no longer supported** — minimum is Python 3.9
 
 ### Migration Guide
 
-See `docs/MIGRATION_v0.3.md` for detailed migration instructions.
+Replace all legacy variable names with canonical equivalents:
+- `VegCarb` -> `CVeg`
+- `soilResp` -> `Rh`
+- `soilCarbon` -> `CSoil`
+- `temp` -> `tas`
+- `precip` -> `pr`
+- `fracPFTs` -> `frac`
 
 ---
 
 ## Version History
 
+- **v0.4.0** (2026-02-09): Breaking — remove deprecated features, drop Python 3.8
+- **v0.3.1** (2026-02-09): Canonical name resolution, unit conversion, plotting fixes
 - **v0.3.0** (2026-01-26): API stabilization, deprecation grace period, comprehensive testing
 - **v0.2.1** (2025-XX-XX): Canonical variable registry, validation improvements
 - **v0.2.0** (2025-XX-XX): Major refactoring, package structure cleanup
@@ -749,5 +752,5 @@ See `docs/MIGRATION_v0.3.md` for detailed migration instructions.
 
 ---
 
-**Last updated:** 2026-02-09
+**Last updated:** 2026-02-09 (v0.4.0)
 **Maintainer:** Yousheng Li

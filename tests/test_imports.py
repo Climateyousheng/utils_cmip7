@@ -94,7 +94,7 @@ def test_backward_compatible_imports():
         import warnings
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", DeprecationWarning)
-            from analysis import extract_annual_means, stash, var_dict
+            from analysis import extract_annual_means, stash
             from plot import plot_timeseries_grouped
 
         print("✓ Backward-compatible imports work (with deprecation warnings)")

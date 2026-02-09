@@ -105,19 +105,17 @@ class TestTryExtractCanonicalNames:
         assert result is not None
         assert len(result) == 1
 
-    def test_alias_resolves(self, cv_cube):
-        """try_extract(cubes, 'VegCarb') should resolve via CVeg aliases."""
+    def test_alias_no_longer_resolves(self, cv_cube):
+        """try_extract(cubes, 'VegCarb') should NOT resolve (removed in v0.4.0)."""
         cubes = _make_cubelist(cv_cube)
         result = try_extract(cubes, "VegCarb")
-        assert result is not None
-        assert len(result) == 1
+        assert len(result) == 0
 
-    def test_another_alias_resolves(self, rh_cube):
-        """try_extract(cubes, 'soilResp') should resolve via Rh aliases."""
+    def test_another_alias_no_longer_resolves(self, rh_cube):
+        """try_extract(cubes, 'soilResp') should NOT resolve (removed in v0.4.0)."""
         cubes = _make_cubelist(rh_cube)
         result = try_extract(cubes, "soilResp")
-        assert result is not None
-        assert len(result) == 1
+        assert len(result) == 0
 
     def test_stash_name_still_works(self, cv_cube):
         """try_extract(cubes, 'cv') should still work via stash_lookup_func."""

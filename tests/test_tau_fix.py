@@ -8,22 +8,16 @@ from utils_cmip7.diagnostics.metrics import VARIABLE_TO_METRIC
 def test_variable_to_metric_mapping():
     """Test that canonical names map correctly to metrics."""
 
-    print("Testing VARIABLE_TO_METRIC mapping...")
-
     # Test canonical names
     assert VARIABLE_TO_METRIC['CSoil'] == 'CSoil', "CSoil should map to CSoil metric"
     assert VARIABLE_TO_METRIC['CVeg'] == 'CVeg', "CVeg should map to CVeg metric"
     assert VARIABLE_TO_METRIC['Rh'] == 'soilResp', "Rh should map to soilResp metric"
     assert VARIABLE_TO_METRIC['NPP'] == 'NPP', "NPP should map to NPP metric"
 
-    print("  ✓ Canonical names map correctly")
-
-    # Test legacy names still work
-    assert VARIABLE_TO_METRIC['soilCarbon'] == 'CSoil', "Legacy soilCarbon should map to CSoil"
-    assert VARIABLE_TO_METRIC['VegCarb'] == 'CVeg', "Legacy VegCarb should map to CVeg"
-    assert VARIABLE_TO_METRIC['soilResp'] == 'soilResp', "Legacy soilResp should map to soilResp"
-
-    print("  ✓ Legacy names map correctly (backward compatibility)")
+    # Legacy names removed in v0.4.0
+    assert 'soilCarbon' not in VARIABLE_TO_METRIC
+    assert 'VegCarb' not in VARIABLE_TO_METRIC
+    assert 'soilResp' not in VARIABLE_TO_METRIC
 
     return True
 

@@ -206,7 +206,7 @@ def main():
     print(f"{'='*80}\n")
 
     # Plot 1: All variables in separate subplots
-    variables = ['GPP', 'NPP', 'soilResp', 'VegCarb', 'soilCarbon']
+    variables = ['GPP', 'NPP', 'Rh', 'CVeg', 'CSoil']
     available_vars = [v for v in variables if v in data]
 
     if available_vars:
@@ -256,14 +256,14 @@ def main():
         plt.close()
 
     # Plot 3: Carbon stocks comparison
-    if 'VegCarb' in data and 'soilCarbon' in data:
+    if 'CVeg' in data and 'CSoil' in data:
         fig, ax = plt.subplots(figsize=(10, 5))
 
-        years_vc = data['VegCarb']['years'][1:]
-        values_vc = data['VegCarb']['data'][1:]
+        years_vc = data['CVeg']['years'][1:]
+        values_vc = data['CVeg']['data'][1:]
 
-        years_sc = data['soilCarbon']['years'][1:]
-        values_sc = data['soilCarbon']['data'][1:]
+        years_sc = data['CSoil']['years'][1:]
+        values_sc = data['CSoil']['data'][1:]
 
         ax.plot(years_vc, values_vc, label='Vegetation Carbon', linewidth=0.8, color='green')
         ax.plot(years_sc, values_sc, label='Soil Carbon', linewidth=0.8, color='brown')

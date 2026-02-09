@@ -313,6 +313,81 @@ class TestExtractMapField:
         assert result["data"][1, 0] == 300.0
         assert np.isnan(result["data"][0, 0])
 
+    def test_extract_map_field_with_level(self):
+        """4D cube (time, pft, lat, lon) with level selection."""
+        time_coord = _make_time_coord([1900])
+        pft = iris.coords.DimCoord(
+            np.arange(9), long_name="pseudo_level", units="1",
+        )
+        lat = iris.coords.DimCoord(
+            np.linspace(-90, 90, 5), standard_name="latitude", units="degrees",
+        )
+        lon = iris.coords.DimCoord(
+            np.linspace(-180, 180, 10), standard_name="longitude", units="degrees",
+        )
+        rng = np.random.default_rng(42)
+        data = rng.random((1, 9, 5, 10))
+        cube = iris.cube.Cube(
+            data,
+            dim_coords_and_dims=[
+                (time_coord, 0), (pft, 1), (lat, 2), (lon, 3),
+            ],
+            long_name="frac",
+            units="1",
+        )
+        result = extract_map_field(cube, level=0)
+        assert result["data"].shape == (5, 10)
+        np.testing.assert_allclose(result["data"], data[0, 0], atol=1e-6)
+
+    def test_extract_map_field_level_out_of_range(self):
+        """level out of range should raise ValueError."""
+        pft = iris.coords.DimCoord(
+            np.arange(9), long_name="pseudo_level", units="1",
+        )
+        lat = iris.coords.DimCoord(
+            np.linspace(-90, 90, 5), standard_name="latitude", units="degrees",
+        )
+        lon = iris.coords.DimCoord(
+            np.linspace(-180, 180, 10), standard_name="longitude", units="degrees",
+        )
+        data = np.random.default_rng(7).random((9, 5, 10))
+        cube = iris.cube.Cube(
+            data,
+            dim_coords_and_dims=[(pft, 0), (lat, 1), (lon, 2)],
+            long_name="frac",
+            units="1",
+        )
+        with pytest.raises(ValueError, match="out of range"):
+            extract_map_field(cube, level=9)
+
+    def test_anomaly_with_level(self):
+        """Anomaly extraction for 4D cube with level selection."""
+        years = [1900, 1901]
+        time_coord = _make_time_coord(years)
+        pft = iris.coords.DimCoord(
+            np.arange(9), long_name="pseudo_level", units="1",
+        )
+        lat = iris.coords.DimCoord(
+            np.linspace(-90, 90, 5), standard_name="latitude", units="degrees",
+        )
+        lon = iris.coords.DimCoord(
+            np.linspace(-180, 180, 10), standard_name="longitude", units="degrees",
+        )
+        rng = np.random.default_rng(42)
+        data = rng.random((2, 9, 5, 10))
+        cube = iris.cube.Cube(
+            data,
+            dim_coords_and_dims=[
+                (time_coord, 0), (pft, 1), (lat, 2), (lon, 3),
+            ],
+            long_name="frac",
+            units="1",
+        )
+        result = extract_anomaly_field(cube, level=0)
+        expected = data[1, 0] - data[0, 0]
+        assert result["data"].shape == (5, 10)
+        np.testing.assert_allclose(result["data"], expected, atol=1e-6)
+
 
 # ===================================================================
 # TestExtractAnomalyField
@@ -852,15 +927,10 @@ class TestUnitConversion:
         assert result["units"] == "K"
         assert result["name"] == "air_temperature"
 
-    def test_variable_alias_works(self, mock_2d_cube):
-        """Pass variable='VegCarb' (alias for CVeg); should resolve correctly."""
-        from utils_cmip7.config import CANONICAL_VARIABLES
-        factor = CANONICAL_VARIABLES["CVeg"]["conversion_factor"]
-        raw = extract_map_field(mock_2d_cube)
-        converted = extract_map_field(mock_2d_cube, variable="VegCarb")
-        np.testing.assert_allclose(converted["data"], raw["data"] * factor)
-        assert converted["units"] == "PgC"
-        assert converted["name"] == "CVeg"
+    def test_variable_alias_raises(self, mock_2d_cube):
+        """Pass variable='VegCarb' (removed alias); should raise ValueError."""
+        with pytest.raises(ValueError, match="removed in v0.4.0"):
+            extract_map_field(mock_2d_cube, variable="VegCarb")
 
     def test_variable_unknown_raises(self, mock_2d_cube):
         """Unknown variable name should raise ValueError."""

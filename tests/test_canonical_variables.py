@@ -40,71 +40,65 @@ def test_canonical_variables_registry():
 
 
 def test_resolve_variable_name():
-    """Test variable name resolution."""
-    print("\nTesting resolve_variable_name()...")
+    """Test variable name resolution — canonical names resolve, aliases raise."""
+    import pytest
 
-    test_cases = [
-        ('CVeg', 'CVeg'),         # Canonical → canonical
-        ('VegCarb', 'CVeg'),      # Alias → canonical
-        ('Rh', 'Rh'),             # Canonical → canonical
-        ('soilResp', 'Rh'),       # Alias → canonical
-        ('CSoil', 'CSoil'),       # Canonical → canonical
-        ('soilCarbon', 'CSoil'),  # Alias → canonical
-        ('tas', 'tas'),           # Canonical → canonical
-        ('temp', 'tas'),          # Alias → canonical
-        ('pr', 'pr'),             # Canonical → canonical
-        ('precip', 'pr'),         # Alias → canonical
-        ('frac', 'frac'),         # Canonical → canonical
-        ('fracPFTs', 'frac'),     # Alias → canonical
+    # Canonical names resolve to themselves
+    canonical_cases = [
+        ('CVeg', 'CVeg'),
+        ('Rh', 'Rh'),
+        ('CSoil', 'CSoil'),
+        ('tas', 'tas'),
+        ('pr', 'pr'),
+        ('frac', 'frac'),
     ]
 
-    for input_name, expected in test_cases:
+    for input_name, expected in canonical_cases:
         result = resolve_variable_name(input_name)
-        if result != expected:
-            print(f"  ❌ {input_name} → {result}, expected {expected}")
-            return False
-        print(f"  ✓ {input_name} → {result}")
+        assert result == expected, f"{input_name} → {result}, expected {expected}"
 
-    # Test invalid variable
-    try:
+    # Legacy aliases raise ValueError with migration message (removed in v0.4.0)
+    alias_cases = [
+        ('VegCarb', 'CVeg'),
+        ('soilResp', 'Rh'),
+        ('soilCarbon', 'CSoil'),
+        ('temp', 'tas'),
+        ('precip', 'pr'),
+        ('fracPFTs', 'frac'),
+    ]
+
+    for alias, canonical in alias_cases:
+        with pytest.raises(ValueError, match="removed in v0.4.0"):
+            resolve_variable_name(alias)
+
+    # Unknown variable raises ValueError
+    with pytest.raises(ValueError, match="Unknown variable name"):
         resolve_variable_name('invalid_var')
-        print(f"  ❌ Should have raised ValueError for invalid variable")
-        return False
-    except ValueError as e:
-        print(f"  ✓ Correctly raised ValueError for invalid variable")
-
-    return True
 
 
 def test_get_variable_config():
     """Test getting variable configuration."""
-    print("\nTesting get_variable_config()...")
+    import pytest
 
     # Test canonical name
-    config = get_variable_config('CVeg')
-    assert config['canonical_name'] == 'CVeg'
-    assert config['stash_name'] == 'cv'
-    assert config['aggregation'] == 'SUM'
-    print(f"  ✓ CVeg config retrieved correctly")
+    cfg = get_variable_config('CVeg')
+    assert cfg['canonical_name'] == 'CVeg'
+    assert cfg['stash_name'] == 'cv'
+    assert cfg['aggregation'] == 'SUM'
 
-    # Test alias
-    config = get_variable_config('VegCarb')
-    assert config['canonical_name'] == 'CVeg'
-    assert config['stash_name'] == 'cv'
-    print(f"  ✓ VegCarb (alias) config retrieved correctly")
+    # Test alias raises ValueError (removed in v0.4.0)
+    with pytest.raises(ValueError, match="removed in v0.4.0"):
+        get_variable_config('VegCarb')
 
     # Test MEAN aggregation variable
-    config = get_variable_config('tas')
-    assert config['aggregation'] == 'MEAN'
-    assert config['canonical_name'] == 'tas'
-    print(f"  ✓ tas config retrieved correctly (MEAN aggregation)")
-
-    return True
+    cfg = get_variable_config('tas')
+    assert cfg['aggregation'] == 'MEAN'
+    assert cfg['canonical_name'] == 'tas'
 
 
 def test_get_conversion_key():
-    """Test conversion key generation."""
-    print("\nTesting get_conversion_key()...")
+    """Test conversion key generation — canonical names only."""
+    import pytest
 
     test_cases = [
         # SUM aggregation → use canonical name
@@ -117,26 +111,24 @@ def test_get_conversion_key():
 
         # MEAN aggregation → use 'Others' (except pr and co2)
         ('tas', 'Others'),
-        ('temp', 'Others'),  # alias
         ('frac', 'Others'),
 
         # Special case: pr → 'precip'
         ('pr', 'precip'),
-        ('precip', 'precip'),  # alias
 
         # Special case: co2 → 'Total co2'
         ('co2', 'Total co2'),
-        ('Total co2', 'Total co2'),  # alias
     ]
 
     for var_name, expected_key in test_cases:
         result = get_conversion_key(var_name)
-        if result != expected_key:
-            print(f"  ❌ {var_name} → '{result}', expected '{expected_key}'")
-            return False
-        print(f"  ✓ {var_name} → '{result}'")
+        assert result == expected_key, f"{var_name} → '{result}', expected '{expected_key}'"
 
-    return True
+    # Legacy aliases raise ValueError
+    with pytest.raises(ValueError, match="removed in v0.4.0"):
+        get_conversion_key('temp')
+    with pytest.raises(ValueError, match="removed in v0.4.0"):
+        get_conversion_key('precip')
 
 
 def test_default_var_list():

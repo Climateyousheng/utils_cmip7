@@ -35,9 +35,9 @@ def extract_annual_mean_raw(expt, base_dir='~/dump2hold', start_year=None, end_y
         {
             'GPP': {'years': array, 'data': array, 'units': str, 'name': str},
             'NPP': {'years': array, 'data': array, 'units': str, 'name': str},
-            'soilResp': {'years': array, 'data': array, 'units': str, 'name': str},
-            'VegCarb': {'years': array, 'data': array, 'units': str, 'name': str},
-            'soilCarbon': {'years': array, 'data': array, 'units': str, 'name': str},
+            'Rh': {'years': array, 'data': array, 'units': str, 'name': str},
+            'CVeg': {'years': array, 'data': array, 'units': str, 'name': str},
+            'CSoil': {'years': array, 'data': array, 'units': str, 'name': str},
             'NEP': {'years': array, 'data': array, 'units': str, 'name': str},
         }
 
@@ -67,12 +67,12 @@ def extract_annual_mean_raw(expt, base_dir='~/dump2hold', start_year=None, end_y
     Variables extracted:
     - GPP: Gross Primary Production
     - NPP: Net Primary Production
-    - soilResp: Soil respiration
-    - VegCarb: Vegetation carbon
-    - soilCarbon: Soil carbon
+    - Rh: Heterotrophic respiration
+    - CVeg: Vegetation carbon
+    - CSoil: Soil carbon
 
     Derived variables computed:
-    - NEP = NPP - soilResp (Net Ecosystem Production)
+    - NEP = NPP - Rh (Net Ecosystem Production)
 
     Workflow:
     1. Find raw monthly files using find_matching_files()
@@ -92,9 +92,9 @@ def extract_annual_mean_raw(expt, base_dir='~/dump2hold', start_year=None, end_y
     variables = [
         ('gpp', 'GPP', 'GPP'),
         ('npp', 'NPP', 'NPP'),
-        ('rh', 'soilResp', 'S resp'),
-        ('cv', 'VegCarb', 'V carb'),
-        ('cs', 'soilCarbon', 'S carb'),
+        ('rh', 'Rh', 'Rh'),
+        ('cv', 'CVeg', 'CVeg'),
+        ('cs', 'CSoil', 'CSoil'),
     ]
 
     print(f"\n{'='*60}")
@@ -159,7 +159,7 @@ def extract_annual_mean_raw(expt, base_dir='~/dump2hold', start_year=None, end_y
             annual_means[var_key] = {
                 'years': annual_data['years'],
                 'data': annual_data['data'],
-                'units': 'PgC/year' if var_key in ('GPP', 'NPP', 'soilResp') else 'PgC',
+                'units': 'PgC/year' if var_key in ('GPP', 'NPP', 'Rh') else 'PgC',
                 'name': var_key,
             }
 
@@ -172,12 +172,12 @@ def extract_annual_mean_raw(expt, base_dir='~/dump2hold', start_year=None, end_y
             print(f"  ❌ No data extracted for {var_key}")
 
     # Compute derived variables
-    if 'NPP' in annual_means and 'soilResp' in annual_means:
+    if 'NPP' in annual_means and 'Rh' in annual_means:
         print(f"\n{'='*60}")
         print("Computing derived variable: NEP")
         print(f"{'='*60}")
         nep_years = annual_means['NPP']['years'].copy()
-        nep_data = annual_means['NPP']['data'] - annual_means['soilResp']['data']
+        nep_data = annual_means['NPP']['data'] - annual_means['Rh']['data']
         annual_means['NEP'] = {
             'years': nep_years,
             'data': nep_data,

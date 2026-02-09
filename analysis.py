@@ -38,9 +38,6 @@ try:
     from utils_cmip7.diagnostics import extract_annual_means, extract_annual_mean_raw
     from utils_cmip7.config import VAR_CONVERSIONS
 
-    # Backward compatibility alias
-    var_dict = VAR_CONVERSIONS
-
     # Issue deprecation warning on first import
     warnings.warn(
         "Importing from 'analysis' is deprecated as of v0.2.0. "
@@ -75,7 +72,6 @@ try:
         'compute_regional_annual_mean',
         'extract_annual_means',
         'extract_annual_mean_raw',
-        'var_dict',
         'VAR_CONVERSIONS',
         '_msi_from_stash_obj',
         '_msi_from_numeric_stash_code',

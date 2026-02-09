@@ -19,7 +19,6 @@ from ..processing.metrics import (
 
 # Mapping from extraction variable names to canonical metric names
 VARIABLE_TO_METRIC = {
-    # Canonical names (new standard)
     'GPP': 'GPP',
     'NPP': 'NPP',
     'CVeg': 'CVeg',
@@ -28,12 +27,6 @@ VARIABLE_TO_METRIC = {
     'tas': 'tas',
     'pr': 'precip',
     'fgco2': 'fgco2',
-    # Legacy names (backward compatibility)
-    'VegCarb': 'CVeg',
-    'soilCarbon': 'CSoil',
-    'soilResp': 'soilResp',
-    'temp': 'tas',
-    'precip': 'precip',
 }
 
 
@@ -121,7 +114,6 @@ def compute_metrics_from_annual_means(
 
     # Build extraction variable list (supports both canonical and legacy names)
     extraction_var_map = {
-        # Canonical names (new standard - no var_mapping needed, uses registry)
         'GPP': ('GPP', None),
         'NPP': ('NPP', None),
         'Rh': ('Rh', None),
@@ -130,12 +122,6 @@ def compute_metrics_from_annual_means(
         'tas': ('tas', None),
         'pr': ('pr', None),
         'fgco2': ('fgco2', None),
-        # Legacy names (backward compatibility - will be deprecated)
-        'soilResp': ('Rh', None),  # Map to canonical name
-        'VegCarb': ('CVeg', None),  # Map to canonical name
-        'soilCarbon': ('CSoil', None),  # Map to canonical name
-        'temp': ('tas', None),  # Map to canonical name
-        'precip': ('pr', None),  # Map to canonical name
     }
 
     for req_var in required_vars:
@@ -144,11 +130,10 @@ def compute_metrics_from_annual_means(
             var_list_for_extraction.append(var_name)
             # var_mapping is now deprecated and set to None (registry handles it)
 
-    # Extract data using existing function (var_mapping no longer needed)
+    # Extract data using existing function
     raw_data = extract_annual_means(
         [expt_name],
         var_list=var_list_for_extraction,
-        var_mapping=None,  # Now deprecated - registry handles conversion
         regions=regions,
         base_dir=base_dir
     )
@@ -177,8 +162,7 @@ def compute_metrics_from_annual_means(
                 # Compute derived metric
                 if metric == 'NEP':
                     npp_data = region_data.get('NPP', {})
-                    # Try canonical name first, then legacy
-                    soil_resp_data = region_data.get('Rh', {}) or region_data.get('soilResp', {})
+                    soil_resp_data = region_data.get('Rh', {})
 
                     if npp_data and soil_resp_data:
                         years = npp_data['years']
@@ -196,8 +180,7 @@ def compute_metrics_from_annual_means(
                         }
 
                 elif metric == 'Tau':
-                    # Try canonical names first, then legacy names for backward compatibility
-                    csoil_data = region_data.get('CSoil', {}) or region_data.get('soilCarbon', {})
+                    csoil_data = region_data.get('CSoil', {})
                     npp_data = region_data.get('NPP', {})
 
                     if csoil_data and npp_data:
@@ -310,9 +293,9 @@ def compute_metrics_from_raw(
     raw_to_metric = {
         'GPP': 'GPP',
         'NPP': 'NPP',
-        'VegCarb': 'CVeg',
-        'soilCarbon': 'CSoil',
-        'soilResp': 'soilResp',
+        'CVeg': 'CVeg',
+        'CSoil': 'CSoil',
+        'Rh': 'soilResp',
         'NEP': 'NEP',  # NEP is already computed by extract_annual_mean_raw
     }
 

@@ -154,17 +154,12 @@ def try_extract(cubes, code, stash_lookup_func=None, debug=False):
     """
     candidates = [code]
 
-    # Resolve canonical variable names and aliases to stash_code (MSI)
+    # Resolve canonical variable names to stash_code (MSI)
     if isinstance(code, str):
         from ..config import CANONICAL_VARIABLES
         _resolved_config = None
         if code in CANONICAL_VARIABLES:
             _resolved_config = CANONICAL_VARIABLES[code]
-        else:
-            for var_config in CANONICAL_VARIABLES.values():
-                if code in var_config.get("aliases", []):
-                    _resolved_config = var_config
-                    break
         if _resolved_config is not None:
             candidates.append(_resolved_config["stash_name"])
             candidates.append(_resolved_config["stash_code"])

@@ -111,7 +111,7 @@ def compute_latlon_box_mean(cube, lon_bounds, lat_bounds, land_only=False):
     return mean_cube
 
 
-def extract_annual_means(expts_list, var_list=None, var_mapping=None, regions=None, base_dir='~/annual_mean'):
+def extract_annual_means(expts_list, var_list=None, regions=None, base_dir='~/annual_mean'):
     """
     Extract annual means from pre-processed NetCDF files.
 
@@ -123,20 +123,8 @@ def extract_annual_means(expts_list, var_list=None, var_mapping=None, regions=No
     expts_list : list of str
         List of experiment names (e.g., ['xqhuc', 'xqhsh'])
     var_list : list of str, optional
-        Variable names to extract (CMIP-style canonical names preferred).
+        Variable names to extract (CMIP-style canonical names).
         Default: ['Rh', 'CSoil', 'CVeg', 'frac', 'GPP', 'NPP', 'fgco2', 'tas', 'pr', 'co2']
-
-        Aliases supported but deprecated (will be removed in v0.4.0):
-        - Use 'Rh' not 'soilResp'
-        - Use 'CVeg' not 'VegCarb'
-        - Use 'CSoil' not 'soilCarbon'
-        - Use 'tas' not 'temp'
-        - Use 'pr' not 'precip'
-        - Use 'co2' not 'Total co2'
-    var_mapping : list of str, optional
-        **DEPRECATED**. This parameter is no longer needed.
-        Conversion keys are now looked up automatically from the canonical
-        variable registry in config.py. Will be removed in v0.4.0.
     regions : list of str, optional
         Region names to process. Default: all RECCAP2 regions + 'Africa' + 'global'
     base_dir : str, optional
@@ -167,10 +155,6 @@ def extract_annual_means(expts_list, var_list=None, var_mapping=None, regions=No
     >>> # With custom base directory
     >>> ds = extract_annual_means(['xqhuc'], base_dir='~/data/annual_mean')
 
-    >>> # Backward compatible: aliases still work (with deprecation warning)
-    >>> ds = extract_annual_means(['xqhuc'], var_list=['VegCarb', 'soilResp'])
-    >>> # DeprecationWarning: Use 'CVeg' not 'VegCarb', 'Rh' not 'soilResp'
-
     Notes
     -----
     Input files expected in: {base_dir}/{expt}/
@@ -193,32 +177,15 @@ def extract_annual_means(expts_list, var_list=None, var_mapping=None, regions=No
     config.CANONICAL_VARIABLES : Variable registry with all metadata
     config.resolve_variable_name : Resolve aliases to canonical names
     """
-    # Handle deprecated var_mapping parameter
-    if var_mapping is not None:
-        warnings.warn(
-            "The 'var_mapping' parameter is deprecated and will be removed in v0.4.0. "
-            "Conversion keys are now automatically looked up from the canonical variable registry.",
-            DeprecationWarning,
-            stacklevel=2
-        )
-
     # Use default variable list if not provided
     if var_list is None:
         var_list = DEFAULT_VAR_LIST
 
-    # Resolve variable names to canonical names (with deprecation warnings for aliases)
+    # Resolve variable names to canonical names
     resolved_vars = []
     for var in var_list:
         try:
             canonical = resolve_variable_name(var)
-            if var != canonical:
-                warnings.warn(
-                    f"Variable name '{var}' is deprecated. "
-                    f"Use canonical name '{canonical}' instead. "
-                    f"Aliases will be removed in v0.4.0.",
-                    DeprecationWarning,
-                    stacklevel=2
-                )
             resolved_vars.append(canonical)
         except ValueError as e:
             warnings.warn(f"Skipping unknown variable '{var}': {e}", UserWarning, stacklevel=2)

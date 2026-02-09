@@ -198,35 +198,31 @@ class TestExtractAnnualMeansDeprecations:
             mock_load_reccap_mask
         )
 
-    def test_var_mapping_parameter_deprecated(self, tmp_path):
-        """Test that var_mapping parameter triggers deprecation warning."""
+    def test_var_mapping_parameter_raises_TypeError(self, tmp_path):
+        """Test that var_mapping parameter raises TypeError in v0.4.0."""
         from utils_cmip7.diagnostics.extraction import extract_annual_means
 
-        with pytest.warns(DeprecationWarning, match="var_mapping.*deprecated"):
-            # Call with deprecated var_mapping parameter
-            # Use empty expts_list to avoid actual file operations
-            result = extract_annual_means(
+        with pytest.raises(TypeError):
+            extract_annual_means(
                 expts_list=[],
                 var_mapping=['some_mapping'],
                 base_dir=str(tmp_path)
             )
 
-    def test_legacy_variable_names_deprecated(self, tmp_path):
-        """Test that legacy variable names trigger deprecation warnings."""
+    def test_legacy_variable_names_raise_ValueError(self, tmp_path):
+        """Test that legacy variable names raise ValueError in v0.4.0."""
         from utils_cmip7.diagnostics.extraction import extract_annual_means
 
-        # These legacy names should trigger deprecation warnings
+        # Legacy names should now raise ValueError via resolve_variable_name,
+        # which is caught and issued as UserWarning (skipped)
         legacy_vars = ['VegCarb', 'soilResp', 'soilCarbon']
 
-        with pytest.warns(DeprecationWarning) as record:
+        with pytest.warns(UserWarning, match="Skipping unknown variable"):
             result = extract_annual_means(
                 expts_list=[],
                 var_list=legacy_vars,
                 base_dir=str(tmp_path)
             )
-
-        # Should have at least one warning for each legacy variable
-        assert len(record) >= len(legacy_vars)
 
     def test_canonical_names_no_warnings(self, tmp_path):
         """Test that canonical names don't trigger warnings."""
@@ -376,13 +372,13 @@ class TestExtractAnnualMeansVariableResolution:
         """Test mixing canonical and legacy variable names."""
         from utils_cmip7.diagnostics.extraction import extract_annual_means
 
-        # Mix canonical and legacy names
-        with pytest.warns(DeprecationWarning):
+        # Mix canonical and legacy names — legacy names are skipped with UserWarning
+        with pytest.warns(UserWarning, match="Skipping unknown variable"):
             result = extract_annual_means(
                 expts_list=[],
                 var_list=['GPP', 'VegCarb', 'Rh', 'soilCarbon'],  # Mix of both
                 base_dir=str(tmp_path)
             )
 
-        # Should succeed (but with warnings)
+        # Should succeed (legacy names skipped)
         assert result == {}

@@ -46,7 +46,7 @@ def test_var_conversions_content():
         from utils_cmip7.config import VAR_CONVERSIONS
 
         # Check some essential conversions exist
-        essential_vars = ['GPP', 'NPP', 'S resp', 'V carb', 'S carb', 'precip']
+        essential_vars = ['GPP', 'NPP', 'Rh', 'CVeg', 'CSoil', 'precip']
         missing = [v for v in essential_vars if v not in VAR_CONVERSIONS]
 
         if missing:

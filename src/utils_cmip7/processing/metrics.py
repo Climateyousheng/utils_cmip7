@@ -32,21 +32,21 @@ METRIC_DEFINITIONS = {
     "CVeg": {
         "aggregation": "SUM",
         "output_units": "PgC",
-        "conversion_key": "V carb",
+        "conversion_key": "CVeg",
         "description": "Vegetation Carbon",
         "category": "stock",
     },
     "CSoil": {
         "aggregation": "SUM",
         "output_units": "PgC",
-        "conversion_key": "S carb",
+        "conversion_key": "CSoil",
         "description": "Soil Carbon",
         "category": "stock",
     },
     "soilResp": {
         "aggregation": "SUM",
         "output_units": "PgC/yr",
-        "conversion_key": "S resp",
+        "conversion_key": "Rh",
         "description": "Soil Respiration",
         "category": "flux",
     },
@@ -71,13 +71,6 @@ METRIC_DEFINITIONS = {
         "description": "Surface air temperature (1.5m)",
         "category": "climate",
     },
-    "temp": {  # Alias for tas
-        "aggregation": "MEAN",
-        "output_units": "°C",
-        "conversion_key": "Others",
-        "description": "Surface air temperature (1.5m)",
-        "category": "climate",
-    },
     "precip": {
         "aggregation": "MEAN",
         "output_units": "mm/day",
@@ -88,23 +81,9 @@ METRIC_DEFINITIONS = {
     "fgco2": {
         "aggregation": "SUM",
         "output_units": "PgC/yr",
-        "conversion_key": "field646_mm_dpth",
+        "conversion_key": "fgco2",
         "description": "Ocean CO2 flux",
         "category": "flux",
-    },
-    "VegCarb": {  # Alias for CVeg
-        "aggregation": "SUM",
-        "output_units": "PgC",
-        "conversion_key": "V carb",
-        "description": "Vegetation Carbon",
-        "category": "stock",
-    },
-    "soilCarbon": {  # Alias for CSoil
-        "aggregation": "SUM",
-        "output_units": "PgC",
-        "conversion_key": "S carb",
-        "description": "Soil Carbon",
-        "category": "stock",
     },
 }
 

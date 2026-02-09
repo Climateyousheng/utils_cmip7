@@ -9,26 +9,12 @@ import os
 # Unit conversion factors for various variables
 # Maps variable names/codes to conversion factors
 VAR_CONVERSIONS = {
-    # Legacy names (for backward compatibility)
-    'Ocean flux': (12/44)*3600*24*360*(1e-12),         # kgCO2/m2/s to PgC/yr
-    'm01s00i250': (12/44)*3600*24*360*(1e-12),         # same as Ocean flux
-    'field1560_mm_srf': (12/44)*3600*24*360*(1e-12),   # same as Ocean flux
-    'P resp': 3600*24*360*(1e-12),                     # from kgC/m2/s to PgC/yr
-    'S resp': 3600*24*360*(1e-12),                     # from kgC/m2/s to PgC/yr
-    'litter flux': (1e-12),                            # from kgC/m2/yr to PgC/yr
-    'V carb': (1e-12),                                 # from kgC/m2 to PgC
-    'vegetation_carbon_content': (1e-12),              # from kgC/m2 to PgC
-    'S carb': (1e-12),                                 # from kgC/m2 to PgC
-    'soilCarbon': (1e-12),                             # from kgC/m2 to PgC
-    'Air flux': (12)/1000*(1e-12),                     # from molC/m2/yr to PgC/yr
-    'm02s30i249': (12)/1000*(1e-12),                   # same as Air flux
-    'field646_mm_dpth': (12)/1000*(1e-12),             # same as Air flux
-    'Total co2': 28.97/44.01*(1e6),                    # from mmr to ppmv
-    'm01s00i252': 28.97/44.01*(1e6),                   # same as Total co2
-    'precip': 86400,                                   # from kg/m2/s to mm/day
-    'Others': 1,                                       # no conversion (used for MEAN aggregation)
+    # Internal protocol keys (used by compute_regional_annual_mean dispatch)
+    'Others': 1,                                       # no conversion (MEAN aggregation)
+    'precip': 86400,                                   # kg/m2/s → mm/day (MEAN aggregation)
+    'Total co2': 28.97/44.01*1e6,                      # mmr → ppmv (MEAN aggregation)
 
-    # Canonical CMIP-style names (new standard)
+    # Canonical CMIP-style names
     'GPP': 3600*24*360*(1e-12),                        # kgC/m2/s → PgC/yr
     'NPP': 3600*24*360*(1e-12),                        # kgC/m2/s → PgC/yr
     'Rh': 3600*24*360*(1e-12),                         # kgC/m2/s → PgC/yr
@@ -39,7 +25,6 @@ VAR_CONVERSIONS = {
     'pr': 86400,                                       # kg/m2/s → mm/day
     'frac': 1,                                         # fraction (no conversion, use MEAN)
     'co2': 28.97/44.01*1e6,                            # mmr → ppmv (MEAN aggregation)
-    'Total co2': 28.97/44.01*1e6,                      # mmr → ppmv (legacy key name)
 }
 
 # RECCAP2 regional mask file path
@@ -110,9 +95,6 @@ def get_region_bounds(region_name):
     return RECCAP_REGION_BOUNDS[region_name]
 
 
-# Backward compatibility: alias for old name
-var_dict = VAR_CONVERSIONS
-
 # ============================================================================
 # CANONICAL VARIABLE REGISTRY
 # ============================================================================
@@ -162,7 +144,7 @@ CANONICAL_VARIABLES = {
         "conversion_factor": 3600*24*360*1e-12,  # kgC/m2/s → PgC/yr
         "units": "PgC/yr",
         "category": "flux",
-        "aliases": ["soilResp"],
+        "aliases": ["soilResp"],  # Removed in v0.4.0, kept for error messages
     },
     "fgco2": {
         "description": "Surface Downward Mass Flux of Carbon as CO2",
@@ -186,7 +168,7 @@ CANONICAL_VARIABLES = {
         "conversion_factor": 1e-12,  # kgC/m2 → PgC
         "units": "PgC",
         "category": "stock",
-        "aliases": ["VegCarb", "vegetation_carbon_content"],
+        "aliases": ["VegCarb"],  # Removed in v0.4.0, kept for error messages
     },
     "CSoil": {
         "description": "Soil Carbon Content",
@@ -196,7 +178,7 @@ CANONICAL_VARIABLES = {
         "conversion_factor": 1e-12,  # kgC/m2 → PgC
         "units": "PgC",
         "category": "stock",
-        "aliases": ["soilCarbon"],
+        "aliases": ["soilCarbon"],  # Removed in v0.4.0, kept for error messages
     },
 
     # -------------------------------------------------------------------------
@@ -210,7 +192,7 @@ CANONICAL_VARIABLES = {
         "conversion_factor": 1.0,  # K (no conversion)
         "units": "K",
         "category": "climate",
-        "aliases": ["temp"],
+        "aliases": ["temp"],  # Removed in v0.4.0, kept for error messages
     },
     "pr": {
         "description": "Precipitation",
@@ -220,7 +202,7 @@ CANONICAL_VARIABLES = {
         "conversion_factor": 86400,  # kg/m2/s → mm/day
         "units": "mm/day",
         "category": "climate",
-        "aliases": ["precip"],
+        "aliases": ["precip"],  # Removed in v0.4.0, kept for error messages
     },
 
     # -------------------------------------------------------------------------
@@ -235,7 +217,7 @@ CANONICAL_VARIABLES = {
         "conversion_factor": 1.0,  # fraction (no conversion)
         "units": "1",
         "category": "land_use",
-        "aliases": ["fracPFTs"],
+        "aliases": ["fracPFTs"],  # Removed in v0.4.0, kept for error messages
     },
 
     # -------------------------------------------------------------------------
@@ -249,65 +231,63 @@ CANONICAL_VARIABLES = {
         "conversion_factor": 28.97/44.01*1e6,  # mmr → ppmv
         "units": "ppmv",
         "category": "climate",
-        "aliases": ["Total co2"],
+        "aliases": ["Total co2"],  # Removed in v0.4.0, kept for error messages
     },
 }
 
 
 def resolve_variable_name(name: str) -> str:
     """
-    Resolve any variable name (canonical or alias) to canonical name.
+    Resolve a canonical variable name.
 
     Parameters
     ----------
     name : str
-        Variable name (canonical or alias)
+        Canonical variable name (e.g., 'CVeg', 'Rh', 'tas')
 
     Returns
     -------
     str
-        Canonical variable name (e.g., 'CVeg', 'Rh', 'tas')
+        Canonical variable name
 
     Raises
     ------
     ValueError
-        If variable name not recognized
+        If variable name not recognized, or if a removed alias is used.
 
     Examples
     --------
-    >>> resolve_variable_name('VegCarb')  # alias → canonical
+    >>> resolve_variable_name('CVeg')
     'CVeg'
-    >>> resolve_variable_name('CVeg')  # already canonical
-    'CVeg'
-    >>> resolve_variable_name('soilResp')  # alias → canonical
-    'Rh'
-    >>> resolve_variable_name('temp')  # alias → canonical
-    'tas'
+    >>> resolve_variable_name('GPP')
+    'GPP'
     """
     # Already canonical?
     if name in CANONICAL_VARIABLES:
         return name
 
-    # Search aliases
+    # Search aliases — raise ValueError with migration message
     for canonical_name, config in CANONICAL_VARIABLES.items():
         if name in config.get("aliases", []):
-            return canonical_name
+            raise ValueError(
+                f"Variable name '{name}' was removed in v0.4.0. "
+                f"Use '{canonical_name}' instead."
+            )
 
     raise ValueError(
         f"Unknown variable name: '{name}'. "
-        f"Known variables: {sorted(CANONICAL_VARIABLES.keys())}. "
-        f"Known aliases: {sorted(sum([cfg.get('aliases', []) for cfg in CANONICAL_VARIABLES.values()], []))}"
+        f"Known variables: {sorted(CANONICAL_VARIABLES.keys())}"
     )
 
 
 def get_variable_config(name: str) -> dict:
     """
-    Get full configuration for a variable (resolves aliases automatically).
+    Get full configuration for a variable.
 
     Parameters
     ----------
     name : str
-        Variable name (canonical or alias)
+        Canonical variable name (e.g., 'CVeg', 'Rh', 'tas')
 
     Returns
     -------
@@ -323,17 +303,20 @@ def get_variable_config(name: str) -> dict:
         - category: str
         - aliases: list of str
 
+    Raises
+    ------
+    ValueError
+        If variable name not recognized or a removed alias is used.
+
     Examples
     --------
-    >>> cfg = get_variable_config('VegCarb')  # alias
-    >>> cfg['description']
-    'Vegetation Carbon Content'
+    >>> cfg = get_variable_config('CVeg')
     >>> cfg['conversion_factor']
     1e-12
     >>> cfg['aggregation']
     'SUM'
 
-    >>> cfg = get_variable_config('tas')  # canonical
+    >>> cfg = get_variable_config('tas')
     >>> cfg['aggregation']
     'MEAN'
     """
@@ -412,22 +395,6 @@ DEFAULT_VAR_LIST = [
     'pr',          # Precipitation (CMIP: pr)
     'co2'          # Atmospheric CO2 (CMIP: co2)
 ]
-
-# DEPRECATED: Use CANONICAL_VARIABLES instead
-# This is kept for backward compatibility only
-DEFAULT_VAR_MAPPING = [
-    'S resp',              # Rh → conversion key
-    'S carb',              # CSoil → conversion key
-    'V carb',              # CVeg → conversion key
-    'Others',              # frac → conversion key (MEAN aggregation)
-    'GPP',                 # GPP → conversion key
-    'NPP',                 # NPP → conversion key
-    'field646_mm_dpth',    # fgco2 → conversion key
-    'Others',              # tas → conversion key (MEAN aggregation)
-    'precip',              # pr → conversion key (MEAN aggregation)
-    'Total co2'            # co2 → conversion key (MEAN aggregation)
-]
-
 
 def validate_reccap_mask_path(path=None):
     """

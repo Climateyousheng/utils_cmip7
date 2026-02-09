@@ -159,7 +159,67 @@ def _masked_to_nan(data):
     return np.asarray(data, dtype=float)
 
 
-def extract_map_field(cube, time=None, time_index=None, variable=None):
+def _select_level(data, cube, level):
+    """Index into an extra (non-time, non-lat, non-lon) dimension.
+
+    Parameters
+    ----------
+    data : numpy.ndarray
+        Array after time selection, potentially 3-D+ (e.g. PFT, lat, lon).
+    cube : iris.cube.Cube
+        Original cube, used to identify which axis is the extra dimension.
+    level : int
+        Index along the extra dimension (e.g. PFT index 0–8).
+
+    Returns
+    -------
+    numpy.ndarray
+        Array with the extra dimension removed by indexing.
+
+    Raises
+    ------
+    ValueError
+        If no extra dimension is found or *level* is out of range.
+    """
+    known = {"time", "latitude", "longitude"}
+    extra_axes = []
+    for coord in cube.coords(dim_coords=True):
+        if coord.name() not in known:
+            dim = cube.coord_dims(coord)[0]
+            extra_axes.append((dim, coord))
+
+    if not extra_axes:
+        raise ValueError(
+            "No extra (non-time, non-lat, non-lon) dimension found "
+            "to apply 'level' selection."
+        )
+
+    # Use the first extra axis (handles PFT / pseudo_level / model_level etc.)
+    extra_dim, extra_coord = extra_axes[0]
+
+    # After time selection, the time dimension may have been removed.
+    # Compute the axis index in *data* by counting how many cube dims
+    # before extra_dim are still present.
+    time_coords = cube.coords("time", dim_coords=True)
+    time_dim = cube.coord_dims(time_coords[0])[0] if time_coords else None
+    if time_dim is not None and extra_dim > time_dim:
+        axis_in_data = extra_dim - 1  # time dim was removed
+    else:
+        axis_in_data = extra_dim
+
+    n = data.shape[axis_in_data]
+    if level < 0 or level >= n:
+        raise ValueError(
+            f"level={level} is out of range for dimension "
+            f"'{extra_coord.name()}' with size {n}."
+        )
+
+    slices = [slice(None)] * data.ndim
+    slices[axis_in_data] = level
+    return data[tuple(slices)]
+
+
+def extract_map_field(cube, time=None, time_index=None, variable=None, level=None):
     """Extract a 2D spatial field from an iris Cube.
 
     Parameters
@@ -177,6 +237,10 @@ def extract_map_field(cube, time=None, time_index=None, variable=None):
         When provided, applies the ``conversion_factor`` and overrides
         ``units`` and ``name`` from :data:`~utils_cmip7.config.CANONICAL_VARIABLES`.
         No conversion is applied by default.
+    level : int, optional
+        Index along an extra (non-time, non-lat, non-lon) dimension.
+        For cubes with a PFT / pseudo-level dimension (e.g. ``frac``),
+        this selects a single level before squeezing to 2D.
 
     Returns
     -------
@@ -193,7 +257,8 @@ def extract_map_field(cube, time=None, time_index=None, variable=None):
         If *cube* is not an iris Cube.
     ValueError
         If mutually exclusive arguments are both supplied, if the
-        requested year is not found, or if *variable* is not recognised.
+        requested year is not found, if *variable* is not recognised,
+        or if *level* is out of range.
     """
     _require_iris("extract_map_field")
     if not isinstance(cube, iris.cube.Cube):
@@ -202,6 +267,8 @@ def extract_map_field(cube, time=None, time_index=None, variable=None):
         )
 
     data_2d, year = _select_time_slice(cube, time=time, time_index=time_index)
+    if level is not None:
+        data_2d = _select_level(data_2d, cube, level)
     data_2d = _squeeze_to_2d(data_2d, cube)
     data_2d = _masked_to_nan(data_2d)
 
@@ -240,6 +307,7 @@ def extract_anomaly_field(
     time_index_b=None,
     symmetric=True,
     variable=None,
+    level=None,
 ):
     """Extract anomaly (data_a - data_b) between two time slices.
 
@@ -265,6 +333,9 @@ def extract_anomaly_field(
         before computing the anomaly, and overrides ``units`` and ``name``
         from :data:`~utils_cmip7.config.CANONICAL_VARIABLES`.
         No conversion is applied by default.
+    level : int, optional
+        Index along an extra (non-time, non-lat, non-lon) dimension.
+        Applied to both slices before computing the anomaly.
 
     Returns
     -------
@@ -283,7 +354,8 @@ def extract_anomaly_field(
         If *cube* is not an iris Cube.
     ValueError
         If the cube has no time dimension, if mutually exclusive
-        arguments are both supplied, or if *variable* is not recognised.
+        arguments are both supplied, if *variable* is not recognised,
+        or if *level* is out of range.
     """
     _require_iris("extract_anomaly_field")
     if not isinstance(cube, iris.cube.Cube):
@@ -314,6 +386,11 @@ def extract_anomaly_field(
     data_b, year_b = _select_time_slice(
         cube, time=time_b, time_index=time_index_b,
     )
+
+    # Select level from extra dimension (e.g. PFT) before squeeze
+    if level is not None:
+        data_a = _select_level(data_a, cube, level)
+        data_b = _select_level(data_b, cube, level)
 
     data_a = _masked_to_nan(data_a)
     data_b = _masked_to_nan(data_b)

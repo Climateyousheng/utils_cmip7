@@ -71,17 +71,11 @@ class TestMetricDefinitions:
                 f"Metric '{metric_name}' has invalid category '{category}'"
             )
 
-    def test_metric_aliases_consistent(self):
-        """Test that metric aliases have consistent definitions."""
-        # CVeg and VegCarb should be equivalent
-        assert METRIC_DEFINITIONS['CVeg']['output_units'] == (
-            METRIC_DEFINITIONS['VegCarb']['output_units']
-        )
-
-        # CSoil and soilCarbon should be equivalent
-        assert METRIC_DEFINITIONS['CSoil']['output_units'] == (
-            METRIC_DEFINITIONS['soilCarbon']['output_units']
-        )
+    def test_legacy_aliases_removed(self):
+        """Test that legacy aliases (VegCarb, soilCarbon, temp) were removed in v0.4.0."""
+        assert 'VegCarb' not in METRIC_DEFINITIONS
+        assert 'soilCarbon' not in METRIC_DEFINITIONS
+        assert 'temp' not in METRIC_DEFINITIONS
 
 
 class TestGetMetricConfig:
@@ -187,8 +181,6 @@ class TestListMetrics:
         assert isinstance(stock_metrics, list)
         assert 'CVeg' in stock_metrics
         assert 'CSoil' in stock_metrics
-        assert 'VegCarb' in stock_metrics
-        assert 'soilCarbon' in stock_metrics
 
         # Flux metrics should not be in stock list
         assert 'GPP' not in stock_metrics
@@ -400,7 +392,7 @@ class TestMetricCategories:
 
     def test_carbon_stocks_are_stock_category(self):
         """Test that carbon stock metrics are categorized as 'stock'."""
-        stock_metrics = ['CVeg', 'CSoil', 'VegCarb', 'soilCarbon']
+        stock_metrics = ['CVeg', 'CSoil']
 
         for metric in stock_metrics:
             config = get_metric_config(metric)

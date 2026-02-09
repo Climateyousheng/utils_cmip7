@@ -25,12 +25,13 @@ Target environments:
 
 ---
 
-## Current State (v0.3.0)
+## Current State (v0.4.0)
 
 - Core extraction, processing, and plotting logic exists and is scientifically correct.
 - Module structure is **stabilized** with clear public API guarantees.
-- 174 tests with 24% coverage, CI/CD across Python 3.8-3.11.
-- Backward compatibility with existing analysis scripts is preserved.
+- ~300 tests with 29% coverage, CI/CD across Python 3.9-3.12.
+- Legacy variable names removed; only canonical names accepted.
+- Validation comparison module has test coverage (99% compare.py, 100% outputs.py).
 
 Scientific behaviour must not change unless explicitly documented.
 
@@ -53,19 +54,20 @@ Violations constitute technical debt and must be recorded explicitly.
 
 ## API Stability Matrix
 
-| Component                | Stability     |
-|-------------------------|---------------|
-| Soil carbon diagnostics | Stable        |
-| Carbon flux diagnostics | Stable        |
-| Annual-mean processing  | Provisional   |
-| Raw data extraction     | Provisional   |
-| Plotting API            | Unstable      |
-| CLI interface           | Experimental  |
+| Component                    | Stability     |
+|------------------------------|---------------|
+| Soil carbon diagnostics      | Stable        |
+| Carbon flux diagnostics      | Stable        |
+| Annual-mean processing       | Provisional   |
+| Raw data extraction          | Provisional   |
+| Validation comparison        | Provisional   |
+| Plotting API                 | Unstable      |
+| CLI interface                | Experimental  |
 
 Only *Stable* components may be relied upon in long-lived scripts.
 
-**As of v0.3.0 (2026-01-26)**, the API stability matrix is frozen for the v0.3.x series.
-No breaking changes will be introduced to "Stable" components until v0.4.0.
+**As of v0.4.0 (2026-02-09)**, the API stability matrix is updated for the v0.4.x series.
+No breaking changes will be introduced to "Stable" components until v0.5.0.
 
 ---
 
@@ -80,15 +82,16 @@ Full CMIP compliance is aspirational prior to v1.0.
 
 ---
 
-## v0.3.0 Achievements (2026-01-26)
+## v0.4.0 Achievements (2026-02-09)
 
-- ✅ Stabilized package structure and imports
-- ✅ Configuration-driven I/O with canonical variables
-- ✅ 174 tests with CI/CD (Python 3.8-3.11)
-- ✅ Public API frozen with stability guarantees
-- ✅ 24% test coverage, zero breaking changes from v0.2.x
+- ✅ Removed all deprecated features (var_mapping, var_dict, legacy names)
+- ✅ Internal migration to canonical variable names throughout
+- ✅ Level selection for multi-dimensional cubes (frac/PFT)
+- ✅ Validation module test coverage (compare.py 99%, outputs.py 100%)
+- ✅ ~300 tests with CI/CD (Python 3.9-3.12)
+- ✅ Dropped Python 3.8 support (EOL Oct 2024)
 
-See [CHANGELOG.md](CHANGELOG.md) for full v0.3.0 release notes.
+See [CHANGELOG.md](CHANGELOG.md) for full v0.4.0 release notes.
 
 ---
 

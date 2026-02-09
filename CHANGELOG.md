@@ -9,6 +9,95 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.4.0] - 2026-02-09
+
+### Breaking Changes
+
+This is a **breaking release**. Deprecated features from v0.3.x have been removed.
+
+#### Removed: Legacy variable names
+
+The following legacy variable names now raise `ValueError` instead of resolving silently:
+
+| Legacy Name | Canonical Name |
+|-------------|---------------|
+| `VegCarb` | `CVeg` |
+| `soilResp` | `Rh` |
+| `soilCarbon` | `CSoil` |
+| `temp` | `tas` |
+| `precip` | `pr` |
+| `fracPFTs` | `frac` |
+
+**Migration:** Replace all legacy names with canonical names in your scripts.
+
+#### Removed: `var_mapping` parameter
+
+`extract_annual_means(var_mapping=...)` now raises `TypeError`. Use `var_list` with canonical variable names instead.
+
+#### Removed: `var_dict` alias
+
+`from utils_cmip7.config import var_dict` no longer works. Use `VAR_CONVERSIONS` directly.
+
+#### Removed: `DEFAULT_VAR_MAPPING`
+
+`config.DEFAULT_VAR_MAPPING` has been deleted. Use `DEFAULT_VAR_LIST` instead.
+
+#### Removed: Legacy `VAR_CONVERSIONS` keys
+
+Internal keys like `'V carb'`, `'S resp'`, `'S carb'`, `'Ocean flux'`, `'Air flux'`, etc. have been removed from `VAR_CONVERSIONS`. Only canonical keys and internal dispatch keys (`'Others'`, `'precip'`, `'Total co2'`) remain.
+
+#### Dropped: Python 3.8 support
+
+Python 3.8 reached end-of-life in October 2024. Minimum supported version is now Python 3.9.
+
+### Added
+
+#### Level selection for multi-dimensional cubes
+- `extract_map_field()` and `extract_anomaly_field()` accept an optional `level` parameter for cubes with extra dimensions (e.g., PFT fractions with 9 levels)
+- New internal helper `_select_level()` in `processing/map_fields.py`
+
+#### Validation module tests
+- `tests/test_validation/test_compare.py` — 20 tests for `compute_bias`, `compute_rmse`, `compare_single_metric`, `compare_metrics`, `summarize_comparison`, `print_comparison_table` (99% coverage)
+- `tests/test_validation/test_outputs.py` — 4 tests for `write_single_validation_bundle` (100% coverage)
+
+#### Breaking change verification tests
+- `tests/test_v04_breaking_changes.py` — Comprehensive tests documenting and verifying all v0.4.0 breaking changes
+
+### Changed
+
+- Internal `METRIC_DEFINITIONS` conversion keys updated to canonical names
+- Internal `diagnostics/raw.py` variable tuples updated to canonical names
+- Internal `diagnostics/metrics.py` mappings cleaned of legacy entries
+- `try_extract()` no longer resolves legacy aliases — only canonical names and STASH codes
+- `scripts/extract_raw.py` updated to use canonical variable names
+- CI matrix updated: Python 3.9, 3.10, 3.11, 3.12
+
+### Migration Guide
+
+**From v0.3.x to v0.4.0:**
+
+```python
+# Before (v0.3.x — deprecated, with warnings):
+data = extract_annual_means(
+    ['xqhuc'],
+    var_list=['VegCarb', 'soilResp', 'soilCarbon'],
+    var_mapping=['vegcarb', 'soilresp', 'soilcarbon']
+)
+
+# After (v0.4.0):
+data = extract_annual_means(
+    ['xqhuc'],
+    var_list=['CVeg', 'Rh', 'CSoil']
+)
+```
+
+### Statistics
+- **Tests**: ~300 (was 275 in v0.3.1)
+- **Coverage**: 29%
+- **Python support**: 3.9, 3.10, 3.11, 3.12
+
+---
+
 ## [0.3.1] - 2026-02-09
 
 ### Added
@@ -243,6 +332,7 @@ Special thanks to:
 
 ## Release Tags
 
+- `v0.4.0` - Breaking: remove deprecated features, drop Python 3.8, add level selection (2026-02-09)
 - `v0.3.1` - Canonical name resolution, unit conversion, plotting fixes (2026-02-09)
 - `v0.3.0` - API stabilization and testing foundation (2026-01-26)
 - `v0.2.1` - Canonical variables and validation
