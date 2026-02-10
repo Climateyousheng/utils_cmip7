@@ -6,26 +6,18 @@ Contains unit conversion factors, file paths, and regional definitions.
 
 import os
 
-# Unit conversion factors for various variables
-# Maps variable names/codes to conversion factors
-VAR_CONVERSIONS = {
-    # Internal protocol keys (used by compute_regional_annual_mean dispatch)
-    'Others': 1,                                       # no conversion (MEAN aggregation)
-    'precip': 86400,                                   # kg/m2/s → mm/day (MEAN aggregation)
-    'Total co2': 28.97/44.01*1e6,                      # mmr → ppmv (MEAN aggregation)
-
-    # Canonical CMIP-style names
-    'GPP': 3600*24*360*(1e-12),                        # kgC/m2/s → PgC/yr
-    'NPP': 3600*24*360*(1e-12),                        # kgC/m2/s → PgC/yr
-    'Rh': 3600*24*360*(1e-12),                         # kgC/m2/s → PgC/yr
-    'CVeg': (1e-12),                                   # kgC/m2 → PgC
-    'CSoil': (1e-12),                                  # kgC/m2 → PgC
-    'fgco2': (12)/1000*(1e-12),                        # molC/m2/yr → PgC/yr
-    'tas': 1,                                          # K (no conversion, use MEAN)
-    'pr': 86400,                                       # kg/m2/s → mm/day
-    'frac': 1,                                         # fraction (no conversion, use MEAN)
-    'co2': 28.97/44.01*1e6,                            # mmr → ppmv (MEAN aggregation)
+# Legacy protocol keys (used by compute_regional_annual_mean dispatch)
+# These 3 keys have no direct canonical variable equivalent
+_LEGACY_PROTOCOL_KEYS = {
+    'Others': 1,           # no conversion (generic MEAN aggregation)
+    'precip': 86400,       # kg/m2/s → mm/day (MEAN aggregation)
+    'Total co2': 28.97/44.01*1e6,  # mmr → ppmv (MEAN aggregation)
 }
+
+# VAR_CONVERSIONS is derived from CANONICAL_VARIABLES to prevent drift.
+# Only the 3 legacy protocol keys above are maintained separately.
+# This dict is populated after CANONICAL_VARIABLES is defined (see below).
+VAR_CONVERSIONS = {}
 
 # RECCAP2 regional mask file path
 # Can be overridden by setting UTILS_CMIP7_RECCAP_MASK environment variable
@@ -109,6 +101,8 @@ def get_region_bounds(region_name):
 #   - aggregation: "MEAN" or "SUM" (controls spatial aggregation method)
 #   - conversion_factor: Multiplier to convert to output units
 #   - units: Output units after conversion
+#   - units_in: Input units from UM (for validation)
+#   - time_handling: "mean_rate" | "state" | "already_integral"
 #   - category: "flux", "stock", "climate", or "land_use"
 #   - aliases: List of deprecated names (for backward compatibility)
 
@@ -123,6 +117,8 @@ CANONICAL_VARIABLES = {
         "aggregation": "SUM",
         "conversion_factor": 3600*24*360*1e-12,  # kgC/m2/s → PgC/yr
         "units": "PgC/yr",
+        "units_in": "kgC m-2 s-1",
+        "time_handling": "mean_rate",
         "category": "flux",
         "aliases": [],
     },
@@ -133,6 +129,8 @@ CANONICAL_VARIABLES = {
         "aggregation": "SUM",
         "conversion_factor": 3600*24*360*1e-12,  # kgC/m2/s → PgC/yr
         "units": "PgC/yr",
+        "units_in": "kgC m-2 s-1",
+        "time_handling": "mean_rate",
         "category": "flux",
         "aliases": [],
     },
@@ -143,6 +141,8 @@ CANONICAL_VARIABLES = {
         "aggregation": "SUM",
         "conversion_factor": 3600*24*360*1e-12,  # kgC/m2/s → PgC/yr
         "units": "PgC/yr",
+        "units_in": "kgC m-2 s-1",
+        "time_handling": "mean_rate",
         "category": "flux",
         "aliases": ["soilResp"],  # Removed in v0.4.0, kept for error messages
     },
@@ -151,8 +151,12 @@ CANONICAL_VARIABLES = {
         "stash_name": "fgco2",
         "stash_code": "m02s30i249",
         "aggregation": "SUM",
+        # Assumes UM STASH output is molC/m2/yr (already per-year).
+        # If the actual output is molC/m2/s, this factor is wrong by ~3.15e7.
         "conversion_factor": 12/1000*1e-12,  # molC/m2/yr → PgC/yr
         "units": "PgC/yr",
+        "units_in": "molC m-2 yr-1",
+        "time_handling": "already_integral",
         "category": "flux",
         "aliases": [],
     },
@@ -167,6 +171,8 @@ CANONICAL_VARIABLES = {
         "aggregation": "SUM",
         "conversion_factor": 1e-12,  # kgC/m2 → PgC
         "units": "PgC",
+        "units_in": "kgC m-2",
+        "time_handling": "state",
         "category": "stock",
         "aliases": ["VegCarb"],  # Removed in v0.4.0, kept for error messages
     },
@@ -177,6 +183,8 @@ CANONICAL_VARIABLES = {
         "aggregation": "SUM",
         "conversion_factor": 1e-12,  # kgC/m2 → PgC
         "units": "PgC",
+        "units_in": "kgC m-2",
+        "time_handling": "state",
         "category": "stock",
         "aliases": ["soilCarbon"],  # Removed in v0.4.0, kept for error messages
     },
@@ -191,6 +199,8 @@ CANONICAL_VARIABLES = {
         "aggregation": "MEAN",  # Note: MEAN not SUM!
         "conversion_factor": 1.0,  # K (no conversion)
         "units": "K",
+        "units_in": "K",
+        "time_handling": "state",
         "category": "climate",
         "aliases": ["temp"],  # Removed in v0.4.0, kept for error messages
     },
@@ -201,6 +211,8 @@ CANONICAL_VARIABLES = {
         "aggregation": "MEAN",  # Note: MEAN not SUM!
         "conversion_factor": 86400,  # kg/m2/s → mm/day
         "units": "mm/day",
+        "units_in": "kg m-2 s-1",
+        "time_handling": "mean_rate",
         "category": "climate",
         "aliases": ["precip"],  # Removed in v0.4.0, kept for error messages
     },
@@ -216,6 +228,8 @@ CANONICAL_VARIABLES = {
         "aggregation": "MEAN",  # Note: MEAN not SUM!
         "conversion_factor": 1.0,  # fraction (no conversion)
         "units": "1",
+        "units_in": "1",
+        "time_handling": "state",
         "category": "land_use",
         "aliases": ["fracPFTs"],  # Removed in v0.4.0, kept for error messages
     },
@@ -230,10 +244,17 @@ CANONICAL_VARIABLES = {
         "aggregation": "MEAN",  # Note: MEAN for 3D vertical average!
         "conversion_factor": 28.97/44.01*1e6,  # mmr → ppmv
         "units": "ppmv",
+        "units_in": "kg kg-1",
+        "time_handling": "state",
         "category": "climate",
         "aliases": ["Total co2"],  # Removed in v0.4.0, kept for error messages
     },
 }
+
+# Populate VAR_CONVERSIONS from CANONICAL_VARIABLES (single source of truth)
+VAR_CONVERSIONS = dict(_LEGACY_PROTOCOL_KEYS)
+for _name, _cfg in CANONICAL_VARIABLES.items():
+    VAR_CONVERSIONS[_name] = float(_cfg["conversion_factor"])
 
 
 def resolve_variable_name(name: str) -> str:
@@ -299,7 +320,9 @@ def get_variable_config(name: str) -> dict:
         - stash_fallback: int or None
         - aggregation: "MEAN" or "SUM"
         - conversion_factor: float
-        - units: str
+        - units: str (output units after conversion)
+        - units_in: str (input units from UM)
+        - time_handling: "mean_rate", "state", or "already_integral"
         - category: str
         - aliases: list of str
 

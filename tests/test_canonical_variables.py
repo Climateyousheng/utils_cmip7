@@ -16,7 +16,8 @@ def test_canonical_variables_registry():
     print("Testing CANONICAL_VARIABLES registry...")
 
     required_fields = {'description', 'stash_name', 'stash_code', 'aggregation',
-                      'conversion_factor', 'units', 'category', 'aliases'}
+                      'conversion_factor', 'units', 'units_in', 'time_handling',
+                      'category', 'aliases'}
 
     for var_name, config in CANONICAL_VARIABLES.items():
         # Check all required fields present
@@ -129,6 +130,47 @@ def test_get_conversion_key():
         get_conversion_key('temp')
     with pytest.raises(ValueError, match="removed in v0.4.0"):
         get_conversion_key('precip')
+
+
+def test_units_in_field():
+    """Test that every variable has a units_in field (string)."""
+    for var_name, cfg in CANONICAL_VARIABLES.items():
+        assert "units_in" in cfg, f"{var_name} missing units_in"
+        assert isinstance(cfg["units_in"], str), f"{var_name} units_in must be str"
+        assert len(cfg["units_in"]) > 0, f"{var_name} units_in must be non-empty"
+
+
+def test_time_handling_field():
+    """Test that every variable has a valid time_handling field."""
+    valid_values = {"mean_rate", "state", "already_integral"}
+    for var_name, cfg in CANONICAL_VARIABLES.items():
+        assert "time_handling" in cfg, f"{var_name} missing time_handling"
+        assert cfg["time_handling"] in valid_values, (
+            f"{var_name} time_handling='{cfg['time_handling']}' "
+            f"not in {valid_values}"
+        )
+
+
+def test_var_conversions_derived_from_canonical():
+    """VAR_CONVERSIONS must match CANONICAL_VARIABLES conversion factors."""
+    import pytest
+    from utils_cmip7.config import VAR_CONVERSIONS
+
+    for name, cfg in CANONICAL_VARIABLES.items():
+        assert name in VAR_CONVERSIONS, f"{name} missing from VAR_CONVERSIONS"
+        assert VAR_CONVERSIONS[name] == pytest.approx(cfg["conversion_factor"]), (
+            f"{name}: VAR_CONVERSIONS={VAR_CONVERSIONS[name]} != "
+            f"CANONICAL_VARIABLES={cfg['conversion_factor']}"
+        )
+
+
+def test_legacy_protocol_keys_in_var_conversions():
+    """Legacy protocol keys must still exist in VAR_CONVERSIONS."""
+    from utils_cmip7.config import VAR_CONVERSIONS
+
+    assert "Others" in VAR_CONVERSIONS
+    assert "precip" in VAR_CONVERSIONS
+    assert "Total co2" in VAR_CONVERSIONS
 
 
 def test_default_var_list():

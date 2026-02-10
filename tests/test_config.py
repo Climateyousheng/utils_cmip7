@@ -151,6 +151,16 @@ def test_validate_unreadable_file():
         return False
 
 
+def test_var_conversions_derived_from_canonical():
+    """VAR_CONVERSIONS must match CANONICAL_VARIABLES conversion factors."""
+    import pytest
+    from utils_cmip7.config import VAR_CONVERSIONS, CANONICAL_VARIABLES
+
+    for name, cfg in CANONICAL_VARIABLES.items():
+        assert name in VAR_CONVERSIONS
+        assert VAR_CONVERSIONS[name] == pytest.approx(cfg["conversion_factor"])
+
+
 def test_get_config_info():
     """Test that get_config_info runs without errors."""
     try:
