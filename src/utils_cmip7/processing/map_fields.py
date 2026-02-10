@@ -130,18 +130,37 @@ def _squeeze_to_2d(data, cube, label="data"):
     """Squeeze length-1 extra dims and raise if result is not 2D."""
     data = np.squeeze(data)
     if data.ndim != 2:
-        extra = [
-            c.name() for c in cube.coords(dim_coords=True)
-            if c.name() not in ("time", "latitude", "longitude")
-        ]
+        # Identify extra dimensions by elimination (handles anonymous dims)
+        known = {"time", "latitude", "longitude"}
+        lat_dims = set(cube.coord_dims(cube.coord("latitude")))
+        lon_dims = set(cube.coord_dims(cube.coord("longitude")))
+        time_coords = cube.coords("time", dim_coords=True)
+        time_dims = (
+            {cube.coord_dims(tc)[0] for tc in time_coords}
+            if time_coords
+            else set()
+        )
+        known_dims = lat_dims | lon_dims | time_dims
+        extra_dim_indices = sorted(set(range(cube.ndim)) - known_dims)
+
+        # Build a list of names for extra dimensions
+        extra_names = []
+        for dim_idx in extra_dim_indices:
+            coords = cube.coords(dimensions=dim_idx)
+            if coords:
+                extra_names.append(coords[0].name())
+            else:
+                extra_names.append(f"<anonymous dim {dim_idx}>")
+
         msg = (
             f"After time selection the {label} has {data.ndim} dimensions "
             f"but 2 (lat, lon) are required."
         )
-        if extra:
+        if extra_names:
             msg += (
-                f"  The cube has extra dimension(s): {extra}.  "
-                f"Slice or collapse them first."
+                f"  The cube has extra dimension(s): {extra_names}.  "
+                f"Pass level=<int> to select a single slice, "
+                f"or slice/collapse the dimension first."
             )
         raise ValueError(msg)
     return data
@@ -162,6 +181,11 @@ def _masked_to_nan(data):
 def _select_level(data, cube, level):
     """Index into an extra (non-time, non-lat, non-lon) dimension.
 
+    Finds the extra dimension by **elimination** — any cube dimension that
+    is not latitude, longitude, or time is considered "extra".  This works
+    regardless of whether the dimension has a DimCoord, an AuxCoord, or is
+    completely anonymous.
+
     Parameters
     ----------
     data : numpy.ndarray
@@ -181,37 +205,44 @@ def _select_level(data, cube, level):
     ValueError
         If no extra dimension is found or *level* is out of range.
     """
-    known = {"time", "latitude", "longitude"}
-    extra_axes = []
-    for coord in cube.coords(dim_coords=True):
-        if coord.name() not in known:
-            dim = cube.coord_dims(coord)[0]
-            extra_axes.append((dim, coord))
+    # Identify cube dimension indices for lat, lon, time
+    lat_dims = set(cube.coord_dims(cube.coord("latitude")))
+    lon_dims = set(cube.coord_dims(cube.coord("longitude")))
+    time_coords = cube.coords("time", dim_coords=True)
+    time_dims = (
+        {cube.coord_dims(tc)[0] for tc in time_coords}
+        if time_coords
+        else set()
+    )
 
-    if not extra_axes:
+    known_dims = lat_dims | lon_dims | time_dims
+    extra_dims = sorted(set(range(cube.ndim)) - known_dims)
+
+    if not extra_dims:
         raise ValueError(
             "No extra (non-time, non-lat, non-lon) dimension found "
             "to apply 'level' selection."
         )
 
-    # Use the first extra axis (handles PFT / pseudo_level / model_level etc.)
-    extra_dim, extra_coord = extra_axes[0]
+    extra_cube_dim = extra_dims[0]
 
-    # After time selection, the time dimension may have been removed.
-    # Compute the axis index in *data* by counting how many cube dims
-    # before extra_dim are still present.
-    time_coords = cube.coords("time", dim_coords=True)
-    time_dim = cube.coord_dims(time_coords[0])[0] if time_coords else None
-    if time_dim is not None and extra_dim > time_dim:
-        axis_in_data = extra_dim - 1  # time dim was removed
+    # After time selection the time dimension was removed from *data*.
+    # Adjust the axis index accordingly.
+    if time_dims and extra_cube_dim > min(time_dims):
+        axis_in_data = extra_cube_dim - 1
     else:
-        axis_in_data = extra_dim
+        axis_in_data = extra_cube_dim
 
     n = data.shape[axis_in_data]
     if level < 0 or level >= n:
+        # Try to find a name for the dimension for the error message
+        dim_name = "unknown"
+        for coord in cube.coords(dimensions=extra_cube_dim):
+            dim_name = coord.name()
+            break
         raise ValueError(
             f"level={level} is out of range for dimension "
-            f"'{extra_coord.name()}' with size {n}."
+            f"'{dim_name}' with size {n}."
         )
 
     slices = [slice(None)] * data.ndim

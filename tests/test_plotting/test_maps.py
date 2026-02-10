@@ -360,6 +360,95 @@ class TestExtractMapField:
         with pytest.raises(ValueError, match="out of range"):
             extract_map_field(cube, level=9)
 
+    def test_extract_map_field_with_generic_level(self):
+        """4D cube with non-standard DimCoord name ('generic')."""
+        time_coord = _make_time_coord([1900])
+        generic = iris.coords.DimCoord(
+            np.arange(9), long_name="generic", units="1",
+        )
+        lat = iris.coords.DimCoord(
+            np.linspace(-90, 90, 5), standard_name="latitude", units="degrees",
+        )
+        lon = iris.coords.DimCoord(
+            np.linspace(-180, 180, 10), standard_name="longitude", units="degrees",
+        )
+        rng = np.random.default_rng(42)
+        data = rng.random((1, 9, 5, 10))
+        cube = iris.cube.Cube(
+            data,
+            dim_coords_and_dims=[
+                (time_coord, 0), (generic, 1), (lat, 2), (lon, 3),
+            ],
+            long_name="frac",
+            units="1",
+        )
+        result = extract_map_field(cube, level=0)
+        assert result["data"].shape == (5, 10)
+        np.testing.assert_allclose(result["data"], data[0, 0], atol=1e-6)
+
+    def test_extract_map_field_with_anonymous_level(self):
+        """4D cube with anonymous extra dimension (no coord on dim 1)."""
+        time_coord = _make_time_coord([1900])
+        lat = iris.coords.DimCoord(
+            np.linspace(-90, 90, 5), standard_name="latitude", units="degrees",
+        )
+        lon = iris.coords.DimCoord(
+            np.linspace(-180, 180, 10), standard_name="longitude", units="degrees",
+        )
+        rng = np.random.default_rng(42)
+        data = rng.random((1, 9, 5, 10))
+        cube = iris.cube.Cube(
+            data,
+            dim_coords_and_dims=[
+                (time_coord, 0), (lat, 2), (lon, 3),
+            ],
+            long_name="frac",
+            units="1",
+        )
+        # Dim 1 has no coordinate — it is anonymous
+        result = extract_map_field(cube, level=0)
+        assert result["data"].shape == (5, 10)
+        np.testing.assert_allclose(result["data"], data[0, 0], atol=1e-6)
+
+    def test_squeeze_error_suggests_level(self):
+        """Error message should mention level= parameter."""
+        generic = iris.coords.DimCoord(
+            np.arange(9), long_name="generic", units="1",
+        )
+        lat = iris.coords.DimCoord(
+            np.linspace(-90, 90, 5), standard_name="latitude", units="degrees",
+        )
+        lon = iris.coords.DimCoord(
+            np.linspace(-180, 180, 10), standard_name="longitude", units="degrees",
+        )
+        data = np.random.default_rng(42).random((9, 5, 10))
+        cube = iris.cube.Cube(
+            data,
+            dim_coords_and_dims=[(generic, 0), (lat, 1), (lon, 2)],
+            long_name="frac",
+            units="1",
+        )
+        with pytest.raises(ValueError, match="level="):
+            extract_map_field(cube)
+
+    def test_squeeze_error_suggests_level_anonymous(self):
+        """Error message should mention level= even for anonymous dimensions."""
+        lat = iris.coords.DimCoord(
+            np.linspace(-90, 90, 5), standard_name="latitude", units="degrees",
+        )
+        lon = iris.coords.DimCoord(
+            np.linspace(-180, 180, 10), standard_name="longitude", units="degrees",
+        )
+        data = np.random.default_rng(42).random((9, 5, 10))
+        cube = iris.cube.Cube(
+            data,
+            dim_coords_and_dims=[(lat, 1), (lon, 2)],
+            long_name="frac",
+            units="1",
+        )
+        with pytest.raises(ValueError, match="level="):
+            extract_map_field(cube)
+
     def test_anomaly_with_level(self):
         """Anomaly extraction for 4D cube with level selection."""
         years = [1900, 1901]
