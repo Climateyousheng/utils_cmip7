@@ -43,26 +43,31 @@ cd tests
 python3 run_smoke_tests.py
 ```
 
-## Unit Tests (TODO)
+## Unit Tests
 
-Unit tests for individual functions are planned for v0.2.2-v0.3.0:
+Unit tests covering core modules (added in v0.3.0-v0.4.0):
 
-- [ ] `tests/test_io/test_stash.py` - STASH code mappings
-- [ ] `tests/test_io/test_file_discovery.py` - Month code decoding, file patterns
-- [ ] `tests/test_processing/test_spatial.py` - Global aggregation
-- [ ] `tests/test_processing/test_temporal.py` - Temporal aggregation
+- [x] `tests/test_io/test_stash.py` - STASH code mappings (100% coverage)
+- [x] `tests/test_io/test_file_discovery.py` - Month code decoding, file patterns (98% coverage)
+- [x] `tests/test_io/test_extract.py` - Cube extraction with STASH handling
+- [x] `tests/test_processing/test_spatial.py` - Global aggregation
+- [x] `tests/test_processing/test_temporal.py` - Temporal aggregation (92% coverage)
+- [x] `tests/test_processing/test_metrics.py` - Metric definitions (70% coverage)
+- [x] `tests/test_diagnostics/test_extraction.py` - Extraction workflows (56% coverage)
+- [x] `tests/test_validation/test_compare.py` - Bias and RMSE computation (99% coverage)
+- [x] `tests/test_validation/test_outputs.py` - Validation output bundles (100% coverage)
+- [x] `tests/test_plotting/test_maps.py` - Spatial map extraction and plotting
+- [x] `tests/test_v04_breaking_changes.py` - v0.4.0 breaking change verification
 - [ ] `tests/test_processing/test_regional.py` - Regional masking
 
-These will require synthetic test fixtures (small NetCDF files).
+## Continuous Integration
 
-## Continuous Integration (TODO)
+CI is configured via GitHub Actions (`.github/workflows/tests.yml`):
 
-CI setup is planned for v0.2.2-v0.3.0:
-
-- [ ] GitHub Actions workflow
-- [ ] Test on Python 3.8, 3.9, 3.10, 3.11
-- [ ] Linting (flake8, black, isort)
-- [ ] Coverage reporting
+- [x] GitHub Actions workflow
+- [x] Test on Python 3.9, 3.10, 3.11, 3.12
+- [x] Linting (flake8, black, isort)
+- [x] Coverage reporting (Codecov)
 
 ## Test Data
 

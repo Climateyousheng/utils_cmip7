@@ -95,7 +95,7 @@ utils-cmip7-extract-raw xqhuj --validate --validation-outdir ./my_validation
 - With `--validate`: Saves validation results to `validation_outputs/single_val_{expt}/`
 
 **Variables Extracted:**
-GPP, NPP, soilResp, VegCarb, soilCarbon, NEP
+GPP, NPP, Rh, CVeg, CSoil, NEP
 
 **Validation Output (with --validate):**
 ```
@@ -345,4 +345,4 @@ For more troubleshooting, see [TROUBLESHOOTING.md](TROUBLESHOOTING.md).
 
 ---
 
-Last updated: v0.2.2 (2025-01-25)
+Last updated: v0.4.0 (2026-02-09)

@@ -27,19 +27,19 @@ Default mask location: `~/scripts/hadcm3b-ensemble-validator/observations/RECCAP
 
 ### Requirements
 
-- Python ≥ 3.8
-- numpy ≥ 1.20
-- pandas ≥ 1.3
-- matplotlib ≥ 3.4
-- iris ≥ 3.0
-- cartopy ≥ 0.20
-- xarray ≥ 0.19
-- cf-units ≥ 2.1
+- Python ≥ 3.9
+- numpy ≥ 1.22
+- pandas ≥ 1.4
+- matplotlib ≥ 3.5
+- iris ≥ 3.2
+- cartopy ≥ 0.21
+- xarray ≥ 0.21
+- cf-units ≥ 3.0
 - netCDF4 ≥ 1.5
 
 Dependencies are automatically installed with `pip install -e .`
 
-## Package Structure (v0.3.0)
+## Package Structure (v0.4.0)
 
 ```
 utils_cmip7/
@@ -103,16 +103,16 @@ utils_cmip7/
 └── pyproject.toml            # Package metadata and dependencies
 ```
 
-**Status (v0.3.0):**
+**Status (v0.4.0):**
 - ✅ `io/` - **Stable** - 4 modules (stash, file_discovery, extract, obs_loader)
-- ✅ `processing/` - **Stable** - 4 modules (spatial, temporal, regional, metrics)
+- ✅ `processing/` - **Stable** - 5 modules (spatial, temporal, regional, metrics, map_fields)
 - ✅ `diagnostics/` - **Stable** - 3 modules (extraction, raw, metrics)
-- ✅ `validation/` - **Unstable** - 2 modules (compare, visualize)
-- ✅ `tests/` - 174 tests, 24% coverage, CI/CD across Python 3.8-3.11
+- ✅ `validation/` - **Provisional** - 3 modules (compare, visualize, outputs)
+- ✅ `tests/` - ~354 tests, 32% coverage, CI/CD across Python 3.9-3.12
 - ✅ `data/obs/` - Observational data packaged
 - ✅ `scripts/` - High-level validation workflows
 - ✅ `cli.py` - **Experimental** - 4 CLI commands implemented
-- ⚠️ `plotting/` - **Unstable** - Exists in root `plot.py`, needs migration
+- ✅ `plotting/` - **Unstable** - maps.py for spatial map/anomaly plotting
 - ⚠️ `soil_params/` - **Experimental** - Exists in root, needs migration
 
 **Backward Compatibility:**
@@ -130,11 +130,11 @@ Existing scripts using `from analysis import ...` will continue to work during t
 - **Bias and RMSE computation** - Statistical comparison against observations
 - **Visualization** - Publication-quality plots for carbon cycle variables and validation
 
-## API Stability (v0.3.0)
+## API Stability (v0.4.0)
 
-The v0.3.0 release establishes clear stability guarantees for the public API:
+The v0.4.0 release is a **breaking release** that removes deprecated features from v0.3.x. See [CHANGELOG.md](CHANGELOG.md) for migration guide.
 
-- **Stable** - No breaking changes in v0.3.x series:
+- **Stable** - No breaking changes in v0.4.x series:
   - Core extraction (`extract_annual_means`, `extract_annual_mean_raw`)
   - Processing functions (spatial, temporal aggregation)
   - Configuration API (canonical variables, config helpers)
@@ -144,10 +144,11 @@ The v0.3.0 release establishes clear stability guarantees for the public API:
 - **Provisional** - Minor additions only, no breaking changes:
   - Regional aggregation (`compute_regional_annual_mean`)
   - Raw extraction workflows
+  - Validation comparison (`compute_bias`, `compute_rmse`)
 
 - **Unstable** - Breaking changes possible:
-  - Validation module (compare, visualize)
   - Plotting module
+  - Validation visualization
 
 - **Experimental** - No stability guarantees:
   - CLI commands
@@ -231,7 +232,7 @@ See [scripts/README.md](scripts/README.md) for detailed documentation.
 
 ## Command-Line Interface
 
-CLI entry points are now available (implemented in v0.2.2, **Experimental** in v0.3.0):
+CLI entry points are now available (implemented in v0.2.2, **Experimental** in v0.4.0):
 
 ```bash
 # Extract from raw monthly files
@@ -519,7 +520,7 @@ Raw monthly UM output files in `~/dump2hold/{expt}/datam/`:
 
 ## Documentation
 
-- **[API Reference](docs/API.md)** - Public API reference with stability guarantees (v0.3.0)
+- **[API Reference](docs/API.md)** - Public API reference with stability guarantees (v0.4.0)
 - **[CHANGELOG](CHANGELOG.md)** - Version history and release notes
 - **[Migration Guide](docs/MIGRATION_GUIDE.md)** - Guide for migrating from v0.1.x to v0.2.x
 - **[CLI Reference](docs/CLI_REFERENCE.md)** - Command-line interface documentation
