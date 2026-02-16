@@ -243,7 +243,7 @@ def populate_overview_table_from_logs(
     - Only updates parameter columns (ALPHA, G_AREA, LAI_MIN, etc.)
     - Uses atomic write to prevent data loss
     """
-    from .outputs import load_overview_table, upsert_overview_row, write_atomic_csv
+    from .overview_table import load_overview_table, upsert_overview_row, write_atomic_csv
 
     # Load parameters from logs
     all_params = load_ensemble_params_from_logs(log_dir, ensemble_prefix)
