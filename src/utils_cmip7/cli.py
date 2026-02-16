@@ -313,7 +313,7 @@ Validation Output (with --validate):
             print(f"Error importing validation modules: {e}", file=sys.stderr)
             sys.exit(1)
 
-        # 1. Transform raw data to canonical schema
+        # 1. Transform raw data to canonical schema (reuse already-extracted data)
         print("→ Transforming data to canonical schema...", file=sys.stderr)
         metrics = ['GPP', 'NPP', 'CVeg', 'CSoil', 'Tau']
         um_metrics = compute_metrics_from_raw(
@@ -322,7 +322,8 @@ Validation Output (with --validate):
             start_year=args.start_year,
             end_year=args.end_year,
             base_dir=args.base_dir,
-            verbose=args.verbose
+            verbose=args.verbose,
+            pre_extracted_data=data  # Pass pre-extracted data to avoid re-extraction
         )
 
         # Check available metrics

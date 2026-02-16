@@ -91,7 +91,7 @@ def main():
             print("   Ensure utils_cmip7 is installed with: pip install -e .")
             sys.exit(1)
 
-        # 1. Transform raw data to canonical schema
+        # 1. Transform raw data to canonical schema (reuse extracted data)
         print("→ Transforming data to canonical schema...")
         metrics = ['GPP', 'NPP', 'CVeg', 'CSoil', 'Tau']
         um_metrics = compute_metrics_from_raw(
@@ -99,7 +99,8 @@ def main():
             metrics=metrics,
             start_year=args.start_year,
             end_year=args.end_year,
-            base_dir=args.base_dir
+            base_dir=args.base_dir,
+            pre_extracted_data=data  # Reuse extraction
         )
 
         # Check available metrics

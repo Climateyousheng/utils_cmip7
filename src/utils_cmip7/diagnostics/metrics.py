@@ -230,7 +230,8 @@ def compute_metrics_from_raw(
     start_year: Optional[int] = None,
     end_year: Optional[int] = None,
     base_dir: str = '~/dump2hold',
-    verbose: bool = False
+    verbose: bool = False,
+    pre_extracted_data: Optional[Dict] = None
 ) -> Dict[str, Dict[str, Dict[str, Any]]]:
     """
     Compute canonical metrics from raw monthly UM files.
@@ -249,6 +250,20 @@ def compute_metrics_from_raw(
         Base directory containing raw monthly files
     verbose : bool, default False
         If True, print detailed error messages for failed files
+    pre_extracted_data : dict, optional
+        Pre-extracted raw data from extract_annual_mean_raw().
+        If provided, skips internal extraction and uses this data instead.
+        Default is None (will extract data internally).
+
+        Expected structure:
+            {
+                'GPP': {'years': array, 'data': array, 'units': str, 'name': str},
+                'NPP': {...},
+                'Rh': {...},
+                'CVeg': {...},
+                'CSoil': {...},
+                'NEP': {...}
+            }
 
     Returns
     -------
@@ -277,18 +292,26 @@ def compute_metrics_from_raw(
     -----
     Raw extraction only provides global totals (no regional breakdown).
     Derived metrics (NEP) are computed automatically if components available.
+
+    Performance optimization:
+        When calling this function multiple times with the same experiment,
+        or when raw data is already extracted, pass pre_extracted_data to
+        avoid redundant disk I/O.
     """
     if metrics is None:
         metrics = ['GPP', 'NPP', 'CVeg', 'CSoil', 'NEP']
 
-    # Extract raw data (global only)
-    raw_data = extract_annual_mean_raw(
-        expt_name,
-        base_dir=base_dir,
-        start_year=start_year,
-        end_year=end_year,
-        verbose=verbose
-    )
+    # Extract raw data (global only) - or use pre-extracted if provided
+    if pre_extracted_data is None:
+        raw_data = extract_annual_mean_raw(
+            expt_name,
+            base_dir=base_dir,
+            start_year=start_year,
+            end_year=end_year,
+            verbose=verbose
+        )
+    else:
+        raw_data = pre_extracted_data
 
     # Transform to canonical schema
     result = {}
