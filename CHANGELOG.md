@@ -9,6 +9,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+#### Auto-populate overview table from `extract-raw --validate`
+
+The `utils-cmip7-extract-raw --validate` command now automatically:
+1. Saves UM metrics to `{expt}_metrics.csv` in the validation output directory
+2. Populates the overview table (`validation_outputs/random_sampling_combined_overview_table.csv`) with global mean carbon metrics (GPP, NPP, CVeg, CSoil)
+
+**What this enables:**
+
+Use `extract-raw --validate` as a substitute for `validate-experiment` when preprocessed data doesn't exist yet:
+
+```bash
+# Step 1: Load soil parameters into overview table
+utils-cmip7-populate-overview xqjc --log-dir ~/scripts/hadcm3b-ensemble-generator/logs
+
+# Step 2: Extract from raw data AND populate metrics (NEW!)
+utils-cmip7-extract-raw xqjca --validate
+# ✓ Saved metrics to: validation_outputs/single_val_xqjca/xqjca_metrics.csv
+# ✓ Updated overview table with metrics for: xqjca
+#   Metrics updated: GPP, NPP, CVeg, CSoil
+```
+
+**New files created:**
+- `validation_outputs/single_val_{expt}/{expt}_metrics.csv` — UM metrics (global mean)
+- Overview table automatically updated with GPP, NPP, CVeg, CSoil values
+
+**Benefits:**
+- No need to wait for preprocessed data to populate the overview table
+- Soil parameters (from `populate-overview`) and metrics (from `extract-raw --validate`) can be populated in two separate steps
+- Metrics can be re-run and updated without affecting soil parameters
+- Consistent CSV format across `extract-raw` and `validate-experiment`
+
+**Backward compatibility:**
+- Existing `extract-raw` behavior unchanged
+- New functionality only activates with `--validate` flag
+- No breaking changes to CLI arguments
+
 #### Auto-detection of ensemble parameters in `validate-experiment`
 
 The `utils-cmip7-validate-experiment` CLI now automatically detects soil parameters from ensemble-generator logs, eliminating the need for manual parameter specification in common workflows.

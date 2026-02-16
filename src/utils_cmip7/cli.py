@@ -7,8 +7,10 @@ Provides CLI entry points registered in pyproject.toml:
 """
 
 import sys
+import os
 import argparse
 from pathlib import Path
+import numpy as np
 
 from .diagnostics import extract_annual_means, extract_annual_mean_raw
 from .config import RECCAP_REGIONS
@@ -127,6 +129,46 @@ Variables extracted:
         print("=" * 80, file=sys.stderr)
 
 
+def _format_metrics_for_csv(um_metrics):
+    """
+    Format UM metrics dict to DataFrame for CSV export.
+
+    Parameters
+    ----------
+    um_metrics : dict
+        Metrics in canonical schema format:
+        {'GPP': {'global': {'data': array, 'units': str}}, ...}
+
+    Returns
+    -------
+    pd.DataFrame
+        DataFrame with metrics as rows, regions as columns
+
+    Notes
+    -----
+    For extract-raw, only 'global' region is available.
+    Format matches validate-experiment output.
+    """
+    import pandas as pd
+
+    rows = []
+    for metric, regions in um_metrics.items():
+        row_data = {'metric': metric}
+        for region, data in regions.items():
+            # Compute mean over time dimension
+            row_data[region] = np.mean(data['data'])
+        rows.append(row_data)
+
+    df = pd.DataFrame(rows)
+
+    # Handle empty DataFrame
+    if df.empty:
+        return df
+
+    df = df.set_index('metric')
+    return df
+
+
 def extract_raw_cli():
     """
     CLI entry point for extracting from raw monthly UM files.
@@ -143,6 +185,8 @@ Examples:
   utils-cmip7-extract-raw xqhuj --base-dir ~/dump2hold
   utils-cmip7-extract-raw xqhuj --start-year 2000 --end-year 2010
   utils-cmip7-extract-raw xqhuj --output results.csv
+  utils-cmip7-extract-raw xqhuj --validate
+  utils-cmip7-extract-raw xqhuj --validate --validation-outdir ./custom_output
 
 Output:
   Extracts global carbon cycle variables from raw monthly files and
@@ -150,6 +194,17 @@ Output:
 
 Variables extracted:
   GPP, NPP, soilResp, VegCarb, soilCarbon, NEP
+
+Validation Output (with --validate):
+  Creates validation_outputs/single_val_{expt}/ containing:
+  - {expt}_metrics.csv               # UM metrics (global mean)
+  - {expt}_bias_vs_cmip6.csv         # Bias statistics vs CMIP6
+  - {expt}_bias_vs_reccap2.csv       # Bias statistics vs RECCAP2
+  - plots/                           # Comparison plots
+
+  Also updates:
+  - validation_outputs/random_sampling_combined_overview_table.csv
+    (Populates GPP, NPP, CVeg, CSoil columns)
         """
     )
 
@@ -278,6 +333,17 @@ Variables extracted:
 
         print(f"✓ Available metrics: {', '.join(available_metrics)}", file=sys.stderr)
 
+        # Determine output directory (before loading obs data)
+        outdir = args.validation_outdir or f'validation_outputs/single_val_{args.expt}'
+        out_dir = Path(outdir)
+        out_dir.mkdir(parents=True, exist_ok=True)
+
+        # Save UM metrics to CSV
+        metrics_df = _format_metrics_for_csv(um_metrics)
+        metrics_path = out_dir / f"{args.expt}_metrics.csv"
+        metrics_df.to_csv(metrics_path, index=True, float_format='%.5f')
+        print(f"✓ Saved metrics to: {metrics_path}", file=sys.stderr)
+
         # 2. Load observational data (global only)
         regions = ['global']
         print("→ Loading observational data...", file=sys.stderr)
@@ -314,11 +380,8 @@ Variables extracted:
             comparison_reccap = compare_metrics(um_metrics, reccap_metrics, available_metrics, regions)
             print("✓ Compared against RECCAP2", file=sys.stderr)
 
-        # 4. Save results to CSV
-        outdir = args.validation_outdir or f'validation_outputs/single_val_{args.expt}'
-        os.makedirs(outdir, exist_ok=True)
-
-        print(f"→ Saving validation results to: {outdir}", file=sys.stderr)
+        # 4. Save comparison results to CSV
+        print(f"→ Saving validation comparison results...", file=sys.stderr)
 
         # Helper function for CSV export
         def _export_comparison_csv(comparison, output_path):
@@ -378,6 +441,44 @@ Variables extracted:
             print(f"  - Mean RMSE: {summary_reccap.get('mean_rmse', 0):.2f}", file=sys.stderr)
 
         print(f"✓ Validation outputs saved to: {os.path.abspath(outdir)}/", file=sys.stderr)
+
+        # 7. Populate overview table with global mean metrics
+        print("=" * 80, file=sys.stderr)
+        print("UPDATING OVERVIEW TABLE", file=sys.stderr)
+        print("=" * 80, file=sys.stderr)
+
+        # Prepare scores dict with global means
+        scores = {}
+        for metric in ['GPP', 'NPP', 'CVeg', 'CSoil']:
+            if metric in um_metrics and 'global' in um_metrics[metric]:
+                scores[metric] = np.mean(um_metrics[metric]['global']['data'])
+
+        # Load or create overview table
+        from .validation import load_overview_table, upsert_overview_row, write_atomic_csv
+
+        overview_path = Path('validation_outputs') / 'random_sampling_combined_overview_table.csv'
+        overview_path.parent.mkdir(parents=True, exist_ok=True)
+
+        try:
+            overview_df = load_overview_table(str(overview_path))
+            print(f"→ Loaded existing overview table: {overview_path}", file=sys.stderr)
+        except FileNotFoundError:
+            overview_df = pd.DataFrame()
+            print(f"→ Creating new overview table: {overview_path}", file=sys.stderr)
+
+        # Upsert row (no soil params - those come from populate-overview)
+        overview_df = upsert_overview_row(
+            overview_df,
+            args.expt,
+            bl_params={},  # Empty - soil params already populated by populate-overview
+            scores=scores
+        )
+
+        # Write atomically
+        write_atomic_csv(overview_df, str(overview_path))
+
+        print(f"✓ Updated overview table with metrics for: {args.expt}", file=sys.stderr)
+        print(f"  Metrics updated: {', '.join(scores.keys())}", file=sys.stderr)
         print("=" * 80, file=sys.stderr)
 
     if args.verbose or not args.output:
