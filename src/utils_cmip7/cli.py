@@ -1405,9 +1405,115 @@ Input CSV:
         sys.exit(1)
 
 
+def populate_overview_cli():
+    """
+    CLI entry point for populating overview table from ensemble generator logs.
+
+    Registered as: utils-cmip7-populate-overview
+    """
+    parser = argparse.ArgumentParser(
+        prog='utils-cmip7-populate-overview',
+        description='Populate overview table with parameters from ensemble generator logs',
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  # Populate all xqjc experiments
+  utils-cmip7-populate-overview xqjc \\
+    --log-dir /user/home/nd20983/scripts/hadcm3b-ensemble-generator/logs
+
+  # Populate specific experiments only
+  utils-cmip7-populate-overview xqjc \\
+    --log-dir ~/scripts/hadcm3b-ensemble-generator/logs \\
+    --experiments xqjca xqjcb xqjcc
+
+  # Custom overview table location
+  utils-cmip7-populate-overview xqjc \\
+    --log-dir ~/scripts/hadcm3b-ensemble-generator/logs \\
+    --overview-csv my_ensemble_table.csv
+
+Output:
+  Updates validation_outputs/random_sampling_combined_overview_table.csv
+  with soil parameters from ensemble generator logs. Only fills parameter
+  columns (ALPHA, G_AREA, LAI_MIN, etc.). Validation metrics remain empty
+  until validate-experiment is run.
+
+Notes:
+  - Creates overview CSV if it doesn't exist
+  - Preserves existing validation metrics
+  - Uses atomic write to prevent data loss
+  - Parameter names are automatically mapped to overview table format
+        """
+    )
+
+    parser.add_argument(
+        'ensemble_prefix',
+        type=str,
+        help='Ensemble name prefix (e.g., xqjc, xqhl, xqar)'
+    )
+
+    parser.add_argument(
+        '--log-dir',
+        type=str,
+        required=True,
+        help='Path to ensemble-generator logs directory'
+    )
+
+    parser.add_argument(
+        '--overview-csv',
+        type=str,
+        default='validation_outputs/random_sampling_combined_overview_table.csv',
+        help='Path to overview table CSV (default: validation_outputs/random_sampling_combined_overview_table.csv)'
+    )
+
+    parser.add_argument(
+        '--experiments',
+        nargs='+',
+        default=None,
+        help='Specific experiment IDs to update (default: all found in logs)'
+    )
+
+    args = parser.parse_args()
+
+    print("=" * 80)
+    print(f"POPULATE OVERVIEW TABLE: {args.ensemble_prefix}")
+    print("=" * 80)
+    print(f"Log directory: {args.log_dir}")
+    print(f"Overview table: {args.overview_csv}")
+    if args.experiments:
+        print(f"Experiments: {', '.join(args.experiments)}")
+    else:
+        print("Experiments: All found in logs")
+    print("=" * 80)
+
+    try:
+        from .validation import populate_overview_table_from_logs
+
+        populate_overview_table_from_logs(
+            log_dir=args.log_dir,
+            ensemble_prefix=args.ensemble_prefix,
+            overview_csv=args.overview_csv,
+            experiment_ids=args.experiments
+        )
+
+        print("=" * 80)
+        print("OVERVIEW TABLE UPDATED SUCCESSFULLY")
+        print("=" * 80)
+        print("\nNext steps:")
+        print("  1. Run validate-experiment for each experiment to compute metrics")
+        print("  2. Run validate-ppe to visualize ensemble results")
+        print("=" * 80)
+
+    except Exception as e:
+        print(f"\nError populating overview table: {e}", file=sys.stderr)
+        import traceback
+        traceback.print_exc()
+        sys.exit(1)
+
+
 __all__ = [
     'extract_preprocessed_cli',
     'extract_raw_cli',
     'validate_experiment_cli',
     'validate_ppe_cli',
+    'populate_overview_cli',
 ]

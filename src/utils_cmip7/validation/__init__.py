@@ -36,6 +36,10 @@ from .overview_table import (
 from .outputs import (
     write_single_validation_bundle,
 )
+from .ensemble_loader import (
+    load_ensemble_params_from_logs,
+    populate_overview_table_from_logs,
+)
 
 __all__ = [
     # Comparison functions
@@ -64,4 +68,7 @@ __all__ = [
     'write_atomic_csv',
     # Output bundle functions
     'write_single_validation_bundle',
+    # Ensemble loader functions
+    'load_ensemble_params_from_logs',
+    'populate_overview_table_from_logs',
 ]
