@@ -6,6 +6,7 @@ Provides RECCAP2 regional masking and area-weighted regional aggregation.
 
 import warnings
 import numpy as np
+from functools import lru_cache
 
 # Configure Iris and suppress warnings before importing
 try:
@@ -26,9 +27,12 @@ from iris.analysis.cartography import area_weights
 from ..config import RECCAP_MASK_PATH, RECCAP_REGIONS, VAR_CONVERSIONS, validate_reccap_mask_path
 
 
+@lru_cache(maxsize=1)
 def load_reccap_mask():
     """
     Load RECCAP2 regional mask from configured path.
+
+    **Performance**: Result is cached in memory - file loaded only once per session.
 
     Returns
     -------
@@ -119,11 +123,14 @@ def region_mask(region):
     return mask
 
 
+@lru_cache(maxsize=1)
 def _get_land_mask():
     """
     Get binary land mask from RECCAP2 regions.
 
     Any grid cell belonging to a RECCAP2 region (value > 0) is land.
+
+    **Performance**: Result is cached in memory - computed only once per session.
 
     Returns
     -------

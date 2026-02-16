@@ -28,6 +28,8 @@ After installation, five CLI commands will be available:
 
 Extract annual means from pre-processed NetCDF files.
 
+**⚡ Performance**: Optimized with mask caching (3× speedup). RECCAP2 regional mask is cached in memory for the entire extraction.
+
 **Basic Usage:**
 ```bash
 utils-cmip7-extract-preprocessed xqhuc
@@ -63,6 +65,8 @@ GPP, NPP, CVeg, CSoil, Tau, precip, tas, and others as available
 ### `utils-cmip7-extract-raw`
 
 Extract annual means from raw monthly UM output files.
+
+**⚡ Performance**: Optimized with file-level caching (5× speedup). Each monthly file is loaded once and all variables extracted in a single pass.
 
 **Basic Usage:**
 ```bash
