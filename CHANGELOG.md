@@ -7,6 +7,52 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+#### Auto-detection of ensemble parameters in `validate-experiment`
+
+The `utils-cmip7-validate-experiment` CLI now automatically detects soil parameters from ensemble-generator logs, eliminating the need for manual parameter specification in common workflows.
+
+**How it works:**
+
+1. **Automatic detection**: When no explicit parameter source is provided, the CLI checks the default log directory (`~/scripts/hadcm3b-ensemble-generator/logs`) for matching ensemble parameters
+2. **Priority order**:
+   - Explicit flags (`--soil-param-file`, `--soil-log-file`, `--soil-params`, `--use-default-soil-params`) take precedence
+   - Auto-detection from logs (when available)
+   - Error with helpful guidance (when neither is available)
+3. **Graceful degradation**: Warning if default directory doesn't exist, then requires explicit parameter source
+
+**New behavior:**
+
+```bash
+# ✨ NEW: Auto-detect from ensemble logs (no flags needed!)
+utils-cmip7-validate-experiment xqjca
+# ✓ Auto-detected soil parameters from: .../xqjc_updated_parameters_20260128.json
+#   Ensemble: xqjc, Member: xqjca
+
+# Custom log directory
+utils-cmip7-validate-experiment xqjca --log-dir /custom/path/logs
+
+# Explicit source still works (overrides auto-detection)
+utils-cmip7-validate-experiment xqjca --use-default-soil-params
+```
+
+**Benefits:**
+
+- **Prevents accidental overwrites**: Before, running `validate-experiment xqjca --use-default-soil-params` would overwrite parameters loaded from logs. Now auto-detection prevents this.
+- **Convenience**: No need to specify parameter source for ensemble experiments
+- **Backward compatible**: All existing workflows continue to work
+
+**New CLI argument:**
+
+- `--log-dir DIR`: Custom log directory (default: `~/scripts/hadcm3b-ensemble-generator/logs`)
+
+**Implementation details:**
+
+- New helper function: `_extract_ensemble_prefix(expt_id)` — extracts 4-character prefix from 5-character experiment IDs
+- 3-phase parameter loading logic: explicit source → auto-detection → error with guidance
+- Comprehensive test coverage: 12 new tests in `test_cli_helpers.py` and `test_cli_auto_detection.py`
+
 ---
 
 ## [0.4.0] - 2026-02-09

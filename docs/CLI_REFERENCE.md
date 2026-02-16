@@ -13,11 +13,12 @@ cd ~/path/to/utils_cmip7
 pip install -e .
 ```
 
-After installation, four CLI commands will be available:
-- `utils-cmip7-extract-preprocessed`
-- `utils-cmip7-extract-raw`
-- `utils-cmip7-validate-experiment`
-- `utils-cmip7-validate-ppe`
+After installation, five CLI commands will be available:
+- `utils-cmip7-extract-preprocessed` - Extract annual means from preprocessed NetCDF files
+- `utils-cmip7-extract-raw` - Extract annual means from raw UM output files
+- `utils-cmip7-validate-experiment` - Validate single experiment against observations
+- `utils-cmip7-validate-ppe` - Generate PPE validation report
+- `utils-cmip7-populate-overview` - Populate overview table with ensemble parameters
 
 ---
 
@@ -126,6 +127,9 @@ Validate a single UM experiment against CMIP6 and RECCAP2 observations.
 
 **Basic Usage:**
 ```bash
+# ✨ NEW in v0.4.1: Auto-detect from ensemble logs (no flags needed!)
+utils-cmip7-validate-experiment xqjca
+
 # With default soil parameters
 utils-cmip7-validate-experiment xqhuc --use-default-soil-params
 
@@ -143,15 +147,31 @@ utils-cmip7-validate-experiment xqhuc --soil-params "ALPHA=0.08,G_AREA=0.004"
 ```bash
 # Specify base directory
 utils-cmip7-validate-experiment xqhuc --soil-log-file rose.log --base-dir ~/annual_mean
+
+# Custom log directory for auto-detection
+utils-cmip7-validate-experiment xqjca --log-dir /custom/path/logs
 ```
 
-**Soil Parameters (REQUIRED):**
+**Soil Parameters:**
 
-Must provide **one** of:
+**Auto-detection (NEW in v0.4.1):**
+- When no explicit parameter source is provided, the CLI automatically checks `~/scripts/hadcm3b-ensemble-generator/logs` for matching ensemble parameters
+- Works seamlessly for ensemble experiments (e.g., `xqjca` → auto-detects from `xqjc` logs)
+- Prevents accidental overwrites of parameters loaded from logs
+
+**Explicit sources (always take priority over auto-detection):**
 - `--soil-param-file FILE` - JSON/YAML parameter file
 - `--soil-log-file FILE` - UM/Rose log with &LAND_CC block
 - `--soil-params KEY=VAL,...` - Manual parameters
 - `--use-default-soil-params` - Use default LAND_CC values
+
+**Custom log directory:**
+- `--log-dir DIR` - Custom log directory (default: `~/scripts/hadcm3b-ensemble-generator/logs`)
+
+**Priority order:**
+1. Explicit flags (if provided, auto-detection is skipped)
+2. Auto-detection from logs (if available)
+3. Error with helpful guidance (if neither is available)
 
 **Output Directory:**
 ```
@@ -262,10 +282,87 @@ Note: RMSE metrics are automatically inverted in heatmap (higher = better)
 
 ---
 
+### `utils-cmip7-populate-overview`
+
+Populate overview table with ensemble parameters from generator logs.
+
+**Basic Usage:**
+```bash
+# Populate overview table for ensemble 'xqjc'
+utils-cmip7-populate-overview xqjc
+
+# Custom log directory
+utils-cmip7-populate-overview xqjc --log-dir /custom/path/logs
+
+# Custom overview CSV path
+utils-cmip7-populate-overview xqjc --overview-csv my_overview.csv
+
+# Populate specific experiments only
+utils-cmip7-populate-overview xqjc --experiment-ids xqjca,xqjcb,xqjcc
+```
+
+**Parameters:**
+- `ensemble_prefix` (positional) - Ensemble name prefix (e.g., 'xqjc')
+- `--log-dir DIR` - Log directory (default: `~/scripts/hadcm3b-ensemble-generator/logs`)
+- `--overview-csv FILE` - Overview CSV path (default: `validation_outputs/random_sampling_combined_overview_table.csv`)
+- `--experiment-ids IDS` - Comma-separated list of specific experiments to update
+
+**What it does:**
+1. Scans log directory for matching ensemble parameter files
+2. Loads soil parameters for each ensemble member
+3. Updates overview table with parameter values
+4. Preserves existing validation metrics (GPP, CVeg, etc.)
+
+**Example workflow:**
+```bash
+# Step 1: Populate overview table with parameters from logs
+utils-cmip7-populate-overview xqjc
+
+# Step 2: Run validation (auto-detects parameters from logs)
+utils-cmip7-validate-experiment xqjca
+utils-cmip7-validate-experiment xqjcb
+
+# Step 3: Generate PPE report
+utils-cmip7-validate-ppe xqjc
+```
+
+**Output:**
+```
+✓ Updated 12 experiments in overview table: validation_outputs/random_sampling_combined_overview_table.csv
+```
+
+**Notes:**
+- Creates overview CSV if it doesn't exist
+- Only updates parameter columns (ALPHA, G_AREA, LAI_MIN, etc.)
+- Validation metrics remain as NaN until validation runs
+- Uses atomic write to prevent data loss
+
+---
+
 ## Complete Workflow Example
 
+### Ensemble Workflow (NEW - with auto-detection)
+
 ```bash
-# 1. Extract and validate individual experiments
+# 1. Populate overview table with ensemble parameters from logs
+utils-cmip7-populate-overview xqjc
+
+# 2. Validate individual experiments (auto-detects parameters!)
+utils-cmip7-validate-experiment xqjca  # No flags needed!
+utils-cmip7-validate-experiment xqjcb
+utils-cmip7-validate-experiment xqjcc
+
+# 3. Generate PPE validation report
+utils-cmip7-validate-ppe xqjc --top-n 20 --top-k 50
+
+# 4. Run parameter importance analysis
+utils-cmip7-validate-ppe xqjc --param-viz --param-viz-vars GPP NPP CVeg CSoil
+```
+
+### Standalone Experiment Workflow
+
+```bash
+# 1. Extract and validate individual experiments (explicit parameters)
 utils-cmip7-validate-experiment xqhuc --use-default-soil-params
 utils-cmip7-validate-experiment xqhua --soil-log-file logs/xqhua.log
 utils-cmip7-validate-experiment xqhub --soil-log-file logs/xqhub.log
@@ -345,4 +442,18 @@ For more troubleshooting, see [TROUBLESHOOTING.md](TROUBLESHOOTING.md).
 
 ---
 
-Last updated: v0.4.0 (2026-02-09)
+---
+
+## What's New
+
+### v0.4.1 (Unreleased)
+
+**Auto-detection of ensemble parameters:**
+- `utils-cmip7-validate-experiment` now automatically detects soil parameters from ensemble-generator logs
+- No need to specify `--use-default-soil-params` for ensemble experiments
+- Prevents accidental overwrites of parameters loaded from logs
+- See [CHANGELOG.md](../CHANGELOG.md) for full details
+
+---
+
+Last updated: v0.4.1-dev (2026-02-16)

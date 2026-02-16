@@ -531,6 +531,32 @@ def _print_raw_data(data):
         print(f"  Max: {np.max(values):.5f}")
 
 
+def _extract_ensemble_prefix(expt_id: str) -> str:
+    """
+    Extract ensemble prefix from experiment ID.
+
+    Convention: 5-character IDs have 4-character prefix (xqjca → xqjc)
+
+    Parameters
+    ----------
+    expt_id : str
+        Experiment identifier
+
+    Returns
+    -------
+    str
+        Ensemble prefix for log file matching
+
+    Examples
+    --------
+    >>> _extract_ensemble_prefix('xqjca')
+    'xqjc'
+    >>> _extract_ensemble_prefix('xqhuc')
+    'xqhuc'
+    """
+    return expt_id[:4] if len(expt_id) == 5 else expt_id
+
+
 def validate_experiment_cli():
     """
     CLI entry point for validating a single UM experiment.
@@ -569,6 +595,13 @@ def validate_experiment_cli():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
+  # Auto-detect from ensemble logs (new!)
+  utils-cmip7-validate-experiment xqjca
+
+  # Custom log directory
+  utils-cmip7-validate-experiment xqjca --log-dir /custom/path/logs
+
+  # Explicit source (overrides auto-detection)
   utils-cmip7-validate-experiment xqhuc --use-default-soil-params
   utils-cmip7-validate-experiment xqhuc --soil-log-file rose.log
   utils-cmip7-validate-experiment xqhuc --soil-param-file params.json --base-dir ~/annual_mean
@@ -581,12 +614,13 @@ Output:
   - Soil parameters JSON
   - Summary text file
 
-Soil Parameters (REQUIRED):
-  One of these options must be provided:
+Soil Parameters:
+  Auto-detected from ensemble logs when available, or provide one of:
   --soil-param-file FILE       JSON/YAML parameter file
   --soil-log-file FILE         UM/Rose log with &LAND_CC block
   --soil-params KEY=VAL,...    Manual parameters
   --use-default-soil-params    Use default LAND_CC values
+  --log-dir DIR                Custom log directory (default: ~/scripts/hadcm3b-ensemble-generator/logs)
         """
     )
 
@@ -622,47 +656,104 @@ Soil Parameters (REQUIRED):
         action='store_true',
         help='Use default LAND_CC soil parameters (opt-in required)'
     )
+    soil_group.add_argument(
+        '--log-dir',
+        default='~/scripts/hadcm3b-ensemble-generator/logs',
+        help='Directory containing ensemble-generator logs for auto-detection '
+             '(default: ~/scripts/hadcm3b-ensemble-generator/logs)'
+    )
 
     args = parser.parse_args()
 
-    # Check that at least one soil parameter source is provided
-    soil_param_sources = [
+    # Phase A: Check explicit sources
+    explicit_sources = [
         args.soil_param_file,
         args.soil_log_file,
         args.soil_params,
         args.use_default_soil_params
     ]
+    explicit_count = sum(1 for src in explicit_sources if src)
 
-    if not any(soil_param_sources):
-        parser.error(
-            "Soil parameters required for validation tracking.\n"
-            "Provide one of:\n"
-            "  --soil-param-file FILE       (JSON/YAML parameter file)\n"
-            "  --soil-log-file FILE         (UM/Rose log with &LAND_CC block)\n"
-            "  --soil-params KEY=VAL,...    (Manual parameters)\n"
-            "  --use-default-soil-params    (Use default LAND_CC values)"
-        )
+    if explicit_count > 1:
+        parser.error("Only one soil parameter source can be specified")
 
-    # Load soil parameters
+    # Phase B: Load from explicit source if provided
     soil_params = None
 
-    if args.soil_param_file:
-        soil_params = SoilParamSet.from_file(args.soil_param_file)
-        print(f"✓ Loaded soil parameters from file: {args.soil_param_file}")
-    elif args.soil_log_file:
-        soil_params = SoilParamSet.from_log_file(args.soil_log_file)
-        print(f"✓ Parsed soil parameters from log: {args.soil_log_file}")
-    elif args.soil_params:
-        # Parse manual key=value pairs
-        manual_params = {}
-        for pair in args.soil_params.split(','):
-            key, value = pair.split('=')
-            manual_params[key.strip()] = float(value.strip())
-        soil_params = SoilParamSet.from_dict(manual_params, source='manual')
-        print(f"✓ Loaded manual soil parameters ({len(manual_params)} values)")
-    elif args.use_default_soil_params:
-        soil_params = SoilParamSet.from_default()
-        print(f"✓ Using default LAND_CC soil parameters")
+    if explicit_count == 1:
+        if args.soil_param_file:
+            soil_params = SoilParamSet.from_file(args.soil_param_file)
+            print(f"✓ Loaded soil parameters from file: {args.soil_param_file}")
+        elif args.soil_log_file:
+            soil_params = SoilParamSet.from_log_file(args.soil_log_file)
+            print(f"✓ Parsed soil parameters from log: {args.soil_log_file}")
+        elif args.soil_params:
+            # Parse manual key=value pairs
+            manual_params = {}
+            for pair in args.soil_params.split(','):
+                key, value = pair.split('=')
+                manual_params[key.strip()] = float(value.strip())
+            soil_params = SoilParamSet.from_dict(manual_params, source='manual')
+            print(f"✓ Loaded manual soil parameters ({len(manual_params)} values)")
+        elif args.use_default_soil_params:
+            soil_params = SoilParamSet.from_default()
+            print(f"✓ Using default LAND_CC soil parameters")
+
+    # Phase C: Try auto-detection from default log directory
+    else:
+        import sys
+        from pathlib import Path as PathLib
+        from .validation import load_ensemble_params_from_logs
+
+        log_dir_path = PathLib(args.log_dir).expanduser()
+
+        if log_dir_path.exists():
+            ensemble_prefix = _extract_ensemble_prefix(args.expt)
+
+            try:
+                params_dict = load_ensemble_params_from_logs(
+                    str(log_dir_path),
+                    ensemble_prefix
+                )
+
+                if args.expt in params_dict:
+                    soil_params = params_dict[args.expt]
+                    log_file = soil_params.metadata.get('log_file', 'ensemble logs')
+                    print(f"✓ Auto-detected soil parameters from: {log_file}")
+                    print(f"  Ensemble: {ensemble_prefix}, Member: {args.expt}")
+                else:
+                    available = ', '.join(sorted(params_dict.keys())[:5])
+                    more_text = '...' if len(params_dict) > 5 else ''
+                    parser.error(
+                        f"Experiment '{args.expt}' not found in ensemble logs.\n"
+                        f"Available: {available}{more_text}\n"
+                        f"Provide explicit soil parameter source."
+                    )
+
+            except FileNotFoundError:
+                # Log files don't exist - fall through to error
+                parser.error(
+                    f"No ensemble logs found for '{ensemble_prefix}' in {log_dir_path}\n"
+                    f"Provide explicit soil parameter source:\n"
+                    f"  --soil-param-file FILE\n"
+                    f"  --soil-log-file FILE\n"
+                    f"  --soil-params KEY=VAL,...\n"
+                    f"  --use-default-soil-params"
+                )
+
+        else:
+            # Default directory doesn't exist - warn and require explicit source
+            print(f"⚠ Warning: Default log directory not found: {log_dir_path}",
+                  file=sys.stderr)
+            parser.error(
+                "Soil parameters required.\n"
+                "Provide one of:\n"
+                "  --soil-param-file FILE\n"
+                "  --soil-log-file FILE\n"
+                "  --soil-params KEY=VAL,...\n"
+                "  --use-default-soil-params\n"
+                "  --log-dir DIR (custom log directory)"
+            )
 
     # Import config for regions
     from .config import RECCAP_REGIONS
