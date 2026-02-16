@@ -223,7 +223,8 @@ Variables extracted:
             expt=args.expt,
             base_dir=args.base_dir,
             start_year=args.start_year,
-            end_year=args.end_year
+            end_year=args.end_year,
+            verbose=args.verbose
         )
     except Exception as e:
         print(f"Error during extraction: {e}", file=sys.stderr)
@@ -265,7 +266,8 @@ Variables extracted:
             metrics=metrics,
             start_year=args.start_year,
             end_year=args.end_year,
-            base_dir=args.base_dir
+            base_dir=args.base_dir,
+            verbose=args.verbose
         )
 
         # Check available metrics

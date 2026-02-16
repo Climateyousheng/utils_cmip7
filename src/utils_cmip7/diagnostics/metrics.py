@@ -229,7 +229,8 @@ def compute_metrics_from_raw(
     metrics: Optional[List[str]] = None,
     start_year: Optional[int] = None,
     end_year: Optional[int] = None,
-    base_dir: str = '~/dump2hold'
+    base_dir: str = '~/dump2hold',
+    verbose: bool = False
 ) -> Dict[str, Dict[str, Dict[str, Any]]]:
     """
     Compute canonical metrics from raw monthly UM files.
@@ -246,6 +247,8 @@ def compute_metrics_from_raw(
         Last year to process
     base_dir : str, default='~/dump2hold'
         Base directory containing raw monthly files
+    verbose : bool, default False
+        If True, print detailed error messages for failed files
 
     Returns
     -------
@@ -283,7 +286,8 @@ def compute_metrics_from_raw(
         expt_name,
         base_dir=base_dir,
         start_year=start_year,
-        end_year=end_year
+        end_year=end_year,
+        verbose=verbose
     )
 
     # Transform to canonical schema

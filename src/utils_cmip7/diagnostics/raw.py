@@ -4,13 +4,14 @@ High-level extraction from raw monthly UM output files.
 Processes raw monthly UM output files directly (not pre-processed annual means).
 """
 
+import warnings
 import iris
 
 from ..io import stash, try_extract, find_matching_files
 from ..processing.temporal import compute_monthly_mean, merge_monthly_results
 
 
-def extract_annual_mean_raw(expt, base_dir='~/dump2hold', start_year=None, end_year=None):
+def extract_annual_mean_raw(expt, base_dir='~/dump2hold', start_year=None, end_year=None, verbose=False):
     """
     Extract annual means from raw monthly UM output files.
 
@@ -27,6 +28,9 @@ def extract_annual_mean_raw(expt, base_dir='~/dump2hold', start_year=None, end_y
         First year to process. If None, processes all available years.
     end_year : int, optional
         Last year to process. If None, processes all available years.
+    verbose : bool, default False
+        If True, print detailed error messages for failed files.
+        If False, suppress warnings and silently skip failed files.
 
     Returns
     -------
@@ -97,6 +101,10 @@ def extract_annual_mean_raw(expt, base_dir='~/dump2hold', start_year=None, end_y
         ('cs', 'CSoil', 'CSoil'),
     ]
 
+    # Suppress warnings unless verbose mode
+    if not verbose:
+        warnings.filterwarnings('ignore')
+
     print(f"\n{'='*60}")
     print(f"Extracting annual means from raw monthly files: {expt}")
     print(f"{'='*60}")
@@ -151,6 +159,8 @@ def extract_annual_mean_raw(expt, base_dir='~/dump2hold', start_year=None, end_y
 
             except Exception as e:
                 files_failed += 1
+                if verbose:
+                    print(f"  ⚠ Failed to process {f}: {type(e).__name__}: {e}")
                 continue
 
         if monthly_results:
