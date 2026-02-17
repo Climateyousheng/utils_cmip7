@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-#### Parameter scatter plots for PPE validation
+#### Parameter scatter plots for PPE validation (ppe_viz)
 
 New functions in `utils_cmip7.plotting` (implemented in `ppe_viz.py`):
 
@@ -53,8 +53,6 @@ New functions in `utils_cmip7.plotting` (implemented in `ppe_viz.py`):
 **Memory overhead**: Negligible (~1-2 MB for mask data)
 
 **Thread safety**: `functools.lru_cache` is thread-safe and suitable for concurrent access.
-
-### Added
 
 #### Auto-populate overview table from `extract-raw --validate`
 

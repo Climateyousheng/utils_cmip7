@@ -92,12 +92,15 @@ utils_cmip7/
 │   ├── debug_plot.py
 │   └── diagnose_extraction.py
 ├── docs/                     # Documentation
-│   ├── API_REFERENCE.md      # Comprehensive API documentation
-│   ├── MIGRATION.md          # Migration guide from v0.1.x
+│   ├── API.md                # Comprehensive API documentation
+│   ├── CLI_REFERENCE.md      # CLI command reference
+│   ├── MIGRATION_GUIDE.md    # Migration guide from v0.3.x to v0.4.0
 │   ├── STASH.md              # STASH code reference
 │   ├── TROUBLESHOOTING.md    # Common issues and solutions
-│   ├── NAMING_ANALYSIS.md    # Variable naming analysis
-│   └── REFACTORING_SUMMARY.md # Refactoring notes
+│   ├── PERFORMANCE.md        # Performance optimization guide
+│   ├── CONTRIBUTING.md       # Contributor guidelines
+│   ├── VALIDATION_EXPLAINED.md          # Validation methodology
+│   └── VALIDATION_METHODS_QUICK_REFERENCE.md  # Quick reference card
 ├── analysis.py               # Backward-compatible wrapper (deprecated)
 ├── plot.py                   # Backward-compatible wrapper (deprecated)
 └── pyproject.toml            # Package metadata and dependencies
@@ -108,15 +111,15 @@ utils_cmip7/
 - ✅ `processing/` - **Stable** - 5 modules (spatial, temporal, regional, metrics, map_fields)
 - ✅ `diagnostics/` - **Stable** - 3 modules (extraction, raw, metrics)
 - ✅ `validation/` - **Provisional** - 3 modules (compare, visualize, outputs)
-- ✅ `tests/` - ~354 tests, 32% coverage, CI/CD across Python 3.9-3.12
+- ✅ `tests/` - ~416 tests, CI/CD across Python 3.9-3.12
 - ✅ `data/obs/` - Observational data packaged
 - ✅ `scripts/` - High-level validation workflows
-- ✅ `cli.py` - **Experimental** - 4 CLI commands implemented
+- ✅ `cli.py` - **Experimental** - 5 CLI commands implemented
 - ✅ `plotting/` - **Unstable** - maps.py for spatial map/anomaly plotting
 - ⚠️ `soil_params/` - **Experimental** - Exists in root, needs migration
 
 **Backward Compatibility:**
-Existing scripts using `from analysis import ...` will continue to work during the v0.2.x series. See [Migration Guide](docs/MIGRATION_GUIDE.md) for updating to the new import style.
+Legacy imports (`from analysis import ...`) were removed in v0.4.0. See [Migration Guide](docs/MIGRATION_GUIDE.md) for updating to the new import style.
 
 ## Features
 
@@ -133,7 +136,7 @@ Existing scripts using `from analysis import ...` will continue to work during t
 
 ## Performance
 
-**Recent optimizations (2025)** have dramatically improved extraction performance:
+**Recent optimizations (2026)** have dramatically improved extraction performance:
 
 ### Raw Data Extraction: 5× Speedup
 
@@ -279,6 +282,9 @@ utils-cmip7-validate-experiment xqhuc
 
 # Validate perturbed parameter ensemble (PPE)
 utils-cmip7-validate-ppe
+
+# Populate overview table with ensemble parameters from logs
+utils-cmip7-populate-overview xqjc
 ```
 
 See [docs/CLI_REFERENCE.md](docs/CLI_REFERENCE.md) for detailed documentation.

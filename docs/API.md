@@ -82,7 +82,7 @@ from utils_cmip7 import stash
 code = stash('gpp')  # Returns 'm01s03i261'
 ```
 
-**Stability:** ✅ **Stable** - No breaking changes in v0.3.x
+**Stability:** ✅ **Stable** - No breaking changes in v0.4.x
 
 ---
 
@@ -315,7 +315,7 @@ Compute regional annual mean using RECCAP2 mask.
 **Returns:**
 - dict: Dictionary with 'years', 'data', 'region', and other metadata
 
-**Stability:** ⚠️ **Provisional** - Minor changes possible in v0.3.x
+**Stability:** ⚠️ **Provisional** - Minor changes possible in v0.4.x
 
 ---
 

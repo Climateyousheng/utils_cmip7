@@ -19,95 +19,109 @@ Variables were not found during extraction and were silently skipped.
 Run extraction with verbose output:
 
 ```python
-from analysis import extract_annual_means
-ds = extract_annual_means(expts_list=['xqhuc'])
-Review extraction summary for missing variables.
+from utils_cmip7.diagnostics import extract_annual_means
+ds = extract_annual_means(expts_list=['xqhuc'], verbose=True)
+# Review extraction summary for missing variables.
+```
+
+---
 
 ## Missing Annual Mean Files
-Expected files
+
+### Expected files
+```
 {expt}_pt_annual_mean.nc
 {expt}_pd_annual_mean.nc
 {expt}_pf_annual_mean.nc
-Fix
+```
 
+### Fix
 Re-run annual-mean preprocessing (e.g. via CDO scripts).
 
-STASH Codes Appear Correct but Extraction Fails
-Diagnosis
+---
+
+## STASH Codes Appear Correct but Extraction Fails
+
+### Diagnosis
 
 Check STASH codes directly:
 
+```bash
 ncdump -h file.nc | grep stash_code
+```
 
-Common issue
+### Common issue
+Codes appear with `s` suffix (e.g. `3261s`).
 
-Codes appear with s suffix (e.g. 3261s).
-
-Resolution
-
+### Resolution
 No action needed. This is normal NetCDF syntax.
 
-Variables Present but Units Incorrect
-Cause
+---
 
+## Variables Present but Units Incorrect
+
+### Cause
 Unit conversions were skipped or overridden.
 
-Fix
-
+### Fix
 Verify variable is listed in conversion dictionary.
 Custom variables require explicit conversion rules.
 
-Raw Extraction Performance
-Status
+---
 
-**✅ Optimized (2025)**: Raw extraction is now **5× faster** thanks to file-level caching.
+## Raw Extraction Performance
 
-Explanation
+### Status
+✅ **Optimized (2026)**: Raw extraction is now **5× faster** thanks to file-level caching.
 
-Each monthly file is loaded once and all variables extracted in a single pass, rather than loading each file 5 times (once per variable).
+### Explanation
+Each monthly file is loaded once and all variables extracted in a single pass,
+rather than loading each file 5 times (once per variable).
 
-Performance
-
+### Performance
 - 100-year simulation: ~6 minutes (previously ~30 minutes)
 - File loads reduced from 6,000 to 1,200 for typical workflows
 
-Recommendation
+### Recommendation
+Raw extraction is now efficient enough for routine use. Pre-processed files are
+still faster for repeated analyses, but raw extraction is viable when annual
+means haven't been generated yet.
 
-Raw extraction is now efficient enough for routine use. Pre-processed files are still faster for repeated analyses, but raw extraction is viable when annual means haven't been generated yet.
+---
 
-Regional Results Look Incorrect
-Possible causes
+## Regional Results Look Incorrect
 
-Mask resolution mismatch
+### Possible causes
+- Mask resolution mismatch
+- Wrong RECCAP region name
+- Missing land/sea mask alignment
 
-Wrong RECCAP region name
+### Debug steps
 
-Missing land/sea mask alignment
+1. Verify mask file exists
+2. Confirm region spelling (case-sensitive)
+3. Check grid compatibility
 
-Debug steps
+---
 
-Verify mask file exists
+## Debugging Tips
 
-Confirm region spelling
+- Always inspect extraction summaries
+- Verify NetCDF metadata early
+- Test global before regional diagnostics
+- Use small time slices for debugging
 
-Check grid compatibility
+---
 
-Debugging Tips
-
-Always inspect extraction summaries
-
-Verify NetCDF metadata early
-
-Test global before regional diagnostics
-
-Use small time slices for debugging
-
-When to Escalate
+## When to Escalate
 
 If issues persist:
 
-Verify UM output integrity
+1. Verify UM output integrity
+2. Confirm STASH mappings
+3. Compare with known-good experiment
+4. Open an issue: https://github.com/Climateyousheng/utils_cmip7/issues
 
-Confirm STASH mappings
+---
 
-Compare with known-good experiment
+For more help, see [PERFORMANCE.md](PERFORMANCE.md) and [CLI_REFERENCE.md](CLI_REFERENCE.md).

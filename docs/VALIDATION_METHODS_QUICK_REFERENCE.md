@@ -158,13 +158,10 @@ START
 ### PPE Parameter Analysis
 ```bash
 # Full analysis (Spearman + RF + PCA)
-utils-cmip7-validate-ppe --param-viz --param-viz-method both
+utils-cmip7-validate-ppe --param-viz
 
-# Spearman only (no scikit-learn needed)
-utils-cmip7-validate-ppe --param-viz --param-viz-method spearman
-
-# RF only (requires scikit-learn)
-utils-cmip7-validate-ppe --param-viz --param-viz-method rf
+# Limit to specific variables
+utils-cmip7-validate-ppe --param-viz --param-viz-vars GPP NPP CVeg CSoil
 ```
 
 ### Observation Validation
@@ -206,11 +203,17 @@ utils-cmip7-validate-experiment xqhuc --use-default-soil-params
 
 ### Observation Validation (`validation_outputs/single_val_{expt}/`)
 ```
+├── {expt}_metrics.csv               # UM results in observational format
 ├── {expt}_bias_vs_cmip6.csv         # Bias/RMSE vs CMIP6
 ├── {expt}_bias_vs_reccap2.csv       # Bias/RMSE vs RECCAP2
+├── {expt}_bias_vs_igbp.csv          # Vegetation bias vs IGBP
+├── soil_params.json                 # Soil parameters + provenance
+├── validation_scores.csv            # Scores for overview table
+├── comparison_summary.txt           # Text summary
 └── plots/
-    ├── GPP_three_way_comparison.png
-    ├── NPP_three_way_comparison.png
+    ├── bias_heatmap_unified.png
+    ├── GPP_three_way.png
+    ├── BL_vs_igbp.png
     └── ...
 ```
 

@@ -6,10 +6,27 @@ This directory contains tests for the utils_cmip7 package.
 
 ```
 tests/
-├── run_smoke_tests.py    # Main test runner
-├── test_imports.py        # Import resolution tests
-├── test_config.py         # Configuration validation tests
-└── README.md              # This file
+├── run_smoke_tests.py              # Basic smoke test runner
+├── test_imports.py                 # Import resolution tests
+├── test_config.py                  # Configuration validation tests
+├── test_canonical_variables.py     # Canonical variable registry tests
+├── test_cli_helpers.py             # CLI helper function tests
+├── test_cli_auto_detection.py      # Auto-detection from ensemble logs tests
+├── test_v04_breaking_changes.py    # v0.4.0 breaking change verification
+├── test_extract_raw_overview.py    # Raw extraction + overview table integration
+├── test_extraction_fix.py          # Extraction pipeline fix tests
+├── test_metrics_pre_extracted.py   # Pre-extracted metrics tests
+├── test_overview_upsert.py         # Overview table upsert tests
+├── test_plot_fix.py                # Plotting fix tests
+├── test_soil_params_parser.py      # Soil parameter parser tests
+├── test_tau_fix.py                 # Tau computation fix tests
+├── test_warnings_suppressed.py     # Warning suppression tests
+├── test_io/                        # I/O module tests
+├── test_processing/                # Processing module tests
+├── test_diagnostics/               # Diagnostics module tests
+├── test_validation/                # Validation module tests
+├── test_plotting/                  # Plotting module tests
+└── README.md                       # This file
 ```
 
 ## Smoke Tests
@@ -18,34 +35,23 @@ tests/
 - ✓ Import resolution (all public API functions can be imported)
 - ✓ Configuration loading (VAR_CONVERSIONS, RECCAP regions, etc.)
 - ✓ Validation functions (error handling for missing/unreadable files)
-- ✓ Backward compatibility (legacy imports still work with deprecation warnings)
 
 ### Running Smoke Tests
 
 ```bash
 # From repository root
-cd tests
-python3 run_smoke_tests.py
-
-# Or run individual test suites
-python3 test_imports.py
-python3 test_config.py
+python tests/run_smoke_tests.py
 ```
 
-### Expected Output
-
-If dependencies are not installed (numpy, iris, etc.), tests will fail with import errors. This is expected. Install the package first:
+### Running the full test suite
 
 ```bash
-cd ..
-pip install -e .
-cd tests
-python3 run_smoke_tests.py
+.venv/bin/python -m pytest tests/ -v
 ```
 
 ## Unit Tests
 
-Unit tests covering core modules (added in v0.3.0-v0.4.0):
+Unit tests covering core modules (added in v0.3.0-v0.4.x):
 
 - [x] `tests/test_io/test_stash.py` - STASH code mappings (100% coverage)
 - [x] `tests/test_io/test_file_discovery.py` - Month code decoding, file patterns (98% coverage)
@@ -53,11 +59,14 @@ Unit tests covering core modules (added in v0.3.0-v0.4.0):
 - [x] `tests/test_processing/test_spatial.py` - Global aggregation
 - [x] `tests/test_processing/test_temporal.py` - Temporal aggregation (92% coverage)
 - [x] `tests/test_processing/test_metrics.py` - Metric definitions (70% coverage)
-- [x] `tests/test_diagnostics/test_extraction.py` - Extraction workflows (56% coverage)
+- [x] `tests/test_diagnostics/test_extraction.py` - Extraction workflows
 - [x] `tests/test_validation/test_compare.py` - Bias and RMSE computation (99% coverage)
 - [x] `tests/test_validation/test_outputs.py` - Validation output bundles (100% coverage)
 - [x] `tests/test_plotting/test_maps.py` - Spatial map extraction and plotting
+- [x] `tests/test_plotting/test_ppe_scatter.py` - PPE scatter plot functions (26 tests)
 - [x] `tests/test_v04_breaking_changes.py` - v0.4.0 breaking change verification
+- [x] `tests/test_cli_helpers.py` - CLI helper functions
+- [x] `tests/test_cli_auto_detection.py` - Auto-detection from ensemble logs
 - [ ] `tests/test_processing/test_regional.py` - Regional masking
 
 ## Continuous Integration

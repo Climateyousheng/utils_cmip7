@@ -1,6 +1,6 @@
 # CLI Reference
 
-Command-line tools for utils_cmip7 package (v0.2.2+).
+Command-line tools for utils_cmip7 package (v0.4.0+).
 
 ---
 

@@ -234,7 +234,7 @@ def test_load_params(mock_logs):
 - **CLI**: 50%+ coverage (integration tests focus)
 - **Plotting**: 30%+ coverage (visual inspection focus)
 
-Current overall coverage: **33%** (375 tests)
+Current overall coverage: ~35% (416+ tests)
 
 ---
 

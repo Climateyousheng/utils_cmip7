@@ -1,13 +1,13 @@
 # Performance Optimization Guide
 
-**Version:** v0.4.1+
-**Last Updated:** 2025-02-16
+**Version:** v0.4.0+
+**Last Updated:** 2026-02-17
 
 ---
 
 ## Overview
 
-Recent optimizations (2025) have dramatically improved extraction performance for both raw and preprocessed data pathways, achieving **5-8× speedup** through intelligent caching and loop restructuring.
+Recent optimizations (2026) have dramatically improved extraction performance for both raw and preprocessed data pathways, achieving **5-8× speedup** through intelligent caching and loop restructuring.
 
 ---
 
@@ -266,7 +266,7 @@ Use the validation script to benchmark your specific datasets:
 
 ```bash
 cd ~/path/to/utils_cmip7
-python validation/benchmark_extraction.py
+python scripts/extract_raw.py
 ```
 
 **Outputs**:
@@ -276,7 +276,7 @@ python validation/benchmark_extraction.py
 
 ### Custom Benchmarks
 
-Modify `validation/benchmark_extraction.py` to test:
+Modify `scripts/extract_raw.py` to test:
 - Different experiments
 - Different year ranges
 - Different region sets
@@ -320,7 +320,7 @@ Modify `validation/benchmark_extraction.py` to test:
 **Symptom**: Extraction still slow despite optimizations.
 
 **Diagnosis**:
-1. Verify you're using optimized version (v0.4.1+)
+1. Verify you're using optimized version (v0.4.0+)
 2. Check that `functools.lru_cache` is not disabled
 3. Confirm RECCAP mask path is valid
 
@@ -356,12 +356,11 @@ Modify `validation/benchmark_extraction.py` to test:
 
 - [CHANGELOG.md](../CHANGELOG.md) — Full release notes
 - [CLAUDE.md](../CLAUDE.md) — Architectural constraints
-- [validation/benchmark_extraction.py](../validation/benchmark_extraction.py) — Benchmark script
+- [scripts/extract_raw.py](../scripts/extract_raw.py) — Benchmark script
 
 ---
 
 ## Contact
 
 For questions or issues:
-- GitHub Issues: https://github.com/your-org/utils_cmip7/issues
-- Email: your-email@example.com
+- GitHub Issues: https://github.com/Climateyousheng/utils_cmip7/issues
