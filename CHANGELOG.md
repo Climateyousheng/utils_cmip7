@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+#### Parameter scatter plots for PPE validation
+
+New functions in `utils_cmip7.plotting` (implemented in `ppe_viz.py`):
+
+- **`plot_param_scatter`**: Multi-panel scatter figure — one panel per parameter (X) vs a metric or score (Y). Supports sentinel replacement, highlighted experiments (diamond overplot), and observation reference lines.
+- **`add_observation_lines`**: Draws a dashed horizontal reference line at an observed value on an axes; no-op when observation is unavailable.
+- **`save_overall_skill_param_scatter_pdf`**: Writes overall-skill vs parameters to PDF. TUPP excluded by design.
+- **`save_param_scatter_pdf`**: Writes a climatological metric vs parameters to PDF with optional obs reference lines. TUPP excluded by design.
+
+`generate_ppe_validation_report` now automatically produces:
+- `{name}_overall_skill_core_param_scatter.pdf`
+- Up to 9 per-metric PDFs (`GPP`, `NPP`, `CVeg`, `CSoil`, `GM_BL`, `GM_NL`, `GM_C3`, `GM_C4`, `GM_BS`) for metrics present in the input CSV.
+
 ### Performance
 
 #### 5× speedup for raw data extraction

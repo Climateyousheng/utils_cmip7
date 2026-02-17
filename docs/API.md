@@ -493,6 +493,113 @@ fig, ax = plot_spatial_anomaly(
 
 ---
 
+## PPE Validation Plotting
+
+Functions for visualising Perturbed Physics Ensemble (PPE) validation tables. Located in `utils_cmip7.plotting.ppe_viz` (all exported from `utils_cmip7.plotting`). Input is a CSV overview table — no NetCDF I/O.
+
+---
+
+### `plot_param_scatter(df, param_cols, y_col, *, id_col, obs_values, ncols, highlight_col, highlight_label, sentinel, sentinel_replacement, title)` → `Figure`
+
+Multi-panel scatter plot: one panel per parameter (X axis) against a metric or score (Y axis). Panels are arranged in a grid (`ncols=4` default). Unused cells are hidden.
+
+**Parameters:**
+- `df` (DataFrame): Ensemble overview table
+- `param_cols` (sequence of str): Parameter columns to use as X axes
+- `y_col` (str): Metric or score column for the Y axis
+- `id_col` (str, optional): Column used to label highlighted points. Default: `"ID"`
+- `obs_values` (dict, optional): `{varname: observed_value}` — draws a dashed reference line via `add_observation_lines`
+- `ncols` (int): Subplot columns. Default: `4`
+- `highlight_col` (str, optional): Boolean column; matching rows are over-plotted with diamond markers
+- `highlight_label` (bool): Add ID labels to highlighted points. Default: `True`
+- `sentinel` (float): Sentinel value to replace in parameter columns. Default: `-9999`
+- `sentinel_replacement` (float): Replacement for sentinels. Default: `0.5`
+- `title` (str, optional): Figure suptitle
+
+**Returns:** `matplotlib.figure.Figure`
+
+**Raises:** `ValueError` if none of `param_cols` exist in `df`.
+
+**Example:**
+```python
+from utils_cmip7.plotting import plot_param_scatter
+import pandas as pd
+
+df = pd.read_csv("ensemble_table.csv")
+fig = plot_param_scatter(
+    df,
+    param_cols=["ALPHA", "G_AREA", "LAI_MIN", "NL0", "R_GROW", "TLOW", "V_CRIT"],
+    y_col="overall_score",
+    highlight_col="_highlight",
+    title="Overall skill vs parameters",
+)
+fig.savefig("scatter.pdf")
+```
+
+**Stability:** ⚠️ **Unstable** (Plotting API)
+
+---
+
+### `add_observation_lines(ax, varname, obs_values)`
+
+Draw a dashed horizontal reference line at the observed value for `varname`. No-op if `obs_values` is `None` or `varname` is not a key.
+
+**Parameters:**
+- `ax` (Axes): Target matplotlib axes
+- `varname` (str): Variable name to look up
+- `obs_values` (dict or None): `{varname: scalar}`
+
+**Stability:** ⚠️ **Unstable** (Plotting API)
+
+---
+
+### `save_overall_skill_param_scatter_pdf(df, out_pdf, *, param_cols, score_col, id_col, highlight_col, highlight_label, ncols, title)`
+
+Save a multi-panel scatter of **overall skill score vs each parameter** to a PDF. TUPP is excluded automatically.
+
+**Typical output filename:** `{ensemble_name}_overall_skill_core_param_scatter.pdf`
+
+**Raises:** `ValueError` if no valid parameter columns are found.
+
+**Stability:** ⚠️ **Unstable** (Plotting API)
+
+---
+
+### `save_param_scatter_pdf(df, metric, out_pdf, *, param_cols, obs_values, id_col, highlight_col, highlight_label, ncols, title)`
+
+Save a multi-panel scatter of **a climatological metric vs each parameter** to a PDF. TUPP is excluded automatically. Draws observation reference lines when `obs_values` is provided.
+
+**Typical output filename:** `{ensemble_name}_{metric}_param_scatter.pdf`
+
+**Raises:** `KeyError` if `metric` is not a column in `df`.
+
+**Stability:** ⚠️ **Unstable** (Plotting API)
+
+---
+
+### `generate_ppe_validation_report(csv_path, ensemble_name, ...)` (updated)
+
+Now produces additional scatter PDFs in the output directory:
+
+```
+validation_outputs/ppe_{name}/
+    ├── ...existing files...
+    ├── {name}_overall_skill_core_param_scatter.pdf
+    ├── {name}_GPP_param_scatter.pdf
+    ├── {name}_NPP_param_scatter.pdf
+    ├── {name}_CVeg_param_scatter.pdf
+    ├── {name}_CSoil_param_scatter.pdf
+    ├── {name}_GM_BL_param_scatter.pdf
+    ├── {name}_GM_NL_param_scatter.pdf
+    ├── {name}_GM_C3_param_scatter.pdf
+    ├── {name}_GM_C4_param_scatter.pdf
+    └── {name}_GM_BS_param_scatter.pdf
+```
+
+Per-metric PDFs are only generated for metrics that exist as columns in the input CSV.
+
+---
+
 ## Diagnostics Functions
 
 ### High-Level Extraction
