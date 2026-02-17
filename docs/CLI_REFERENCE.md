@@ -257,8 +257,20 @@ validation_outputs/ppe_{expt}/
 ├── score_distribution.pdf          # Histogram + ECDF with top-N labeled
 ├── validation_heatmap.pdf          # Normalized metrics for top-K
 ├── parameter_shifts.pdf            # Parameter distributions (top vs bottom)
-└── top_experiments.txt             # Text summary with statistics
+├── top_experiments.txt             # Text summary with statistics
+├── {expt}_overall_skill_core_param_scatter.pdf  # Overall score vs each parameter
+├── {expt}_GPP_param_scatter.pdf    # GPP vs each parameter (if GPP in table)
+├── {expt}_NPP_param_scatter.pdf
+├── {expt}_CVeg_param_scatter.pdf
+├── {expt}_CSoil_param_scatter.pdf
+├── {expt}_GM_BL_param_scatter.pdf
+├── {expt}_GM_NL_param_scatter.pdf
+├── {expt}_GM_C3_param_scatter.pdf
+├── {expt}_GM_C4_param_scatter.pdf
+└── {expt}_GM_BS_param_scatter.pdf
 ```
+
+Per-metric scatter PDFs are only generated for metrics present in the input CSV. TUPP is excluded from all scatter panels.
 
 If `--param-viz` enabled:
 ```
@@ -456,8 +468,13 @@ For more troubleshooting, see [TROUBLESHOOTING.md](TROUBLESHOOTING.md).
 - `utils-cmip7-validate-experiment` now automatically detects soil parameters from ensemble-generator logs
 - No need to specify `--use-default-soil-params` for ensemble experiments
 - Prevents accidental overwrites of parameters loaded from logs
+
+**Parameter scatter plots:**
+- `utils-cmip7-validate-ppe` now generates parameter scatter PDFs automatically
+- Overall-skill vs parameters: `{name}_overall_skill_core_param_scatter.pdf`
+- Per-metric vs parameters: up to 9 PDFs for GPP, NPP, CVeg, CSoil, and vegetation fractions
 - See [CHANGELOG.md](../CHANGELOG.md) for full details
 
 ---
 
-Last updated: v0.4.1-dev (2026-02-16)
+Last updated: v0.4.1-dev (2026-02-17)
