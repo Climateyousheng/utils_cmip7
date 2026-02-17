@@ -1534,6 +1534,17 @@ Input CSV:
         nargs='+',
         help='Variables to analyze (e.g., GPP NPP CVeg). If not specified, analyzes all.'
     )
+    param_group.add_argument(
+        '--param-viz-method',
+        choices=['spearman', 'rf', 'both'],
+        default='both',
+        help='Importance method: spearman, rf, or both (default: both)'
+    )
+    param_group.add_argument(
+        '--param-viz-outdir',
+        type=str,
+        help='Output directory for parameter importance results (default: validation_outputs/param_viz_{expt})'
+    )
 
     args = parser.parse_args()
 
@@ -1578,13 +1589,14 @@ Input CSV:
             print("PARAMETER IMPORTANCE ANALYSIS")
             print("="*80 + "\n")
 
-            param_viz_outdir = f"{args.output_dir}/param_viz_{args.expt}"
+            param_viz_outdir = args.param_viz_outdir or f"{args.output_dir}/param_viz_{args.expt}"
             run_param_importance_suite(
                 overview_csv=args.csv,
                 outdir=param_viz_outdir,
                 variables=args.param_viz_vars,
                 id_col=args.id_col,
                 param_cols=param_cols,
+                method=args.param_viz_method,
             )
 
         print("\n" + "="*80)

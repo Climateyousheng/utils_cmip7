@@ -715,8 +715,12 @@ def generate_ppe_validation_report(
 
         print(f"  ✓ Loaded {len(obs_values)} observation values for normalization")
 
-    except Exception as e:
-        print(f"  ⚠ Warning: Could not load observations: {e}")
+    except ImportError as e:
+        print(f"  ⚠ Warning: Observation module not available: {e}")
+        print(f"  → Using ensemble-relative normalization")
+        obs_values = None
+    except (FileNotFoundError, OSError) as e:
+        print(f"  ⚠ Warning: Observation data file not found: {e}")
         print(f"  → Using ensemble-relative normalization")
         obs_values = None
 
