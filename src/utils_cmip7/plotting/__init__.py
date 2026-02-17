@@ -12,10 +12,13 @@ from .ppe_viz import (
     plot_score_ecdf,
     plot_validation_heatmap,
     plot_parameter_shift,
+    plot_param_scatter,
     # PDF writers
     save_score_plots_pdf,
     save_heatmap_pdf,
     save_shift_plots_pdf,
+    save_overall_skill_param_scatter_pdf,
+    save_param_scatter_pdf,
     # High-level report generator
     generate_ppe_validation_report,
     # Utilities
@@ -23,6 +26,7 @@ from .ppe_viz import (
     rank_by_score,
     normalize_metrics_for_heatmap,
     NormalizeConfig,
+    add_observation_lines,
 )
 
 from .ppe_param_viz import (
@@ -70,6 +74,8 @@ __all__ = [
     'save_score_plots_pdf',
     'save_heatmap_pdf',
     'save_shift_plots_pdf',
+    'save_overall_skill_param_scatter_pdf',
+    'save_param_scatter_pdf',
     # High-level report generator
     'generate_ppe_validation_report',
     # Utilities
@@ -77,6 +83,8 @@ __all__ = [
     'rank_by_score',
     'normalize_metrics_for_heatmap',
     'NormalizeConfig',
+    'add_observation_lines',
+    'plot_param_scatter',
     # Parameter importance
     'run_param_importance_suite',
     'spearman_importance',

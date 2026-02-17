@@ -35,6 +35,15 @@ DEFAULT_SCORE_COL = "overall_score"
 DEFAULT_ID_COL = "ID"
 DEFAULT_RMSE_PREFIXES = ("rmse_",)
 
+# Metrics for per-metric parameter scatter PDFs (deterministic order — CLAUDE.md rule 7)
+_SCATTER_METRICS = [
+    "GPP", "NPP", "CVeg", "CSoil",
+    "GM_BL", "GM_NL", "GM_C3", "GM_C4", "GM_BS",
+]
+
+# Parameters excluded from scatter plots by design
+_EXCLUDED_SCATTER_PARAMS = {"TUPP"}
+
 
 @dataclass(frozen=True)
 class NormalizeConfig:
@@ -118,6 +127,50 @@ def _minmax_normalize_series(x: pd.Series, clip_q: Optional[Tuple[float, float]]
     if not np.isfinite(xmin) or not np.isfinite(xmax) or xmax == xmin:
         return pd.Series(np.zeros(len(x)), index=x.index)
     return (x - xmin) / (xmax - xmin + 1e-12)
+
+
+def _preprocess_param_col(series, sentinel=-9999, replacement=0.5):
+    """Replace sentinel values in a parameter column with a fixed replacement.
+
+    Parameters
+    ----------
+    series : pd.Series
+        Raw parameter column (may contain sentinels or non-numeric strings).
+    sentinel : float, optional
+        Value to treat as missing (default: -9999).
+    replacement : float, optional
+        Value to substitute for sentinel entries (default: 0.5).
+
+    Returns
+    -------
+    pd.Series
+        New Series with sentinels replaced; non-numeric entries become NaN.
+    """
+    s = pd.to_numeric(series, errors="coerce")
+    return s.where(s != sentinel, other=replacement)
+
+
+def add_observation_lines(ax, varname, obs_values):
+    """Draw a dashed horizontal reference line at the observation value.
+
+    Does nothing if ``obs_values`` is ``None`` or ``varname`` is not a key.
+
+    Parameters
+    ----------
+    ax : matplotlib.axes.Axes
+        Target axes.
+    varname : str
+        Metric/variable name to look up in ``obs_values``.
+    obs_values : dict or None
+        Mapping of variable name → observed scalar value.
+    """
+    if obs_values is None or varname not in obs_values:
+        return
+    val = obs_values[varname]
+    ax.axhline(val, color="black", linewidth=1.2, linestyle="--", alpha=0.7)
+    trans = ax.get_yaxis_transform()
+    ax.text(0.98, val, f"obs: {val:.3g}", transform=trans,
+            va="bottom", ha="right", fontsize=7)
 
 
 def normalize_metrics_for_heatmap(
@@ -462,6 +515,109 @@ def plot_parameter_shift(
     return figs
 
 
+def plot_param_scatter(
+    df: pd.DataFrame,
+    param_cols: Sequence[str],
+    y_col: str,
+    id_col: Optional[str] = DEFAULT_ID_COL,
+    obs_values: Optional[Dict[str, float]] = None,
+    ncols: int = 4,
+    highlight_col: Optional[str] = None,
+    highlight_label: bool = True,
+    sentinel: float = -9999,
+    sentinel_replacement: float = 0.5,
+    title: Optional[str] = None,
+) -> "plt.Figure":
+    """Multi-panel scatter: each panel shows one parameter (X) vs a metric (Y).
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        Ensemble data table.
+    param_cols : Sequence[str]
+        Parameter column names to use as X axes.
+    y_col : str
+        Metric or score column to use as Y axis.
+    id_col : str, optional
+        Column used to label highlighted points.
+    obs_values : dict, optional
+        Observation reference values; passed to :func:`add_observation_lines`.
+    ncols : int
+        Number of subplot columns (default: 4).
+    highlight_col : str, optional
+        Boolean column marking experiments to over-plot with diamond markers.
+    highlight_label : bool
+        Add ID labels to highlighted points (default: True).
+    sentinel : float
+        Sentinel value to replace in parameter columns (default: -9999).
+    sentinel_replacement : float
+        Replacement for sentinel values (default: 0.5).
+    title : str, optional
+        Overall figure title.
+
+    Returns
+    -------
+    matplotlib.figure.Figure
+
+    Raises
+    ------
+    ValueError
+        If none of ``param_cols`` exist in ``df``.
+    """
+    existing = [c for c in param_cols if c in df.columns]
+    if not existing:
+        raise ValueError(
+            f"None of param_cols {list(param_cols)} found in DataFrame columns."
+        )
+
+    n = len(existing)
+    nrows = int(np.ceil(n / ncols))
+    fig, axes = plt.subplots(nrows, ncols, figsize=(3.5 * ncols, 3.0 * nrows), squeeze=False)
+    axes_flat = np.array(axes).flatten()
+
+    y_vals = pd.to_numeric(df[y_col], errors="coerce")
+
+    for idx, param in enumerate(existing):
+        ax = axes_flat[idx]
+        x_vals = _preprocess_param_col(df[param], sentinel=sentinel, replacement=sentinel_replacement)
+
+        # Base scatter: all points
+        ax.scatter(x_vals, y_vals, color="dodgerblue", edgecolors="black",
+                   s=50, linewidths=0.5, zorder=2)
+
+        # Highlighted over-plot
+        if highlight_col and highlight_col in df.columns:
+            mask = df[highlight_col].astype(bool)
+            if mask.any():
+                x_hi = x_vals[mask]
+                y_hi = y_vals[mask]
+                if highlight_label and id_col and id_col in df.columns:
+                    ids = df.loc[mask, id_col].astype(str).tolist()
+                    label = ", ".join(ids)
+                else:
+                    label = "highlighted"
+                ax.scatter(x_hi, y_hi, color="dodgerblue", edgecolors="black",
+                           s=120, linewidths=0.5, marker="D", zorder=3, label=label)
+                ax.legend(fontsize=7)
+
+        ax.set_xlabel(param, fontsize=9)
+        # Y-axis label only on leftmost column
+        if idx % ncols == 0:
+            ax.set_ylabel(y_col, fontsize=9)
+
+        add_observation_lines(ax, y_col, obs_values)
+
+    # Hide unused subplot cells
+    for idx in range(n, len(axes_flat)):
+        axes_flat[idx].set_visible(False)
+
+    if title:
+        fig.suptitle(title, fontsize=11)
+
+    fig.tight_layout()
+    return fig
+
+
 # -----------------------------
 # Convenience writers
 # -----------------------------
@@ -543,6 +699,116 @@ def save_shift_plots_pdf(
         for fig in figs:
             pdf.savefig(fig)
             plt.close(fig)
+
+
+def save_overall_skill_param_scatter_pdf(
+    df: pd.DataFrame,
+    out_pdf: str,
+    param_cols: Sequence[str] = DEFAULT_PARAM_COLS,
+    score_col: str = DEFAULT_SCORE_COL,
+    id_col: Optional[str] = DEFAULT_ID_COL,
+    highlight_col: Optional[str] = None,
+    highlight_label: bool = True,
+    ncols: int = 4,
+    title: Optional[str] = None,
+) -> None:
+    """Save a multi-panel scatter of overall skill vs each parameter to PDF.
+
+    TUPP is excluded from ``param_cols`` by design.
+
+    Output filename convention: ``{ensemble_name}_overall_skill_core_param_scatter.pdf``
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        Ensemble data table including ``score_col`` and parameter columns.
+    out_pdf : str
+        Path to the output PDF file.
+    param_cols : Sequence[str]
+        Parameter columns to include (TUPP will be removed automatically).
+    score_col : str
+        Column used as the Y axis (overall skill score).
+    id_col : str, optional
+        Column used to label highlighted points.
+    highlight_col : str, optional
+        Boolean column marking experiments to over-plot.
+    highlight_label : bool
+        Add ID labels to highlighted points.
+    ncols : int
+        Number of subplot columns.
+    title : str, optional
+        Overall figure title.
+    """
+    core_params = [c for c in param_cols if c not in _EXCLUDED_SCATTER_PARAMS]
+    fig = plot_param_scatter(
+        df, core_params, y_col=score_col,
+        id_col=id_col, obs_values=None,
+        ncols=ncols, highlight_col=highlight_col, highlight_label=highlight_label,
+        title=title,
+    )
+    with PdfPages(out_pdf) as pdf:
+        pdf.savefig(fig)
+    plt.close(fig)
+
+
+def save_param_scatter_pdf(
+    df: pd.DataFrame,
+    metric: str,
+    out_pdf: str,
+    param_cols: Sequence[str] = DEFAULT_PARAM_COLS,
+    obs_values: Optional[Dict[str, float]] = None,
+    id_col: Optional[str] = DEFAULT_ID_COL,
+    highlight_col: Optional[str] = None,
+    highlight_label: bool = True,
+    ncols: int = 4,
+    title: Optional[str] = None,
+) -> None:
+    """Save a multi-panel scatter of a climatological metric vs each parameter to PDF.
+
+    TUPP is excluded from ``param_cols`` by design.
+
+    Output filename convention: ``{ensemble_name}_{metric}_param_scatter.pdf``
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        Ensemble data table including ``metric`` column and parameter columns.
+    metric : str
+        Metric column to use as the Y axis.
+    out_pdf : str
+        Path to the output PDF file.
+    param_cols : Sequence[str]
+        Parameter columns to include (TUPP will be removed automatically).
+    obs_values : dict, optional
+        Observation reference values for horizontal reference lines.
+    id_col : str, optional
+        Column used to label highlighted points.
+    highlight_col : str, optional
+        Boolean column marking experiments to over-plot.
+    highlight_label : bool
+        Add ID labels to highlighted points.
+    ncols : int
+        Number of subplot columns.
+    title : str, optional
+        Overall figure title.
+
+    Raises
+    ------
+    KeyError
+        If ``metric`` is not a column in ``df``.
+    """
+    if metric not in df.columns:
+        raise KeyError(f"Metric '{metric}' not found in DataFrame columns.")
+    core_params = [c for c in param_cols if c not in _EXCLUDED_SCATTER_PARAMS]
+    fig = plot_param_scatter(
+        df, core_params, y_col=metric,
+        id_col=id_col, obs_values=obs_values,
+        ncols=ncols, highlight_col=highlight_col, highlight_label=highlight_label,
+        title=title,
+    )
+    with PdfPages(out_pdf) as pdf:
+        pdf.savefig(fig)
+    plt.close(fig)
 
 
 # -----------------------------
@@ -762,6 +1028,30 @@ def generate_ppe_validation_report(
         q=q,
     )
     print(f"  ✓ Parameter shift plots (top/bottom {int(q*100)}%)")
+
+    save_overall_skill_param_scatter_pdf(
+        df,
+        str(outdir / f"{ensemble_name}_overall_skill_core_param_scatter.pdf"),
+        param_cols=param_cols,
+        score_col=score_col,
+        id_col=id_col,
+        highlight_col=highlight_col_name,
+        highlight_label=highlight_label,
+    )
+    print(f"  ✓ Overall skill parameter scatter")
+
+    scatter_metrics = [m for m in _SCATTER_METRICS if m in df.columns]
+    for metric in scatter_metrics:
+        save_param_scatter_pdf(
+            df, metric=metric,
+            out_pdf=str(outdir / f"{ensemble_name}_{metric}_param_scatter.pdf"),
+            param_cols=param_cols,
+            obs_values=obs_values,
+            id_col=id_col,
+            highlight_col=highlight_col_name,
+            highlight_label=highlight_label,
+        )
+    print(f"  ✓ Per-metric parameter scatter ({len(scatter_metrics)} metrics)")
 
     # Generate text summary
     print("\nGenerating text summary...")
