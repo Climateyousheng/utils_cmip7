@@ -1304,23 +1304,30 @@ Soil Parameters:
         for metric_name in ['Tr30SN', 'Tr30-90N', 'AMZTrees']:
             scores[metric_name] = np.nan
 
-    # Global mean vegetation fractions
-    for pft_name in ['BL', 'NL', 'C3', 'C4', 'bare_soil']:
-        gm_col = f'GM_{pft_name.replace("bare_soil", "BS")}'
+    # Global mean vegetation fractions (all tracked PFTs, including bare_soil)
+    _GM_PFTS = [('BL', 'BL'), ('NL', 'NL'), ('C3', 'C3'), ('C4', 'C4'),
+                ('shrub', 'shrub'), ('bare_soil', 'BS')]
+    for pft_name, col_suffix in _GM_PFTS:
+        gm_col = f'GM_{col_suffix}'
         if pft_name in um_metrics and 'global' in um_metrics[pft_name]:
-            scores[gm_col] = np.mean(um_metrics[pft_name]['global']['data'])
+            scores[gm_col] = float(np.mean(um_metrics[pft_name]['global']['data']))
         else:
             scores[gm_col] = np.nan
 
-    # RMSE values
+    # Spatial RMSE for vegetation PFTs only (bare_soil excluded)
     if veg_metrics:
-        for pft_name in ['BL', 'NL', 'C3', 'C4', 'bare_soil']:
+        _VEG_PFTS = [('BL', 'BL'), ('NL', 'NL'), ('C3', 'C3'), ('C4', 'C4'), ('shrub', 'shrub')]
+        for pft_name, col_suffix in _VEG_PFTS:
             rmse_key = f'rmse_{pft_name}'
-            rmse_col = rmse_key.replace('bare_soil', 'BS')
             if rmse_key in veg_metrics and 'global' in veg_metrics[rmse_key]:
-                scores[rmse_col] = veg_metrics[rmse_key]['global']
+                scores[f'rmse_{col_suffix}'] = veg_metrics[rmse_key]['global']
             else:
-                scores[rmse_col] = np.nan
+                scores[f'rmse_{col_suffix}'] = np.nan
+            rmse_w_key = f'rmse_w_{pft_name}'
+            if rmse_w_key in veg_metrics and 'global' in veg_metrics[rmse_w_key]:
+                scores[f'rmse_w_{col_suffix}'] = veg_metrics[rmse_w_key]['global']
+            else:
+                scores[f'rmse_w_{col_suffix}'] = np.nan
 
     # Overall score
     bias_pcts = []

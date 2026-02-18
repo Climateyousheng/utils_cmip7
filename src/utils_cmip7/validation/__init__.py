@@ -24,6 +24,8 @@ from .visualize import (
 from .veg_fractions import (
     PFT_MAPPING,
     calculate_veg_metrics,
+    compute_spatial_rmse,
+    compute_spatial_rmse_weighted,
     save_veg_metrics_to_csv,
     compare_veg_metrics,
     load_obs_veg_metrics,
@@ -59,6 +61,8 @@ __all__ = [
     # Vegetation fraction functions
     'PFT_MAPPING',
     'calculate_veg_metrics',
+    'compute_spatial_rmse',
+    'compute_spatial_rmse_weighted',
     'save_veg_metrics_to_csv',
     'compare_veg_metrics',
     'load_obs_veg_metrics',

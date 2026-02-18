@@ -319,7 +319,8 @@ def extract_annual_means(expts_list, var_list=None, regions=None, base_dir='~/an
                         if region == 'global':
                             try:
                                 from ..validation.veg_fractions import (
-                                    load_igbp_spatial, compute_spatial_rmse, PFT_MAPPING
+                                    load_igbp_spatial, compute_spatial_rmse,
+                                    compute_spatial_rmse_weighted, PFT_MAPPING
                                 )
                                 igbp_ds = load_igbp_spatial()
                             except (ImportError, Exception):
@@ -331,16 +332,21 @@ def extract_annual_means(expts_list, var_list=None, regions=None, base_dir='~/an
                                 if frac_pft:
                                     output = compute_regional_annual_mean(frac_pft, conversion_key, region, land_only=True)
 
-                                    # Compute spatial RMSE against IGBP obs (global only)
+                                    # Compute spatial RMSE against IGBP obs (global only, veg PFTs only)
                                     if region == 'global' and igbp_ds is not None:
                                         pft_name = PFT_MAPPING.get(j)
                                         spatial_var = f'{pft_name}_2D' if pft_name else None
-                                        if spatial_var and spatial_var in igbp_ds:
+                                        if (spatial_var and spatial_var in igbp_ds
+                                                and pft_name != 'bare_soil'):
                                             try:
                                                 # Time-mean of model field (preserve lat/lon)
                                                 model_field = frac_pft.collapsed('time', iris.analysis.MEAN).data
                                                 obs_field = igbp_ds[spatial_var].squeeze().values
+                                                lats = frac_pft.coord('latitude').points
                                                 output['rmse'] = compute_spatial_rmse(model_field, obs_field)
+                                                output['rmse_w'] = compute_spatial_rmse_weighted(
+                                                    model_field, obs_field, lats
+                                                )
                                             except Exception:
                                                 pass
 

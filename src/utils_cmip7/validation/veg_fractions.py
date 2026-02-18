@@ -132,6 +132,11 @@ def calculate_veg_metrics(um_metrics: Dict[str, Dict[str, Dict[str, Any]]],
                 if rmse_key not in metrics:
                     metrics[rmse_key] = {}
                 metrics[rmse_key][region] = frac_data[pft_key]['rmse']
+            if pft_key in frac_data and 'rmse_w' in frac_data[pft_key]:
+                rmse_w_key = f'rmse_w_{pft_name}'
+                if rmse_w_key not in metrics:
+                    metrics[rmse_w_key] = {}
+                metrics[rmse_w_key][region] = frac_data[pft_key]['rmse_w']
 
     # Remove empty metrics
     metrics = {k: v for k, v in metrics.items() if v}
@@ -141,7 +146,7 @@ def calculate_veg_metrics(um_metrics: Dict[str, Dict[str, Dict[str, Any]]],
 
 def compute_spatial_rmse(model_data, obs_data):
     """
-    Compute spatial RMSE between model and obs 2D fields.
+    Compute unweighted spatial RMSE between model and obs 2D fields.
 
     Parameters
     ----------
@@ -155,8 +160,33 @@ def compute_spatial_rmse(model_data, obs_data):
     float
         RMSE value (NaN-aware)
     """
-    diff_sq = (model_data - obs_data) ** 2
-    return float(np.sqrt(np.nanmean(diff_sq)))
+    diff = np.asarray(model_data, dtype=float) - np.asarray(obs_data, dtype=float)
+    return float(np.sqrt(np.nanmean(diff ** 2)))
+
+
+def compute_spatial_rmse_weighted(model_data, obs_data, lats):
+    """
+    Compute area-weighted spatial RMSE using cos(lat) weights.
+
+    Parameters
+    ----------
+    model_data : array-like, shape (nlat, nlon)
+        Model PFT fraction field
+    obs_data : array-like, shape (nlat, nlon)
+        IGBP PFT fraction field
+    lats : array-like, shape (nlat,)
+        Latitude values in degrees
+
+    Returns
+    -------
+    float
+        Area-weighted RMSE (NaN-aware)
+    """
+    diff = np.asarray(model_data, dtype=float) - np.asarray(obs_data, dtype=float)
+    weights = np.cos(np.deg2rad(np.asarray(lats, dtype=float)))[:, np.newaxis]
+    weights = np.broadcast_to(weights, diff.shape).copy()
+    weights[np.isnan(diff)] = np.nan
+    return float(np.sqrt(np.nansum(weights * diff ** 2) / np.nansum(weights)))
 
 
 def load_igbp_spatial():
@@ -364,6 +394,7 @@ __all__ = [
     'PFT_MAPPING',
     'calculate_veg_metrics',
     'compute_spatial_rmse',
+    'compute_spatial_rmse_weighted',
     'load_igbp_spatial',
     'save_veg_metrics_to_csv',
     'compare_veg_metrics',
