@@ -341,9 +341,31 @@ def extract_annual_means(expts_list, var_list=None, regions=None, base_dir='~/an
                             except (ImportError, Exception):
                                 pass
 
-                        for j in range(1, 10):
+                        # Detect PFT coordinate name (varies between PP and NetCDF conventions)
+                        pft_coord_name = None
+                        for candidate in ('generic', 'pseudo_level', 'pseudo_2'):
                             try:
-                                frac_pft = cube.extract(Constraint(coord_values={'generic': j}))
+                                cube.coord(candidate)
+                                pft_coord_name = candidate
+                                break
+                            except iris.exceptions.CoordinateNotFoundError:
+                                continue
+
+                        if pft_coord_name is None:
+                            # Last resort: find any integer-valued dim coord with >= 5 points
+                            for coord in cube.coords(dim_coords=True):
+                                if coord.points.dtype.kind == 'i' and len(coord.points) >= 5:
+                                    pft_coord_name = coord.name()
+                                    break
+
+                        if pft_coord_name is None:
+                            print(f"  Warning: frac: cannot identify PFT coordinate — skipping PFT extraction")
+
+                        for j in range(1, 10):
+                            if pft_coord_name is None:
+                                break
+                            try:
+                                frac_pft = cube.extract(Constraint(coord_values={pft_coord_name: j}))
                                 if frac_pft:
                                     output = compute_regional_annual_mean(frac_pft, conversion_key, region, land_only=True)
 
@@ -378,8 +400,8 @@ def extract_annual_means(expts_list, var_list=None, regions=None, base_dir='~/an
                         if region == 'global' and 'PFT 1' in frac_data and 'PFT 2' in frac_data:
                             try:
                                 # Amazon trees: 290-320°E, 15°S-5°N (BL + NL)
-                                bl_cube = cube.extract(Constraint(coord_values={'generic': 1}))  # BL
-                                nl_cube = cube.extract(Constraint(coord_values={'generic': 2}))  # NL
+                                bl_cube = cube.extract(Constraint(coord_values={pft_coord_name: 1}))  # BL
+                                nl_cube = cube.extract(Constraint(coord_values={pft_coord_name: 2}))  # NL
 
                                 if bl_cube and nl_cube:
                                     # Amazon
