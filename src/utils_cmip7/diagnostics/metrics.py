@@ -184,14 +184,24 @@ def compute_metrics_from_annual_means(
                     npp_data = region_data.get('NPP', {})
 
                     if csoil_data and npp_data:
-                        years = csoil_data['years']
+                        csoil_years = np.asarray(csoil_data['years'])
+                        npp_years = np.asarray(npp_data['years'])
+
+                        # Align to common years (handles pv/pt length mismatch)
+                        common_years = np.intersect1d(csoil_years, npp_years)
+                        if len(common_years) == 0:
+                            continue  # no overlap — skip Tau for this region
+
+                        csoil_vals = csoil_data['data'][np.isin(csoil_years, common_years)]
+                        npp_vals = npp_data['data'][np.isin(npp_years, common_years)]
+
                         tau_values = compute_derived_metric(
                             'Tau',
-                            {'CSoil': csoil_data['data'], 'NPP': npp_data['data']}
+                            {'CSoil': csoil_vals, 'NPP': npp_vals}
                         )
 
                         result[metric][region] = {
-                            'years': years,
+                            'years': common_years,
                             'data': tau_values,
                             'units': config['output_units'],
                             'source': 'UM',

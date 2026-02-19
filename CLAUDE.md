@@ -95,6 +95,23 @@ See [CHANGELOG.md](CHANGELOG.md) for full v0.4.0 release notes.
 
 ---
 
+## Bridge Pipeline — Transfer Rules (MANDATORY)
+
+Before triggering any `ftp_master` transfer:
+
+1. Check that the experiment appears in `list_runs` **or** that inidata exist
+   under `~/ummodel/data/<expt>/` on silurian.
+2. If **neither** condition is met, **do not transfer** — the experiment is
+   not set up and the transfer will produce no useful output.
+
+```bash
+# Quick pre-transfer check (run on silurian)
+list_runs | grep <expt>                          # check 1
+ls ~/ummodel/data/<expt>/                        # check 2
+```
+
+---
+
 ## Guiding Principle
 
 **Scientific correctness > convenience**

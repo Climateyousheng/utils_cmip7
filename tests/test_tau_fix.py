@@ -88,6 +88,75 @@ def test_extraction_var_map():
     return True
 
 
+def test_tau_year_alignment():
+    """Tau is computed only over the overlapping years when CSoil and NPP differ in length."""
+    import numpy as np
+    from unittest.mock import patch
+    from utils_cmip7.diagnostics.metrics import compute_metrics_from_annual_means
+
+    # Simulate xqjcg-style data: CSoil from pv (6 yrs), NPP from pt (41 yrs)
+    fake_raw = {
+        'test': {
+            'global': {
+                'CSoil': {
+                    'years': np.arange(1, 7),
+                    'data':  np.full(6, 1200.0),
+                    'units': 'PgC',
+                },
+                'NPP': {
+                    'years': np.arange(1, 42),
+                    'data':  np.full(41, 60.0),
+                    'units': 'PgC/yr',
+                },
+            }
+        }
+    }
+
+    with patch('utils_cmip7.diagnostics.metrics.extract_annual_means', return_value=fake_raw):
+        result = compute_metrics_from_annual_means('test', metrics=['Tau'])
+
+    assert 'Tau' in result
+    assert 'global' in result['Tau']
+
+    tau = result['Tau']['global']
+    # Only 6 overlapping years
+    assert len(tau['years']) == 6
+    assert len(tau['data']) == 6
+    # Expected Tau = 1200 / 60 = 20 yr
+    assert np.allclose(tau['data'], 20.0)
+
+
+def test_tau_no_overlap_skipped():
+    """When CSoil and NPP share no years, Tau is skipped for that region."""
+    import numpy as np
+    from unittest.mock import patch
+    from utils_cmip7.diagnostics.metrics import compute_metrics_from_annual_means
+
+    fake_raw = {
+        'test': {
+            'global': {
+                'CSoil': {
+                    'years': np.arange(1, 7),
+                    'data':  np.full(6, 1200.0),
+                    'units': 'PgC',
+                },
+                'NPP': {
+                    'years': np.arange(100, 110),  # no overlap
+                    'data':  np.full(10, 60.0),
+                    'units': 'PgC/yr',
+                },
+            }
+        }
+    }
+
+    with patch('utils_cmip7.diagnostics.metrics.extract_annual_means', return_value=fake_raw):
+        result = compute_metrics_from_annual_means('test', metrics=['Tau'])
+
+    assert 'Tau' in result
+    # Region should be absent because there are no overlapping years
+    assert 'global' not in result['Tau']
+
+
 def main():
     """Run all tests."""
     print("="*70)
