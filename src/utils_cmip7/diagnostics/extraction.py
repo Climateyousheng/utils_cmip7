@@ -237,22 +237,32 @@ def extract_annual_means(expts_list, var_list=None, regions=None, base_dir='~/an
                 stash_name = var_config['stash_name']
                 stash_code = var_config['stash_code']
                 stash_fallback = var_config.get('stash_fallback')
+                var_name_fallback = var_config.get('var_name_fallback')
 
                 # Try primary extraction
                 extracted = try_extract(cubes, stash_name, stash_lookup_func=stash)
+                found_via = stash_name if extracted else None
 
                 if not extracted and stash_fallback:
-                    # Try fallback (e.g., frac → fracb)
+                    # Try STASH fallback (e.g., frac → fracb)
                     print(f"  ⚠ {var_name} ({stash_name}, {stash_code}): NOT FOUND, trying fallback {stash_fallback}")
                     extracted = try_extract(cubes, stash_fallback)
-                    if not extracted:
-                        print(f"  ❌ {var_name}: STILL NOT FOUND")
-                    else:
-                        print(f"  ✓ {var_name}: Found (via fallback {stash_fallback})")
-                elif not extracted:
-                    print(f"  ❌ {var_name} ({stash_name}, {stash_code}): NOT FOUND")
+                    if extracted:
+                        found_via = f"STASH fallback {stash_fallback}"
+
+                if not extracted and var_name_fallback:
+                    # Try matching by NetCDF variable name (e.g., fracpfts)
+                    from iris import Constraint
+                    extracted = cubes.extract(
+                        Constraint(cube_func=lambda c, _vn=var_name_fallback: c.var_name == _vn)
+                    )
+                    if extracted:
+                        found_via = f"var_name '{var_name_fallback}'"
+
+                if extracted:
+                    print(f"  ✓ {var_name}: Found (via {found_via})")
                 else:
-                    print(f"  ✓ {var_name} ({stash_name}): Found")
+                    print(f"  ❌ {var_name} ({stash_name}, {stash_code}): NOT FOUND")
 
                 cube_map[var_name] = extracted
 

@@ -225,6 +225,7 @@ CANONICAL_VARIABLES = {
         "stash_name": "frac",
         "stash_code": "m01s19i013",
         "stash_fallback": 19017,  # Try m01s19i017 (fracb) if frac not found
+        "var_name_fallback": "fracpfts",  # NetCDF var_name used by some UM configs
         "aggregation": "MEAN",  # Note: MEAN not SUM!
         "conversion_factor": 1.0,  # fraction (no conversion)
         "units": "1",
