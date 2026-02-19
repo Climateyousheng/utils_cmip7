@@ -251,13 +251,18 @@ def extract_annual_means(expts_list, var_list=None, regions=None, base_dir='~/an
                         found_via = f"STASH fallback {stash_fallback}"
 
                 if not extracted and var_name_fallback:
-                    # Try matching by NetCDF variable name (e.g., fracpfts)
+                    # Try matching by NetCDF variable name substring (case-insensitive)
+                    # e.g., var_name_fallback="fracpft" matches "fracPFTs_mm_srf"
                     from iris import Constraint
+                    _vn_lower = var_name_fallback.lower()
                     extracted = cubes.extract(
-                        Constraint(cube_func=lambda c, _vn=var_name_fallback: c.var_name == _vn)
+                        Constraint(cube_func=lambda c, _pat=_vn_lower: (
+                            c.var_name is not None and _pat in c.var_name.lower()
+                        ))
                     )
                     if extracted:
-                        found_via = f"var_name '{var_name_fallback}'"
+                        matched_name = extracted[0].var_name
+                        found_via = f"var_name '{matched_name}'"
 
                 if extracted:
                     print(f"  ✓ {var_name}: Found (via {found_via})")
