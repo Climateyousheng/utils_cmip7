@@ -379,13 +379,17 @@ def extract_annual_means(expts_list, var_list=None, regions=None, base_dir='~/an
                                                 # Time-mean of model field (preserve lat/lon)
                                                 model_field = frac_pft.collapsed('time', iris.analysis.MEAN).data
                                                 obs_field = igbp_ds[spatial_var].squeeze().values
-                                                lats = frac_pft.coord('latitude').points
-                                                output['rmse'] = compute_spatial_rmse(model_field, obs_field)
-                                                output['rmse_w'] = compute_spatial_rmse_weighted(
-                                                    model_field, obs_field, lats
-                                                )
-                                            except Exception:
-                                                pass
+                                                if model_field.shape != obs_field.shape:
+                                                    print(f"  ⚠ Spatial RMSE skipped for {pft_name}: "
+                                                          f"model {model_field.shape} != obs {obs_field.shape}")
+                                                else:
+                                                    lats = frac_pft.coord('latitude').points
+                                                    output['rmse'] = compute_spatial_rmse(model_field, obs_field)
+                                                    output['rmse_w'] = compute_spatial_rmse_weighted(
+                                                        model_field, obs_field, lats
+                                                    )
+                                            except Exception as e:
+                                                print(f"  ⚠ Spatial RMSE failed for {pft_name}: {e}")
 
                                     frac_data[f'PFT {j}'] = output
                             except Exception as e:

@@ -714,15 +714,22 @@ def main():
         else:
             scores[gm_col] = np.nan
 
-    # RMSE values
+    # Spatial RMSE values (unweighted and area-weighted)
     if veg_metrics:
         for pft_name in ['BL', 'NL', 'C3', 'C4', 'bare_soil']:
+            col_suffix = pft_name.replace('bare_soil', 'BS')
+            # Unweighted RMSE
             rmse_key = f'rmse_{pft_name}'
-            rmse_col = rmse_key.replace('bare_soil', 'BS')
             if rmse_key in veg_metrics and 'global' in veg_metrics[rmse_key]:
-                scores[rmse_col] = veg_metrics[rmse_key]['global']
+                scores[f'rmse_{col_suffix}'] = veg_metrics[rmse_key]['global']
             else:
-                scores[rmse_col] = np.nan
+                scores[f'rmse_{col_suffix}'] = np.nan
+            # Area-weighted RMSE
+            rmse_w_key = f'rmse_w_{pft_name}'
+            if rmse_w_key in veg_metrics and 'global' in veg_metrics[rmse_w_key]:
+                scores[f'rmse_w_{col_suffix}'] = veg_metrics[rmse_w_key]['global']
+            else:
+                scores[f'rmse_w_{col_suffix}'] = np.nan
 
     # Overall score (normalized match quality: 1 = perfect match, 0 = 100% bias)
     # Include all carbon metrics (GPP, NPP, CVeg, CSoil) and PFTs (BL, NL, C3, C4)
