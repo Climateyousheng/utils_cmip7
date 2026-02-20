@@ -787,14 +787,12 @@ def main():
 
     # Quick summary
     print(f"\nKey findings vs RECCAP2:")
-    if 'GPP' in comparison_reccap:
-        gpp_summary = summarize_comparison(comparison_reccap, 'GPP')
-        print(f"  GPP: {gpp_summary['mean_bias']:+.1f} PgC/yr ({gpp_summary['mean_bias_percent']:+.1f}%), "
-              f"{gpp_summary['fraction_within_uncertainty']:.0%} within uncertainty")
-    if 'NPP' in comparison_reccap:
-        npp_summary = summarize_comparison(comparison_reccap, 'NPP')
-        print(f"  NPP: {npp_summary['mean_bias']:+.1f} PgC/yr ({npp_summary['mean_bias_percent']:+.1f}%), "
-              f"{npp_summary['fraction_within_uncertainty']:.0%} within uncertainty")
+    for metric in ['GPP', 'NPP', 'CVeg', 'CSoil']:
+        if metric in comparison_reccap:
+            s = summarize_comparison(comparison_reccap, metric)
+            units = 'PgC/yr' if metric in ('GPP', 'NPP') else 'PgC'
+            print(f"  {metric}: {s['mean_bias']:+.1f} {units} ({s['mean_bias_percent']:+.1f}%), "
+                  f"{s['fraction_within_uncertainty']:.0%} within uncertainty")
 
     if comparison_igbp:
         print(f"\nVegetation fractions vs IGBP:")
