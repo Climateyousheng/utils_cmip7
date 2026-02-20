@@ -47,6 +47,7 @@ Scientific behaviour must not change unless explicitly documented.
 6. No hard-coded paths outside CLI or configuration layers
 7. **NEVER iterate over sets when order matters** — always use sorted(set) or maintain deterministic order
 8. **NEVER use positional matching (zip, indexing) when names are available** — use dict lookup instead
+9. **NEVER import or assign inside conditional branches within functions** — Python treats any local `import`/assignment as a local variable for the entire function scope, even if the branch is never taken. This causes `UnboundLocalError` when the name is used elsewhere in the function. Always import at module level or at the top of the function.
 
 Violations constitute technical debt and must be recorded explicitly.
 

@@ -44,6 +44,17 @@ _SCATTER_METRICS = [
 # Parameters excluded from scatter plots by design
 _EXCLUDED_SCATTER_PARAMS = {"TUPP"}
 
+# Qualitative palette for highlighted experiments (colour-blind friendly)
+_HIGHLIGHT_PALETTE = [
+    "#e41a1c", "#377eb8", "#4daf4a", "#984ea3",
+    "#ff7f00", "#a65628", "#f781bf", "#999999",
+]
+
+
+def _highlight_colors(n: int) -> list[str]:
+    """Return *n* distinct colors for highlighted experiments."""
+    return [_HIGHLIGHT_PALETTE[i % len(_HIGHLIGHT_PALETTE)] for i in range(n)]
+
 
 @dataclass(frozen=True)
 class NormalizeConfig:
@@ -585,20 +596,23 @@ def plot_param_scatter(
         ax.scatter(x_vals, y_vals, color="dodgerblue", edgecolors="black",
                    s=50, linewidths=0.5, zorder=2)
 
-        # Highlighted over-plot
+        # Highlighted over-plot — each experiment gets its own color & legend entry
         if highlight_col and highlight_col in df.columns:
             mask = df[highlight_col].astype(bool)
-            if mask.any():
-                x_hi = x_vals[mask]
-                y_hi = y_vals[mask]
-                if highlight_label and id_col and id_col in df.columns:
-                    ids = df.loc[mask, id_col].astype(str).tolist()
-                    label = ", ".join(ids)
-                else:
-                    label = "highlighted"
-                ax.scatter(x_hi, y_hi, color="dodgerblue", edgecolors="black",
-                           s=120, linewidths=0.5, marker="D", zorder=3, label=label)
-                ax.legend(fontsize=7)
+            if mask.any() and id_col and id_col in df.columns:
+                hi_ids = df.loc[mask, id_col].astype(str).tolist()
+                colors = _highlight_colors(len(hi_ids))
+                for i, (row_idx, expt_id) in enumerate(
+                    zip(mask[mask].index, hi_ids)
+                ):
+                    ax.scatter(
+                        x_vals[row_idx], y_vals[row_idx],
+                        color=colors[i], edgecolors="black",
+                        s=120, linewidths=0.5, marker="D", zorder=3,
+                        label=expt_id if idx == 0 else None,
+                    )
+                if idx == 0:
+                    ax.legend(fontsize=7, loc="best")
 
         ax.set_xlabel(param, fontsize=9)
         # Y-axis label only on leftmost column

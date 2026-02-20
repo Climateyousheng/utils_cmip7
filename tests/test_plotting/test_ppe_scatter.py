@@ -24,6 +24,7 @@ import pytest
 import matplotlib.pyplot as plt
 
 from utils_cmip7.plotting.ppe_viz import (
+    _highlight_colors,
     _preprocess_param_col,
     add_observation_lines,
     plot_param_scatter,
@@ -167,16 +168,17 @@ class TestPlotParamScatter:
         expected_total = 4 * 2  # 2 rows × 4 cols
         assert n_hidden == expected_total - len(self.PARAM_COLS)
 
-    def test_highlight_produces_two_collections(self, sample_df):
-        """Highlighted points: 2 PathCollections (base + overplot)."""
+    def test_highlight_produces_per_experiment_collections(self, sample_df):
+        """Each highlighted experiment gets its own scatter collection."""
         fig = plot_param_scatter(
             sample_df, ["ALPHA"], y_col="overall_score",
             highlight_col="_highlight",
         )
         visible_axes = [ax for ax in fig.axes if ax.get_visible()]
         ax = visible_axes[0]
-        collections = ax.collections
-        assert len(collections) == 2
+        n_highlighted = sample_df["_highlight"].sum()
+        # 1 base collection + 1 per highlighted experiment
+        assert len(ax.collections) == 1 + n_highlighted
 
     def test_obs_line_drawn(self, sample_df):
         obs = {"overall_score": 0.5}
@@ -203,6 +205,62 @@ class TestPlotParamScatter:
         )
         assert fig._suptitle is not None
         assert "My Title" in fig._suptitle.get_text()
+
+    def test_highlight_distinct_colors(self, sample_df):
+        """Each highlighted experiment gets a distinct facecolor."""
+        fig = plot_param_scatter(
+            sample_df, ["ALPHA"], y_col="overall_score",
+            highlight_col="_highlight",
+        )
+        ax = [a for a in fig.axes if a.get_visible()][0]
+        # Skip the base collection (index 0); remaining are highlight points
+        hi_collections = ax.collections[1:]
+        facecolors = [tuple(c.get_facecolor()[0]) for c in hi_collections]
+        assert len(set(facecolors)) == len(facecolors), "Highlight colors should be distinct"
+
+    def test_highlight_legend_entries(self, sample_df):
+        """Legend on the first subplot should list each highlighted ID separately."""
+        fig = plot_param_scatter(
+            sample_df, ["ALPHA", "G_AREA"], y_col="overall_score",
+            highlight_col="_highlight",
+        )
+        visible = [a for a in fig.axes if a.get_visible()]
+        # First subplot should have a legend
+        legend = visible[0].get_legend()
+        assert legend is not None
+        labels = [t.get_text() for t in legend.get_texts()]
+        hi_ids = sample_df.loc[sample_df["_highlight"], "ID"].tolist()
+        assert labels == hi_ids
+
+    def test_highlight_legend_only_on_first_subplot(self, sample_df):
+        """Legend should only appear on the first subplot, not on subsequent ones."""
+        fig = plot_param_scatter(
+            sample_df, ["ALPHA", "G_AREA"], y_col="overall_score",
+            highlight_col="_highlight",
+        )
+        visible = [a for a in fig.axes if a.get_visible()]
+        assert visible[0].get_legend() is not None
+        assert visible[1].get_legend() is None
+
+
+# ---------------------------------------------------------------------------
+# TestHighlightColors
+# ---------------------------------------------------------------------------
+
+class TestHighlightColors:
+    def test_returns_correct_count(self):
+        assert len(_highlight_colors(5)) == 5
+
+    def test_wraps_around(self):
+        """Should cycle when n exceeds palette length."""
+        colors = _highlight_colors(10)
+        assert len(colors) == 10
+        assert colors[0] == colors[8]  # palette has 8 entries
+
+    def test_distinct_within_palette(self):
+        """First 8 colors should all be distinct."""
+        colors = _highlight_colors(8)
+        assert len(set(colors)) == 8
 
 
 # ---------------------------------------------------------------------------
