@@ -343,7 +343,7 @@ def extract_annual_means(expts_list, var_list=None, regions=None, base_dir='~/an
 
                         # Detect PFT coordinate name (varies between PP and NetCDF conventions)
                         pft_coord_name = None
-                        for candidate in ('generic', 'pseudo_level', 'pseudo_2'):
+                        for candidate in ('generic', 'pseudo_level', 'pseudo_1', 'pseudo_2'):
                             try:
                                 cube.coord(candidate)
                                 pft_coord_name = candidate
@@ -352,9 +352,16 @@ def extract_annual_means(expts_list, var_list=None, regions=None, base_dir='~/an
                                 continue
 
                         if pft_coord_name is None:
-                            # Last resort: find any integer-valued dim coord with >= 5 points
+                            # Fallback: any coordinate whose name starts with 'pseudo'
+                            for coord in cube.coords():
+                                if coord.name().startswith('pseudo'):
+                                    pft_coord_name = coord.name()
+                                    break
+
+                        if pft_coord_name is None:
+                            # Last resort: find any numeric dim coord with >= 5 points
                             for coord in cube.coords(dim_coords=True):
-                                if coord.points.dtype.kind == 'i' and len(coord.points) >= 5:
+                                if coord.points.dtype.kind in ('i', 'f') and len(coord.points) >= 5:
                                     pft_coord_name = coord.name()
                                     break
 
