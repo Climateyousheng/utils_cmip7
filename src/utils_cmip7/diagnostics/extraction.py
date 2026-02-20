@@ -253,7 +253,6 @@ def extract_annual_means(expts_list, var_list=None, regions=None, base_dir='~/an
                 if not extracted and var_name_fallback:
                     # Try matching by NetCDF variable name substring (case-insensitive)
                     # e.g., var_name_fallback="fracpft" matches "fracPFTs_mm_srf"
-                    from iris import Constraint
                     _vn_lower = var_name_fallback.lower()
                     extracted = cubes.extract(
                         Constraint(cube_func=lambda c, _pat=_vn_lower: (
