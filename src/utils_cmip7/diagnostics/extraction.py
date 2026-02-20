@@ -405,7 +405,7 @@ def extract_annual_means(expts_list, var_list=None, regions=None, base_dir='~/an
 
                                     frac_data[f'PFT {j}'] = output
                             except Exception as e:
-                                # Skip PFTs that fail extraction
+                                print(f"  ⚠ frac PFT {j} extraction failed ({region}): {e}")
                                 continue
 
                         # Close IGBP dataset if opened
