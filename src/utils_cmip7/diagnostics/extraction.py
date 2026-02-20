@@ -20,6 +20,8 @@ except AttributeError:
 # Suppress Iris warnings
 warnings.filterwarnings('ignore', message='.*date precision.*', category=FutureWarning)
 warnings.filterwarnings('ignore', message='.*DEFAULT_SPHERICAL_EARTH_RADIUS.*')
+warnings.filterwarnings('ignore', message='.*Cannot check if coordinate is contiguous.*')
+warnings.filterwarnings('ignore', message='.*Ignoring invalid units.*')
 
 from iris import Constraint
 
@@ -367,10 +369,6 @@ def extract_annual_means(expts_list, var_list=None, regions=None, base_dir='~/an
                         if pft_coord_name is None:
                             print(f"  Warning: frac: cannot identify PFT coordinate — skipping PFT extraction")
                             print(f"    Available coords: {[c.name() for c in cube.coords()]}")
-                        else:
-                            pft_coord = cube.coord(pft_coord_name)
-                            print(f"  frac: PFT coordinate = '{pft_coord_name}', "
-                                  f"values = {pft_coord.points}, dtype = {pft_coord.points.dtype}")
 
                         for j in range(1, 10):
                             if pft_coord_name is None:
