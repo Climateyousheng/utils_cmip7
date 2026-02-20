@@ -1,0 +1,146 @@
+================================================================================
+VALIDATION SUMMARY: xqjcg
+================================================================================
+
+UM vs CMIP6 ENSEMBLE
+--------------------------------------------------------------------------------
+
+GPP:
+  Mean bias: 1.71 PgC/yr
+  Mean bias %: 7.9%
+  Fraction within uncertainty: 63.6%
+
+NPP:
+  Mean bias: 1.95 PgC/yr
+  Mean bias %: 17.6%
+  Fraction within uncertainty: 45.5%
+
+CVeg:
+  Mean bias: 44.03 PgC
+  Mean bias %: 42.5%
+  Fraction within uncertainty: 45.5%
+
+CSoil:
+  Mean bias: 2.16 PgC
+  Mean bias %: 18.7%
+  Fraction within uncertainty: 90.9%
+
+Tau:
+  Mean bias: -2.39 years
+  Mean bias %: 2.0%
+  Fraction within uncertainty: 90.9%
+
+================================================================================
+UM vs RECCAP2 OBSERVATIONS
+--------------------------------------------------------------------------------
+
+GPP:
+  Mean bias: 1.55 PgC/yr
+  Mean bias %: 5.4%
+  Fraction within uncertainty: 63.6%
+
+NPP:
+  Mean bias: 1.22 PgC/yr
+  Mean bias %: 10.5%
+  Fraction within uncertainty: 36.4%
+
+CVeg:
+  Mean bias: 53.28 PgC
+  Mean bias %: 53.2%
+  Fraction within uncertainty: 36.4%
+
+CSoil:
+  Mean bias: 3.14 PgC
+  Mean bias %: 10.5%
+  Fraction within uncertainty: 72.7%
+
+Tau:
+  Mean bias: -1.52 years
+  Mean bias %: 2.6%
+  Fraction within uncertainty: 72.7%
+
+================================================================================
+UM vs CMIP6 PERFORMANCE (against RECCAP2)
+--------------------------------------------------------------------------------
+Metric     Region               UM Bias %    CMIP6 Bias %    Winner    
+--------------------------------------------------------------------------------
+GPP        global                      9.0%          -0.7%  CMIP6     
+GPP        North_America               9.9%           4.0%  CMIP6     
+GPP        South_America              -4.5%           2.1%  CMIP6     
+GPP        Europe                      8.3%          -8.0%  CMIP6     
+GPP        Africa                     16.4%           1.7%  CMIP6     
+GPP        North_Asia                 16.4%           2.6%  CMIP6     
+GPP        Central_Asia               -3.1%          -3.9%  UM        
+GPP        East_Asia                   8.3%           1.3%  CMIP6     
+GPP        South_Asia                -42.5%         -27.4%  CMIP6     
+GPP        South_East_Asia           -14.8%         -11.7%  CMIP6     
+GPP        Oceania                    56.5%           5.2%  CMIP6     
+NPP        global                     13.3%          -6.7%  CMIP6     
+NPP        North_America              18.0%          -5.2%  CMIP6     
+NPP        South_America              -6.2%          -8.1%  UM        
+NPP        Europe                     30.5%           0.0%  CMIP6     
+NPP        Africa                     13.2%          -5.2%  CMIP6     
+NPP        North_Asia                 25.3%          -4.5%  CMIP6     
+NPP        Central_Asia              -14.6%          -9.8%  CMIP6     
+NPP        East_Asia                  21.2%          -0.8%  CMIP6     
+NPP        South_Asia                -43.7%         -29.3%  CMIP6     
+NPP        South_East_Asia            -3.2%         -12.5%  UM        
+NPP        Oceania                    61.9%           3.3%  CMIP6     
+CVeg       global                     74.3%          12.3%  CMIP6     
+CVeg       North_America             116.4%          38.2%  CMIP6     
+CVeg       South_America             118.3%          49.2%  CMIP6     
+CVeg       Europe                     28.3%           0.0%  CMIP6     
+CVeg       Africa                     96.5%           1.2%  CMIP6     
+CVeg       North_Asia                -16.4%         -17.9%  UM        
+CVeg       Central_Asia               41.3%          33.6%  CMIP6     
+CVeg       East_Asia                  12.8%          -3.7%  CMIP6     
+CVeg       South_Asia                -33.7%         -14.9%  CMIP6     
+CVeg       South_East_Asia            27.4%          -6.6%  CMIP6     
+CVeg       Oceania                   119.4%         -11.6%  CMIP6     
+CSoil      global                      3.2%           0.4%  CMIP6     
+CSoil      North_America              -1.4%           3.8%  UM        
+CSoil      South_America             -34.0%         -28.3%  CMIP6     
+CSoil      Europe                     41.4%           0.0%  CMIP6     
+CSoil      Africa                     71.8%          44.8%  CMIP6     
+CSoil      North_Asia                -15.4%          16.2%  UM        
+CSoil      Central_Asia               25.3%         -11.5%  CMIP6     
+CSoil      East_Asia                  19.1%          -2.4%  CMIP6     
+CSoil      South_Asia                 -5.3%         -35.8%  UM        
+CSoil      South_East_Asia            -8.5%          -7.2%  CMIP6     
+CSoil      Oceania                    19.3%         -31.3%  UM        
+
+================================================================================
+UM vs IGBP VEGETATION FRACTIONS
+--------------------------------------------------------------------------------
+
+BL:
+  UM mean: 0.2319
+  IGBP obs: 0.1727
+  Bias: +0.0592 (+34.3%)
+
+C3:
+  UM mean: 0.1447
+  IGBP obs: 0.2563
+  Bias: -0.1116 (-43.5%)
+
+C4:
+  UM mean: 0.1184
+  IGBP obs: 0.1004
+  Bias: +0.0180 (+18.0%)
+
+NL:
+  UM mean: 0.1041
+  IGBP obs: 0.0679
+  Bias: +0.0361 (+53.2%)
+
+bare_soil:
+  UM mean: 0.1765
+  IGBP obs: 0.2875
+  Bias: -0.1110 (-38.6%)
+
+shrub:
+  UM mean: 0.1171
+  IGBP obs: 0.0939
+  Bias: +0.0232 (+24.7%)
+
+================================================================================
